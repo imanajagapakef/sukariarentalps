@@ -1,0 +1,2 @@
+﻿config_id,minimum_duration_minutes,maximum_duration_minutes,booking_interval_minutes,cleaning_duration_minutes,payment_deadline_minutes,extension_interval_minutes,minimum_extension_minutes,advance_booking_days,late_tolerance_minutes,data_status
+CFG-DEFAULT,60,360,30,10,15,30,30,30,10,DRAFT

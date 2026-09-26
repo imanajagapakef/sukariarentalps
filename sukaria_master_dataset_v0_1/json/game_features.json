@@ -1,0 +1,80 @@
+[
+  {
+    "game_id": "GM-003",
+    "genre": "FIGHTING",
+    "local_multiplayer": true,
+    "online_multiplayer": true,
+    "co_op": false,
+    "competitive": true,
+    "single_player": true,
+    "max_local_players": 2,
+    "recommended_players": 2,
+    "psvr2": false,
+    "research_status": "PARTIAL"
+  },
+  {
+    "game_id": "GM-001",
+    "genre": "ADVENTURE/CO-OP",
+    "local_multiplayer": true,
+    "online_multiplayer": true,
+    "co_op": true,
+    "competitive": false,
+    "single_player": true,
+    "max_local_players": 2,
+    "recommended_players": 2,
+    "psvr2": false,
+    "research_status": "PARTIAL"
+  },
+  {
+    "game_id": "GM-010",
+    "genre": "PARTY/CO-OP",
+    "local_multiplayer": true,
+    "online_multiplayer": true,
+    "co_op": true,
+    "competitive": false,
+    "single_player": true,
+    "max_local_players": 4,
+    "recommended_players": 4,
+    "psvr2": false,
+    "research_status": "PARTIAL"
+  },
+  {
+    "game_id": "GM-057",
+    "genre": "PARTY",
+    "local_multiplayer": true,
+    "online_multiplayer": true,
+    "co_op": false,
+    "competitive": true,
+    "single_player": true,
+    "max_local_players": 4,
+    "recommended_players": 4,
+    "psvr2": false,
+    "research_status": "PARTIAL"
+  },
+  {
+    "game_id": "GM-050",
+    "genre": "RACING/PARTY",
+    "local_multiplayer": true,
+    "online_multiplayer": true,
+    "co_op": false,
+    "competitive": true,
+    "single_player": true,
+    "max_local_players": 4,
+    "recommended_players": 4,
+    "psvr2": false,
+    "research_status": "PARTIAL"
+  },
+  {
+    "game_id": "GM-015",
+    "genre": "ADVENTURE/CO-OP",
+    "local_multiplayer": true,
+    "online_multiplayer": true,
+    "co_op": true,
+    "competitive": false,
+    "single_player": true,
+    "max_local_players": 2,
+    "recommended_players": 2,
+    "psvr2": false,
+    "research_status": "PARTIAL"
+  }
+]

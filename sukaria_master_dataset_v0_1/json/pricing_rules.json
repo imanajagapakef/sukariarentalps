@@ -1,0 +1,242 @@
+[
+  {
+    "pricing_id": "PRICE-B5-REG-1H",
+    "branch_id": "BR-B5",
+    "facility_type_id": "FAC-REGULAR",
+    "pricing_type": "HOURLY",
+    "duration_minutes": 60,
+    "price": 15000,
+    "source_date": "2025-01-24",
+    "data_status": "SOURCE"
+  },
+  {
+    "pricing_id": "PRICE-B5-REG-3H",
+    "branch_id": "BR-B5",
+    "facility_type_id": "FAC-REGULAR",
+    "pricing_type": "PACKAGE",
+    "duration_minutes": 180,
+    "price": 40000,
+    "source_date": "2025-01-24",
+    "data_status": "SOURCE"
+  },
+  {
+    "pricing_id": "PRICE-B5-CAP-1H",
+    "branch_id": "BR-B5",
+    "facility_type_id": "FAC-CAPSULE",
+    "pricing_type": "HOURLY",
+    "duration_minutes": 60,
+    "price": 15000,
+    "source_date": "2025-01-24",
+    "data_status": "SOURCE"
+  },
+  {
+    "pricing_id": "PRICE-B5-CAP-3H",
+    "branch_id": "BR-B5",
+    "facility_type_id": "FAC-CAPSULE",
+    "pricing_type": "PACKAGE",
+    "duration_minutes": 180,
+    "price": 40000,
+    "source_date": "2025-01-24",
+    "data_status": "SOURCE"
+  },
+  {
+    "pricing_id": "PRICE-B5-STEER-1H",
+    "branch_id": "BR-B5",
+    "facility_type_id": "FAC-STEERING",
+    "pricing_type": "HOURLY",
+    "duration_minutes": 60,
+    "price": 15000,
+    "source_date": "2025-01-24",
+    "data_status": "SOURCE"
+  },
+  {
+    "pricing_id": "PRICE-B5-STEER-3H",
+    "branch_id": "BR-B5",
+    "facility_type_id": "FAC-STEERING",
+    "pricing_type": "PACKAGE",
+    "duration_minutes": 180,
+    "price": 40000,
+    "source_date": "2025-01-24",
+    "data_status": "SOURCE"
+  },
+  {
+    "pricing_id": "PRICE-GN-REG-1H",
+    "branch_id": "BR-GANET",
+    "facility_type_id": "FAC-REGULAR",
+    "pricing_type": "HOURLY",
+    "duration_minutes": 60,
+    "price": 15000,
+    "source_date": "2025-02-05",
+    "data_status": "SOURCE"
+  },
+  {
+    "pricing_id": "PRICE-GN-REG-3H",
+    "branch_id": "BR-GANET",
+    "facility_type_id": "FAC-REGULAR",
+    "pricing_type": "PACKAGE",
+    "duration_minutes": 180,
+    "price": 40000,
+    "source_date": "2025-02-05",
+    "data_status": "SOURCE"
+  },
+  {
+    "pricing_id": "PRICE-GN-CAP-1H",
+    "branch_id": "BR-GANET",
+    "facility_type_id": "FAC-CAPSULE",
+    "pricing_type": "HOURLY",
+    "duration_minutes": 60,
+    "price": 20000,
+    "source_date": "2025-02-05",
+    "data_status": "SOURCE"
+  },
+  {
+    "pricing_id": "PRICE-GN-CAP-3H",
+    "branch_id": "BR-GANET",
+    "facility_type_id": "FAC-CAPSULE",
+    "pricing_type": "PACKAGE",
+    "duration_minutes": 180,
+    "price": 50000,
+    "source_date": "2025-02-05",
+    "data_status": "SOURCE"
+  },
+  {
+    "pricing_id": "PRICE-GN-VIP-1H",
+    "branch_id": "BR-GANET",
+    "facility_type_id": "FAC-VIP",
+    "pricing_type": "HOURLY",
+    "duration_minutes": 60,
+    "price": 35000,
+    "source_date": "2025-02-05",
+    "data_status": "SOURCE"
+  },
+  {
+    "pricing_id": "PRICE-GN-VIP-2H",
+    "branch_id": "BR-GANET",
+    "facility_type_id": "FAC-VIP",
+    "pricing_type": "PACKAGE",
+    "duration_minutes": 120,
+    "price": 60000,
+    "source_date": "2025-02-05",
+    "data_status": "SOURCE"
+  },
+  {
+    "pricing_id": "PRICE-GN-VIP-4H",
+    "branch_id": "BR-GANET",
+    "facility_type_id": "FAC-VIP",
+    "pricing_type": "PACKAGE",
+    "duration_minutes": 240,
+    "price": 110000,
+    "source_date": "2025-02-05",
+    "data_status": "SOURCE"
+  },
+  {
+    "pricing_id": "PRICE-GN-VIP-6H",
+    "branch_id": "BR-GANET",
+    "facility_type_id": "FAC-VIP",
+    "pricing_type": "PACKAGE",
+    "duration_minutes": 360,
+    "price": 160000,
+    "source_date": "2025-02-05",
+    "data_status": "SOURCE"
+  },
+  {
+    "pricing_id": "PRICE-GN-VVIP-1H",
+    "branch_id": "BR-GANET",
+    "facility_type_id": "FAC-VVIP",
+    "pricing_type": "HOURLY",
+    "duration_minutes": 60,
+    "price": 60000,
+    "source_date": "2025-02-05",
+    "data_status": "SOURCE"
+  },
+  {
+    "pricing_id": "PRICE-GN-VVIP-2H",
+    "branch_id": "BR-GANET",
+    "facility_type_id": "FAC-VVIP",
+    "pricing_type": "PACKAGE",
+    "duration_minutes": 120,
+    "price": 110000,
+    "source_date": "2025-02-05",
+    "data_status": "SOURCE"
+  },
+  {
+    "pricing_id": "PRICE-GN-VVIP-4H",
+    "branch_id": "BR-GANET",
+    "facility_type_id": "FAC-VVIP",
+    "pricing_type": "PACKAGE",
+    "duration_minutes": 240,
+    "price": 210000,
+    "source_date": "2025-02-05",
+    "data_status": "SOURCE"
+  },
+  {
+    "pricing_id": "PRICE-GN-VVIP-6H",
+    "branch_id": "BR-GANET",
+    "facility_type_id": "FAC-VVIP",
+    "pricing_type": "PACKAGE",
+    "duration_minutes": 360,
+    "price": 288000,
+    "source_date": "2025-02-05",
+    "data_status": "SOURCE"
+  },
+  {
+    "pricing_id": "PRICE-B5-VIP-1H-DRAFT",
+    "branch_id": "BR-B5",
+    "facility_type_id": "FAC-VIP",
+    "pricing_type": "HOURLY",
+    "duration_minutes": 60,
+    "price": 35000,
+    "source_date": null,
+    "data_status": "DRAFT"
+  },
+  {
+    "pricing_id": "PRICE-B5-VVIP-1H-DRAFT",
+    "branch_id": "BR-B5",
+    "facility_type_id": "FAC-VVIP",
+    "pricing_type": "HOURLY",
+    "duration_minutes": 60,
+    "price": 60000,
+    "source_date": null,
+    "data_status": "DRAFT"
+  },
+  {
+    "pricing_id": "PRICE-B5-SW-1H-DRAFT",
+    "branch_id": "BR-B5",
+    "facility_type_id": "FAC-SWITCH",
+    "pricing_type": "HOURLY",
+    "duration_minutes": 60,
+    "price": 20000,
+    "source_date": null,
+    "data_status": "DRAFT"
+  },
+  {
+    "pricing_id": "PRICE-B5-VR-1H-DRAFT",
+    "branch_id": "BR-B5",
+    "facility_type_id": "FAC-PSVR2",
+    "pricing_type": "HOURLY",
+    "duration_minutes": 60,
+    "price": 35000,
+    "source_date": null,
+    "data_status": "DRAFT"
+  },
+  {
+    "pricing_id": "PRICE-GN-STEER-1H-DRAFT",
+    "branch_id": "BR-GANET",
+    "facility_type_id": "FAC-STEERING",
+    "pricing_type": "HOURLY",
+    "duration_minutes": 60,
+    "price": 20000,
+    "source_date": null,
+    "data_status": "DRAFT"
+  },
+  {
+    "pricing_id": "PRICE-GN-VR-1H-DRAFT",
+    "branch_id": "BR-GANET",
+    "facility_type_id": "FAC-PSVR2",
+    "pricing_type": "HOURLY",
+    "duration_minutes": 60,
+    "price": 35000,
+    "source_date": null,
+    "data_status": "DRAFT"
+  }
+]

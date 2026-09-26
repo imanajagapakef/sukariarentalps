@@ -1,0 +1,408 @@
+[
+  {
+    "game_platform_id": "GP-001",
+    "game_id": "GM-001",
+    "platform_id": "PLAT-PS5",
+    "version": "STANDARD",
+    "verification_status": "RESEARCH_REQUIRED"
+  },
+  {
+    "game_platform_id": "GP-002",
+    "game_id": "GM-002",
+    "platform_id": "PLAT-PS5",
+    "version": "STANDARD",
+    "verification_status": "RESEARCH_REQUIRED"
+  },
+  {
+    "game_platform_id": "GP-003",
+    "game_id": "GM-003",
+    "platform_id": "PLAT-PS5",
+    "version": "STANDARD",
+    "verification_status": "RESEARCH_REQUIRED"
+  },
+  {
+    "game_platform_id": "GP-004",
+    "game_id": "GM-004",
+    "platform_id": "PLAT-PS5",
+    "version": "STANDARD",
+    "verification_status": "RESEARCH_REQUIRED"
+  },
+  {
+    "game_platform_id": "GP-005",
+    "game_id": "GM-005",
+    "platform_id": "PLAT-PS5",
+    "version": "STANDARD",
+    "verification_status": "RESEARCH_REQUIRED"
+  },
+  {
+    "game_platform_id": "GP-006",
+    "game_id": "GM-006",
+    "platform_id": "PLAT-PS5",
+    "version": "STANDARD",
+    "verification_status": "RESEARCH_REQUIRED"
+  },
+  {
+    "game_platform_id": "GP-007",
+    "game_id": "GM-007",
+    "platform_id": "PLAT-PS5",
+    "version": "STANDARD",
+    "verification_status": "RESEARCH_REQUIRED"
+  },
+  {
+    "game_platform_id": "GP-008",
+    "game_id": "GM-008",
+    "platform_id": "PLAT-PS5",
+    "version": "STANDARD",
+    "verification_status": "RESEARCH_REQUIRED"
+  },
+  {
+    "game_platform_id": "GP-009",
+    "game_id": "GM-009",
+    "platform_id": "PLAT-PS5",
+    "version": "STANDARD",
+    "verification_status": "RESEARCH_REQUIRED"
+  },
+  {
+    "game_platform_id": "GP-010",
+    "game_id": "GM-010",
+    "platform_id": "PLAT-PS5",
+    "version": "STANDARD",
+    "verification_status": "RESEARCH_REQUIRED"
+  },
+  {
+    "game_platform_id": "GP-011",
+    "game_id": "GM-011",
+    "platform_id": "PLAT-PS5",
+    "version": "STANDARD",
+    "verification_status": "RESEARCH_REQUIRED"
+  },
+  {
+    "game_platform_id": "GP-012",
+    "game_id": "GM-012",
+    "platform_id": "PLAT-PS5",
+    "version": "STANDARD",
+    "verification_status": "RESEARCH_REQUIRED"
+  },
+  {
+    "game_platform_id": "GP-013",
+    "game_id": "GM-013",
+    "platform_id": "PLAT-PS5",
+    "version": "STANDARD",
+    "verification_status": "RESEARCH_REQUIRED"
+  },
+  {
+    "game_platform_id": "GP-014",
+    "game_id": "GM-014",
+    "platform_id": "PLAT-PS5",
+    "version": "STANDARD",
+    "verification_status": "RESEARCH_REQUIRED"
+  },
+  {
+    "game_platform_id": "GP-015",
+    "game_id": "GM-015",
+    "platform_id": "PLAT-PS5",
+    "version": "STANDARD",
+    "verification_status": "RESEARCH_REQUIRED"
+  },
+  {
+    "game_platform_id": "GP-016",
+    "game_id": "GM-016",
+    "platform_id": "PLAT-PS5",
+    "version": "STANDARD",
+    "verification_status": "RESEARCH_REQUIRED"
+  },
+  {
+    "game_platform_id": "GP-017",
+    "game_id": "GM-017",
+    "platform_id": "PLAT-PS5",
+    "version": "STANDARD",
+    "verification_status": "RESEARCH_REQUIRED"
+  },
+  {
+    "game_platform_id": "GP-018",
+    "game_id": "GM-018",
+    "platform_id": "PLAT-PS5",
+    "version": "STANDARD",
+    "verification_status": "RESEARCH_REQUIRED"
+  },
+  {
+    "game_platform_id": "GP-019",
+    "game_id": "GM-019",
+    "platform_id": "PLAT-PS5",
+    "version": "STANDARD",
+    "verification_status": "RESEARCH_REQUIRED"
+  },
+  {
+    "game_platform_id": "GP-020",
+    "game_id": "GM-020",
+    "platform_id": "PLAT-PS5",
+    "version": "STANDARD",
+    "verification_status": "RESEARCH_REQUIRED"
+  },
+  {
+    "game_platform_id": "GP-021",
+    "game_id": "GM-021",
+    "platform_id": "PLAT-PS5",
+    "version": "STANDARD",
+    "verification_status": "RESEARCH_REQUIRED"
+  },
+  {
+    "game_platform_id": "GP-022",
+    "game_id": "GM-022",
+    "platform_id": "PLAT-PS5",
+    "version": "STANDARD",
+    "verification_status": "RESEARCH_REQUIRED"
+  },
+  {
+    "game_platform_id": "GP-023",
+    "game_id": "GM-023",
+    "platform_id": "PLAT-PS5",
+    "version": "STANDARD",
+    "verification_status": "RESEARCH_REQUIRED"
+  },
+  {
+    "game_platform_id": "GP-024",
+    "game_id": "GM-024",
+    "platform_id": "PLAT-PS5",
+    "version": "STANDARD",
+    "verification_status": "RESEARCH_REQUIRED"
+  },
+  {
+    "game_platform_id": "GP-025",
+    "game_id": "GM-025",
+    "platform_id": "PLAT-PS5",
+    "version": "STANDARD",
+    "verification_status": "RESEARCH_REQUIRED"
+  },
+  {
+    "game_platform_id": "GP-026",
+    "game_id": "GM-026",
+    "platform_id": "PLAT-PS5",
+    "version": "STANDARD",
+    "verification_status": "RESEARCH_REQUIRED"
+  },
+  {
+    "game_platform_id": "GP-027",
+    "game_id": "GM-027",
+    "platform_id": "PLAT-PS5",
+    "version": "STANDARD",
+    "verification_status": "RESEARCH_REQUIRED"
+  },
+  {
+    "game_platform_id": "GP-028",
+    "game_id": "GM-028",
+    "platform_id": "PLAT-PS5",
+    "version": "STANDARD",
+    "verification_status": "RESEARCH_REQUIRED"
+  },
+  {
+    "game_platform_id": "GP-029",
+    "game_id": "GM-029",
+    "platform_id": "PLAT-PS5",
+    "version": "STANDARD",
+    "verification_status": "RESEARCH_REQUIRED"
+  },
+  {
+    "game_platform_id": "GP-030",
+    "game_id": "GM-030",
+    "platform_id": "PLAT-PS5",
+    "version": "STANDARD",
+    "verification_status": "RESEARCH_REQUIRED"
+  },
+  {
+    "game_platform_id": "GP-031",
+    "game_id": "GM-031",
+    "platform_id": "PLAT-PS5",
+    "version": "STANDARD",
+    "verification_status": "RESEARCH_REQUIRED"
+  },
+  {
+    "game_platform_id": "GP-032",
+    "game_id": "GM-032",
+    "platform_id": "PLAT-PS5",
+    "version": "STANDARD",
+    "verification_status": "RESEARCH_REQUIRED"
+  },
+  {
+    "game_platform_id": "GP-033",
+    "game_id": "GM-033",
+    "platform_id": "PLAT-PS5",
+    "version": "STANDARD",
+    "verification_status": "RESEARCH_REQUIRED"
+  },
+  {
+    "game_platform_id": "GP-034",
+    "game_id": "GM-034",
+    "platform_id": "PLAT-PS5",
+    "version": "STANDARD",
+    "verification_status": "RESEARCH_REQUIRED"
+  },
+  {
+    "game_platform_id": "GP-035",
+    "game_id": "GM-035",
+    "platform_id": "PLAT-PS5",
+    "version": "STANDARD",
+    "verification_status": "RESEARCH_REQUIRED"
+  },
+  {
+    "game_platform_id": "GP-036",
+    "game_id": "GM-036",
+    "platform_id": "PLAT-PS5",
+    "version": "STANDARD",
+    "verification_status": "RESEARCH_REQUIRED"
+  },
+  {
+    "game_platform_id": "GP-037",
+    "game_id": "GM-037",
+    "platform_id": "PLAT-PS5",
+    "version": "STANDARD",
+    "verification_status": "RESEARCH_REQUIRED"
+  },
+  {
+    "game_platform_id": "GP-038",
+    "game_id": "GM-038",
+    "platform_id": "PLAT-PS5",
+    "version": "STANDARD",
+    "verification_status": "RESEARCH_REQUIRED"
+  },
+  {
+    "game_platform_id": "GP-039",
+    "game_id": "GM-039",
+    "platform_id": "PLAT-PS5",
+    "version": "STANDARD",
+    "verification_status": "RESEARCH_REQUIRED"
+  },
+  {
+    "game_platform_id": "GP-040",
+    "game_id": "GM-040",
+    "platform_id": "PLAT-PS5",
+    "version": "STANDARD",
+    "verification_status": "RESEARCH_REQUIRED"
+  },
+  {
+    "game_platform_id": "GP-041",
+    "game_id": "GM-041",
+    "platform_id": "PLAT-PS5",
+    "version": "STANDARD",
+    "verification_status": "RESEARCH_REQUIRED"
+  },
+  {
+    "game_platform_id": "GP-042",
+    "game_id": "GM-042",
+    "platform_id": "PLAT-PS5",
+    "version": "STANDARD",
+    "verification_status": "RESEARCH_REQUIRED"
+  },
+  {
+    "game_platform_id": "GP-043",
+    "game_id": "GM-043",
+    "platform_id": "PLAT-PS5",
+    "version": "STANDARD",
+    "verification_status": "RESEARCH_REQUIRED"
+  },
+  {
+    "game_platform_id": "GP-044",
+    "game_id": "GM-044",
+    "platform_id": "PLAT-PS5",
+    "version": "STANDARD",
+    "verification_status": "RESEARCH_REQUIRED"
+  },
+  {
+    "game_platform_id": "GP-045",
+    "game_id": "GM-045",
+    "platform_id": "PLAT-PS5",
+    "version": "STANDARD",
+    "verification_status": "RESEARCH_REQUIRED"
+  },
+  {
+    "game_platform_id": "GP-046",
+    "game_id": "GM-046",
+    "platform_id": "PLAT-PS5",
+    "version": "STANDARD",
+    "verification_status": "RESEARCH_REQUIRED"
+  },
+  {
+    "game_platform_id": "GP-047",
+    "game_id": "GM-047",
+    "platform_id": "PLAT-PS5",
+    "version": "STANDARD",
+    "verification_status": "RESEARCH_REQUIRED"
+  },
+  {
+    "game_platform_id": "GP-048",
+    "game_id": "GM-048",
+    "platform_id": "PLAT-PS5",
+    "version": "STANDARD",
+    "verification_status": "RESEARCH_REQUIRED"
+  },
+  {
+    "game_platform_id": "GP-049",
+    "game_id": "GM-049",
+    "platform_id": "PLAT-PS5",
+    "version": "STANDARD",
+    "verification_status": "RESEARCH_REQUIRED"
+  },
+  {
+    "game_platform_id": "GP-050",
+    "game_id": "GM-050",
+    "platform_id": "PLAT-SWITCH",
+    "version": "STANDARD",
+    "verification_status": "RESEARCH_REQUIRED"
+  },
+  {
+    "game_platform_id": "GP-051",
+    "game_id": "GM-051",
+    "platform_id": "PLAT-SWITCH",
+    "version": "STANDARD",
+    "verification_status": "RESEARCH_REQUIRED"
+  },
+  {
+    "game_platform_id": "GP-052",
+    "game_id": "GM-052",
+    "platform_id": "PLAT-SWITCH",
+    "version": "STANDARD",
+    "verification_status": "RESEARCH_REQUIRED"
+  },
+  {
+    "game_platform_id": "GP-053",
+    "game_id": "GM-053",
+    "platform_id": "PLAT-SWITCH",
+    "version": "STANDARD",
+    "verification_status": "RESEARCH_REQUIRED"
+  },
+  {
+    "game_platform_id": "GP-054",
+    "game_id": "GM-054",
+    "platform_id": "PLAT-SWITCH",
+    "version": "STANDARD",
+    "verification_status": "RESEARCH_REQUIRED"
+  },
+  {
+    "game_platform_id": "GP-055",
+    "game_id": "GM-055",
+    "platform_id": "PLAT-SWITCH",
+    "version": "STANDARD",
+    "verification_status": "RESEARCH_REQUIRED"
+  },
+  {
+    "game_platform_id": "GP-056",
+    "game_id": "GM-056",
+    "platform_id": "PLAT-SWITCH",
+    "version": "STANDARD",
+    "verification_status": "RESEARCH_REQUIRED"
+  },
+  {
+    "game_platform_id": "GP-057",
+    "game_id": "GM-057",
+    "platform_id": "PLAT-SWITCH",
+    "version": "STANDARD",
+    "verification_status": "RESEARCH_REQUIRED"
+  },
+  {
+    "game_platform_id": "GP-058",
+    "game_id": "GM-058",
+    "platform_id": "PLAT-PS5",
+    "version": "STANDARD",
+    "verification_status": "RESEARCH_REQUIRED"
+  }
+]

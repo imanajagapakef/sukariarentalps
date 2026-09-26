@@ -1,0 +1,618 @@
+[
+  {
+    "game_availability_id": "GA-001",
+    "game_id": "GM-001",
+    "branch_id": "BR-B5",
+    "available": true,
+    "condition": "AVAILABLE",
+    "verification_status": "SOURCE"
+  },
+  {
+    "game_availability_id": "GA-002",
+    "game_id": "GM-001",
+    "branch_id": "BR-GANET",
+    "available": true,
+    "condition": "AVAILABLE",
+    "verification_status": "SOURCE"
+  },
+  {
+    "game_availability_id": "GA-003",
+    "game_id": "GM-002",
+    "branch_id": "BR-B5",
+    "available": true,
+    "condition": "AVAILABLE",
+    "verification_status": "SOURCE"
+  },
+  {
+    "game_availability_id": "GA-004",
+    "game_id": "GM-002",
+    "branch_id": "BR-GANET",
+    "available": true,
+    "condition": "AVAILABLE",
+    "verification_status": "SOURCE"
+  },
+  {
+    "game_availability_id": "GA-005",
+    "game_id": "GM-003",
+    "branch_id": "BR-B5",
+    "available": true,
+    "condition": "AVAILABLE",
+    "verification_status": "SOURCE"
+  },
+  {
+    "game_availability_id": "GA-006",
+    "game_id": "GM-003",
+    "branch_id": "BR-GANET",
+    "available": true,
+    "condition": "AVAILABLE",
+    "verification_status": "SOURCE"
+  },
+  {
+    "game_availability_id": "GA-007",
+    "game_id": "GM-004",
+    "branch_id": "BR-GANET",
+    "available": true,
+    "condition": "AVAILABLE",
+    "verification_status": "SOURCE"
+  },
+  {
+    "game_availability_id": "GA-008",
+    "game_id": "GM-005",
+    "branch_id": "BR-B5",
+    "available": true,
+    "condition": "AVAILABLE",
+    "verification_status": "SOURCE"
+  },
+  {
+    "game_availability_id": "GA-009",
+    "game_id": "GM-005",
+    "branch_id": "BR-GANET",
+    "available": true,
+    "condition": "AVAILABLE",
+    "verification_status": "SOURCE"
+  },
+  {
+    "game_availability_id": "GA-010",
+    "game_id": "GM-006",
+    "branch_id": "BR-B5",
+    "available": true,
+    "condition": "AVAILABLE",
+    "verification_status": "SOURCE"
+  },
+  {
+    "game_availability_id": "GA-011",
+    "game_id": "GM-006",
+    "branch_id": "BR-GANET",
+    "available": true,
+    "condition": "AVAILABLE",
+    "verification_status": "SOURCE"
+  },
+  {
+    "game_availability_id": "GA-012",
+    "game_id": "GM-007",
+    "branch_id": "BR-GANET",
+    "available": true,
+    "condition": "AVAILABLE",
+    "verification_status": "SOURCE"
+  },
+  {
+    "game_availability_id": "GA-013",
+    "game_id": "GM-008",
+    "branch_id": "BR-GANET",
+    "available": true,
+    "condition": "AVAILABLE",
+    "verification_status": "SOURCE"
+  },
+  {
+    "game_availability_id": "GA-014",
+    "game_id": "GM-009",
+    "branch_id": "BR-B5",
+    "available": true,
+    "condition": "AVAILABLE",
+    "verification_status": "SOURCE"
+  },
+  {
+    "game_availability_id": "GA-015",
+    "game_id": "GM-009",
+    "branch_id": "BR-GANET",
+    "available": true,
+    "condition": "AVAILABLE",
+    "verification_status": "SOURCE"
+  },
+  {
+    "game_availability_id": "GA-016",
+    "game_id": "GM-010",
+    "branch_id": "BR-B5",
+    "available": true,
+    "condition": "AVAILABLE",
+    "verification_status": "SOURCE"
+  },
+  {
+    "game_availability_id": "GA-017",
+    "game_id": "GM-010",
+    "branch_id": "BR-GANET",
+    "available": true,
+    "condition": "AVAILABLE",
+    "verification_status": "SOURCE"
+  },
+  {
+    "game_availability_id": "GA-018",
+    "game_id": "GM-011",
+    "branch_id": "BR-B5",
+    "available": true,
+    "condition": "AVAILABLE",
+    "verification_status": "SOURCE"
+  },
+  {
+    "game_availability_id": "GA-019",
+    "game_id": "GM-011",
+    "branch_id": "BR-GANET",
+    "available": true,
+    "condition": "AVAILABLE",
+    "verification_status": "SOURCE"
+  },
+  {
+    "game_availability_id": "GA-020",
+    "game_id": "GM-012",
+    "branch_id": "BR-B5",
+    "available": true,
+    "condition": "AVAILABLE",
+    "verification_status": "SOURCE"
+  },
+  {
+    "game_availability_id": "GA-021",
+    "game_id": "GM-012",
+    "branch_id": "BR-GANET",
+    "available": true,
+    "condition": "AVAILABLE",
+    "verification_status": "SOURCE"
+  },
+  {
+    "game_availability_id": "GA-022",
+    "game_id": "GM-013",
+    "branch_id": "BR-B5",
+    "available": true,
+    "condition": "AVAILABLE",
+    "verification_status": "SOURCE"
+  },
+  {
+    "game_availability_id": "GA-023",
+    "game_id": "GM-013",
+    "branch_id": "BR-GANET",
+    "available": true,
+    "condition": "AVAILABLE",
+    "verification_status": "SOURCE"
+  },
+  {
+    "game_availability_id": "GA-024",
+    "game_id": "GM-014",
+    "branch_id": "BR-B5",
+    "available": true,
+    "condition": "AVAILABLE",
+    "verification_status": "SOURCE"
+  },
+  {
+    "game_availability_id": "GA-025",
+    "game_id": "GM-014",
+    "branch_id": "BR-GANET",
+    "available": true,
+    "condition": "AVAILABLE",
+    "verification_status": "SOURCE"
+  },
+  {
+    "game_availability_id": "GA-026",
+    "game_id": "GM-015",
+    "branch_id": "BR-B5",
+    "available": true,
+    "condition": "AVAILABLE",
+    "verification_status": "SOURCE"
+  },
+  {
+    "game_availability_id": "GA-027",
+    "game_id": "GM-015",
+    "branch_id": "BR-GANET",
+    "available": true,
+    "condition": "AVAILABLE",
+    "verification_status": "SOURCE"
+  },
+  {
+    "game_availability_id": "GA-028",
+    "game_id": "GM-016",
+    "branch_id": "BR-B5",
+    "available": true,
+    "condition": "AVAILABLE",
+    "verification_status": "SOURCE"
+  },
+  {
+    "game_availability_id": "GA-029",
+    "game_id": "GM-016",
+    "branch_id": "BR-GANET",
+    "available": true,
+    "condition": "AVAILABLE",
+    "verification_status": "SOURCE"
+  },
+  {
+    "game_availability_id": "GA-030",
+    "game_id": "GM-017",
+    "branch_id": "BR-B5",
+    "available": true,
+    "condition": "AVAILABLE",
+    "verification_status": "SOURCE"
+  },
+  {
+    "game_availability_id": "GA-031",
+    "game_id": "GM-017",
+    "branch_id": "BR-GANET",
+    "available": true,
+    "condition": "AVAILABLE",
+    "verification_status": "SOURCE"
+  },
+  {
+    "game_availability_id": "GA-032",
+    "game_id": "GM-018",
+    "branch_id": "BR-B5",
+    "available": true,
+    "condition": "AVAILABLE",
+    "verification_status": "SOURCE"
+  },
+  {
+    "game_availability_id": "GA-033",
+    "game_id": "GM-018",
+    "branch_id": "BR-GANET",
+    "available": true,
+    "condition": "AVAILABLE",
+    "verification_status": "SOURCE"
+  },
+  {
+    "game_availability_id": "GA-034",
+    "game_id": "GM-019",
+    "branch_id": "BR-GANET",
+    "available": true,
+    "condition": "AVAILABLE",
+    "verification_status": "SOURCE"
+  },
+  {
+    "game_availability_id": "GA-035",
+    "game_id": "GM-020",
+    "branch_id": "BR-GANET",
+    "available": true,
+    "condition": "AVAILABLE",
+    "verification_status": "SOURCE"
+  },
+  {
+    "game_availability_id": "GA-036",
+    "game_id": "GM-021",
+    "branch_id": "BR-GANET",
+    "available": true,
+    "condition": "AVAILABLE",
+    "verification_status": "SOURCE"
+  },
+  {
+    "game_availability_id": "GA-037",
+    "game_id": "GM-022",
+    "branch_id": "BR-GANET",
+    "available": true,
+    "condition": "AVAILABLE",
+    "verification_status": "SOURCE"
+  },
+  {
+    "game_availability_id": "GA-038",
+    "game_id": "GM-023",
+    "branch_id": "BR-GANET",
+    "available": true,
+    "condition": "AVAILABLE",
+    "verification_status": "SOURCE"
+  },
+  {
+    "game_availability_id": "GA-039",
+    "game_id": "GM-024",
+    "branch_id": "BR-B5",
+    "available": true,
+    "condition": "AVAILABLE",
+    "verification_status": "SOURCE"
+  },
+  {
+    "game_availability_id": "GA-040",
+    "game_id": "GM-024",
+    "branch_id": "BR-GANET",
+    "available": true,
+    "condition": "AVAILABLE",
+    "verification_status": "SOURCE"
+  },
+  {
+    "game_availability_id": "GA-041",
+    "game_id": "GM-025",
+    "branch_id": "BR-B5",
+    "available": true,
+    "condition": "AVAILABLE",
+    "verification_status": "SOURCE"
+  },
+  {
+    "game_availability_id": "GA-042",
+    "game_id": "GM-026",
+    "branch_id": "BR-B5",
+    "available": true,
+    "condition": "AVAILABLE",
+    "verification_status": "SOURCE"
+  },
+  {
+    "game_availability_id": "GA-043",
+    "game_id": "GM-027",
+    "branch_id": "BR-B5",
+    "available": true,
+    "condition": "AVAILABLE",
+    "verification_status": "SOURCE"
+  },
+  {
+    "game_availability_id": "GA-044",
+    "game_id": "GM-028",
+    "branch_id": "BR-B5",
+    "available": true,
+    "condition": "AVAILABLE",
+    "verification_status": "SOURCE"
+  },
+  {
+    "game_availability_id": "GA-045",
+    "game_id": "GM-029",
+    "branch_id": "BR-B5",
+    "available": true,
+    "condition": "AVAILABLE",
+    "verification_status": "SOURCE"
+  },
+  {
+    "game_availability_id": "GA-046",
+    "game_id": "GM-030",
+    "branch_id": "BR-B5",
+    "available": true,
+    "condition": "AVAILABLE",
+    "verification_status": "SOURCE"
+  },
+  {
+    "game_availability_id": "GA-047",
+    "game_id": "GM-031",
+    "branch_id": "BR-B5",
+    "available": true,
+    "condition": "AVAILABLE",
+    "verification_status": "SOURCE"
+  },
+  {
+    "game_availability_id": "GA-048",
+    "game_id": "GM-032",
+    "branch_id": "BR-B5",
+    "available": true,
+    "condition": "AVAILABLE",
+    "verification_status": "SOURCE"
+  },
+  {
+    "game_availability_id": "GA-049",
+    "game_id": "GM-033",
+    "branch_id": "BR-GANET",
+    "available": true,
+    "condition": "AVAILABLE",
+    "verification_status": "SOURCE"
+  },
+  {
+    "game_availability_id": "GA-050",
+    "game_id": "GM-034",
+    "branch_id": "BR-B5",
+    "available": true,
+    "condition": "AVAILABLE",
+    "verification_status": "SOURCE"
+  },
+  {
+    "game_availability_id": "GA-051",
+    "game_id": "GM-034",
+    "branch_id": "BR-GANET",
+    "available": true,
+    "condition": "AVAILABLE",
+    "verification_status": "SOURCE"
+  },
+  {
+    "game_availability_id": "GA-052",
+    "game_id": "GM-035",
+    "branch_id": "BR-B5",
+    "available": true,
+    "condition": "AVAILABLE",
+    "verification_status": "SOURCE"
+  },
+  {
+    "game_availability_id": "GA-053",
+    "game_id": "GM-035",
+    "branch_id": "BR-GANET",
+    "available": true,
+    "condition": "AVAILABLE",
+    "verification_status": "SOURCE"
+  },
+  {
+    "game_availability_id": "GA-054",
+    "game_id": "GM-036",
+    "branch_id": "BR-B5",
+    "available": true,
+    "condition": "AVAILABLE",
+    "verification_status": "SOURCE"
+  },
+  {
+    "game_availability_id": "GA-055",
+    "game_id": "GM-036",
+    "branch_id": "BR-GANET",
+    "available": true,
+    "condition": "AVAILABLE",
+    "verification_status": "SOURCE"
+  },
+  {
+    "game_availability_id": "GA-056",
+    "game_id": "GM-037",
+    "branch_id": "BR-B5",
+    "available": true,
+    "condition": "AVAILABLE",
+    "verification_status": "SOURCE"
+  },
+  {
+    "game_availability_id": "GA-057",
+    "game_id": "GM-038",
+    "branch_id": "BR-B5",
+    "available": true,
+    "condition": "AVAILABLE",
+    "verification_status": "SOURCE"
+  },
+  {
+    "game_availability_id": "GA-058",
+    "game_id": "GM-039",
+    "branch_id": "BR-B5",
+    "available": true,
+    "condition": "AVAILABLE",
+    "verification_status": "SOURCE"
+  },
+  {
+    "game_availability_id": "GA-059",
+    "game_id": "GM-040",
+    "branch_id": "BR-GANET",
+    "available": true,
+    "condition": "AVAILABLE",
+    "verification_status": "SOURCE"
+  },
+  {
+    "game_availability_id": "GA-060",
+    "game_id": "GM-041",
+    "branch_id": "BR-GANET",
+    "available": true,
+    "condition": "AVAILABLE",
+    "verification_status": "SOURCE"
+  },
+  {
+    "game_availability_id": "GA-061",
+    "game_id": "GM-042",
+    "branch_id": "BR-GANET",
+    "available": true,
+    "condition": "AVAILABLE",
+    "verification_status": "SOURCE"
+  },
+  {
+    "game_availability_id": "GA-062",
+    "game_id": "GM-043",
+    "branch_id": "BR-GANET",
+    "available": true,
+    "condition": "AVAILABLE",
+    "verification_status": "SOURCE"
+  },
+  {
+    "game_availability_id": "GA-063",
+    "game_id": "GM-044",
+    "branch_id": "BR-GANET",
+    "available": true,
+    "condition": "AVAILABLE",
+    "verification_status": "SOURCE"
+  },
+  {
+    "game_availability_id": "GA-064",
+    "game_id": "GM-045",
+    "branch_id": "BR-GANET",
+    "available": true,
+    "condition": "AVAILABLE",
+    "verification_status": "SOURCE"
+  },
+  {
+    "game_availability_id": "GA-065",
+    "game_id": "GM-046",
+    "branch_id": "BR-GANET",
+    "available": true,
+    "condition": "AVAILABLE",
+    "verification_status": "SOURCE"
+  },
+  {
+    "game_availability_id": "GA-066",
+    "game_id": "GM-047",
+    "branch_id": "BR-GANET",
+    "available": true,
+    "condition": "AVAILABLE",
+    "verification_status": "SOURCE"
+  },
+  {
+    "game_availability_id": "GA-067",
+    "game_id": "GM-048",
+    "branch_id": "BR-GANET",
+    "available": true,
+    "condition": "AVAILABLE",
+    "verification_status": "SOURCE"
+  },
+  {
+    "game_availability_id": "GA-068",
+    "game_id": "GM-049",
+    "branch_id": "BR-GANET",
+    "available": true,
+    "condition": "AVAILABLE",
+    "verification_status": "SOURCE"
+  },
+  {
+    "game_availability_id": "GA-069",
+    "game_id": "GM-050",
+    "branch_id": "BR-GANET",
+    "available": true,
+    "condition": "AVAILABLE",
+    "verification_status": "SOURCE"
+  },
+  {
+    "game_availability_id": "GA-070",
+    "game_id": "GM-051",
+    "branch_id": "BR-GANET",
+    "available": true,
+    "condition": "AVAILABLE",
+    "verification_status": "SOURCE"
+  },
+  {
+    "game_availability_id": "GA-071",
+    "game_id": "GM-052",
+    "branch_id": "BR-GANET",
+    "available": true,
+    "condition": "AVAILABLE",
+    "verification_status": "SOURCE"
+  },
+  {
+    "game_availability_id": "GA-072",
+    "game_id": "GM-053",
+    "branch_id": "BR-GANET",
+    "available": true,
+    "condition": "AVAILABLE",
+    "verification_status": "SOURCE"
+  },
+  {
+    "game_availability_id": "GA-073",
+    "game_id": "GM-054",
+    "branch_id": "BR-GANET",
+    "available": true,
+    "condition": "AVAILABLE",
+    "verification_status": "SOURCE"
+  },
+  {
+    "game_availability_id": "GA-074",
+    "game_id": "GM-055",
+    "branch_id": "BR-GANET",
+    "available": true,
+    "condition": "AVAILABLE",
+    "verification_status": "SOURCE"
+  },
+  {
+    "game_availability_id": "GA-075",
+    "game_id": "GM-056",
+    "branch_id": "BR-GANET",
+    "available": true,
+    "condition": "AVAILABLE",
+    "verification_status": "SOURCE"
+  },
+  {
+    "game_availability_id": "GA-076",
+    "game_id": "GM-057",
+    "branch_id": "BR-GANET",
+    "available": true,
+    "condition": "AVAILABLE",
+    "verification_status": "SOURCE"
+  },
+  {
+    "game_availability_id": "GA-077",
+    "game_id": "GM-058",
+    "branch_id": "BR-GANET",
+    "available": true,
+    "condition": "AVAILABLE",
+    "verification_status": "SOURCE"
+  }
+]

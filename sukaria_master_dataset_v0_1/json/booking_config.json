@@ -1,0 +1,15 @@
+[
+  {
+    "config_id": "CFG-DEFAULT",
+    "minimum_duration_minutes": 60,
+    "maximum_duration_minutes": 360,
+    "booking_interval_minutes": 30,
+    "cleaning_duration_minutes": 10,
+    "payment_deadline_minutes": 15,
+    "extension_interval_minutes": 30,
+    "minimum_extension_minutes": 30,
+    "advance_booking_days": 30,
+    "late_tolerance_minutes": 10,
+    "data_status": "DRAFT"
+  }
+]

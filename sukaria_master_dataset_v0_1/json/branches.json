@@ -1,0 +1,28 @@
+[
+  {
+    "branch_id": "BR-B5",
+    "branch_code": "B5",
+    "name": "Sukaria Batu 5",
+    "short_name": "Batu 5",
+    "address": "Jalan Raja Haji Fisabilillah, Sei Jang, Kec. Bukit Bestari, Kota Tanjung Pinang, Kepulauan Riau 29122",
+    "phone": "0831-4296-8507",
+    "operating_hours": "24 jam",
+    "google_rating": 4.7,
+    "google_review_count": 32,
+    "status": "ACTIVE",
+    "data_status": "SOURCE"
+  },
+  {
+    "branch_id": "BR-GANET",
+    "branch_code": "GANET",
+    "name": "Sukaria Ganet",
+    "short_name": "Ganet",
+    "address": "Jl. Bandara, Pinang Kencana, Kec. Tanjungpinang Timur, Kota Tanjung Pinang, Kepulauan Riau 29140",
+    "phone": "0853-7625-1323",
+    "operating_hours": "24 jam",
+    "google_rating": 4.6,
+    "google_review_count": 30,
+    "status": "ACTIVE",
+    "data_status": "SOURCE"
+  }
+]

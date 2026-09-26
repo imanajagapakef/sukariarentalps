@@ -1,0 +1,14 @@
+# OS
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Office temp/lock files
+~$*
+
+# Secrets
+.env
+.env.*
+
+# Node
+node_modules/

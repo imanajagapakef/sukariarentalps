@@ -1,0 +1,7 @@
+﻿game_id,genre,local_multiplayer,online_multiplayer,co_op,competitive,single_player,max_local_players,recommended_players,psvr2,research_status
+GM-003,FIGHTING,True,True,False,True,True,2,2,False,PARTIAL
+GM-001,ADVENTURE/CO-OP,True,True,True,False,True,2,2,False,PARTIAL
+GM-010,PARTY/CO-OP,True,True,True,False,True,4,4,False,PARTIAL
+GM-057,PARTY,True,True,False,True,True,4,4,False,PARTIAL
+GM-050,RACING/PARTY,True,True,False,True,True,4,4,False,PARTIAL
+GM-015,ADVENTURE/CO-OP,True,True,True,False,True,2,2,False,PARTIAL

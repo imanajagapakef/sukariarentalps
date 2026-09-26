@@ -1,0 +1,18 @@
+[
+  {
+    "business_id": "BUS-SUKARIA",
+    "brand_name": "Klub Sukaria",
+    "business_type": "Gaming House / PS Rental",
+    "city": "Tanjungpinang",
+    "province": "Kepulauan Riau",
+    "country": "Indonesia",
+    "timezone": "Asia/Jakarta",
+    "operating_hours": "24 jam",
+    "instagram": "@klubsukaria",
+    "website": null,
+    "online_booking": true,
+    "online_payment_provider": "MIDTRANS",
+    "currency": "IDR",
+    "data_status": "SOURCE"
+  }
+]

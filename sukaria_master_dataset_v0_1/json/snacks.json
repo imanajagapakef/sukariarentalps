@@ -1,0 +1,122 @@
+[
+  {
+    "snack_id": "SNK-001",
+    "name": "Popcorn",
+    "category": "SNACK",
+    "price": 10000,
+    "stock": 30,
+    "min_stock": 10,
+    "active": true,
+    "data_status": "DRAFT"
+  },
+  {
+    "snack_id": "SNK-002",
+    "name": "Kentang Goreng",
+    "category": "SNACK",
+    "price": 15000,
+    "stock": 20,
+    "min_stock": 5,
+    "active": true,
+    "data_status": "DRAFT"
+  },
+  {
+    "snack_id": "SNK-003",
+    "name": "Sosis Goreng",
+    "category": "SNACK",
+    "price": 15000,
+    "stock": 30,
+    "min_stock": 10,
+    "active": true,
+    "data_status": "DRAFT"
+  },
+  {
+    "snack_id": "SNK-004",
+    "name": "Nugget",
+    "category": "SNACK",
+    "price": 15000,
+    "stock": 30,
+    "min_stock": 10,
+    "active": true,
+    "data_status": "DRAFT"
+  },
+  {
+    "snack_id": "SNK-005",
+    "name": "Mie Instan",
+    "category": "INSTANT_FOOD",
+    "price": 12000,
+    "stock": 40,
+    "min_stock": 10,
+    "active": true,
+    "data_status": "DRAFT"
+  },
+  {
+    "snack_id": "SNK-006",
+    "name": "Mie + Telur",
+    "category": "INSTANT_FOOD",
+    "price": 17000,
+    "stock": 30,
+    "min_stock": 10,
+    "active": true,
+    "data_status": "DRAFT"
+  },
+  {
+    "snack_id": "SNK-007",
+    "name": "Roti Bakar",
+    "category": "SNACK",
+    "price": 15000,
+    "stock": 20,
+    "min_stock": 5,
+    "active": true,
+    "data_status": "DRAFT"
+  },
+  {
+    "snack_id": "SNK-008",
+    "name": "Air Mineral",
+    "category": "DRINK",
+    "price": 5000,
+    "stock": 50,
+    "min_stock": 15,
+    "active": true,
+    "data_status": "DRAFT"
+  },
+  {
+    "snack_id": "SNK-009",
+    "name": "Teh Botol",
+    "category": "DRINK",
+    "price": 7000,
+    "stock": 30,
+    "min_stock": 10,
+    "active": true,
+    "data_status": "DRAFT"
+  },
+  {
+    "snack_id": "SNK-010",
+    "name": "Kopi",
+    "category": "DRINK",
+    "price": 8000,
+    "stock": 40,
+    "min_stock": 10,
+    "active": true,
+    "data_status": "DRAFT"
+  },
+  {
+    "snack_id": "SNK-011",
+    "name": "Soda",
+    "category": "DRINK",
+    "price": 10000,
+    "stock": 30,
+    "min_stock": 10,
+    "active": true,
+    "data_status": "DRAFT"
+  },
+  {
+    "snack_id": "SNK-012",
+    "name": "Paket Gamer",
+    "category": "COMBO",
+    "price": 25000,
+    "stock": 10,
+    "min_stock": 3,
+    "active": true,
+    "data_status": "DRAFT"
+  }
+]

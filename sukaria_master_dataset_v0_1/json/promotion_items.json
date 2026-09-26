@@ -1,0 +1,38 @@
+[
+  {
+    "promotion_id": "PROMO-MANTAI-GANET",
+    "facility_type_id": "FAC-VIP",
+    "duration_minutes": 120,
+    "price": 60000
+  },
+  {
+    "promotion_id": "PROMO-MANTAI-GANET",
+    "facility_type_id": "FAC-VIP",
+    "duration_minutes": 240,
+    "price": 110000
+  },
+  {
+    "promotion_id": "PROMO-MANTAI-GANET",
+    "facility_type_id": "FAC-VIP",
+    "duration_minutes": 360,
+    "price": 160000
+  },
+  {
+    "promotion_id": "PROMO-MANTAI-GANET",
+    "facility_type_id": "FAC-VVIP",
+    "duration_minutes": 120,
+    "price": 110000
+  },
+  {
+    "promotion_id": "PROMO-MANTAI-GANET",
+    "facility_type_id": "FAC-VVIP",
+    "duration_minutes": 240,
+    "price": 210000
+  },
+  {
+    "promotion_id": "PROMO-MANTAI-GANET",
+    "facility_type_id": "FAC-VVIP",
+    "duration_minutes": 360,
+    "price": 288000
+  }
+]

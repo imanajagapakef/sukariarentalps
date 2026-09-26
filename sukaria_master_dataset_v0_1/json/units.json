@@ -1,0 +1,209 @@
+[
+  {
+    "unit_id": "B5-R01",
+    "branch_id": "BR-B5",
+    "facility_type_id": "FAC-REGULAR",
+    "name": "Regular 01",
+    "status": "AVAILABLE",
+    "condition": "GOOD",
+    "data_status": "DRAFT"
+  },
+  {
+    "unit_id": "B5-R02",
+    "branch_id": "BR-B5",
+    "facility_type_id": "FAC-REGULAR",
+    "name": "Regular 02",
+    "status": "AVAILABLE",
+    "condition": "GOOD",
+    "data_status": "DRAFT"
+  },
+  {
+    "unit_id": "B5-R03",
+    "branch_id": "BR-B5",
+    "facility_type_id": "FAC-REGULAR",
+    "name": "Regular 03",
+    "status": "AVAILABLE",
+    "condition": "GOOD",
+    "data_status": "DRAFT"
+  },
+  {
+    "unit_id": "B5-R04",
+    "branch_id": "BR-B5",
+    "facility_type_id": "FAC-REGULAR",
+    "name": "Regular 04",
+    "status": "AVAILABLE",
+    "condition": "GOOD",
+    "data_status": "DRAFT"
+  },
+  {
+    "unit_id": "B5-R05",
+    "branch_id": "BR-B5",
+    "facility_type_id": "FAC-REGULAR",
+    "name": "Regular 05",
+    "status": "AVAILABLE",
+    "condition": "GOOD",
+    "data_status": "DRAFT"
+  },
+  {
+    "unit_id": "B5-R06",
+    "branch_id": "BR-B5",
+    "facility_type_id": "FAC-REGULAR",
+    "name": "Regular 06",
+    "status": "AVAILABLE",
+    "condition": "GOOD",
+    "data_status": "DRAFT"
+  },
+  {
+    "unit_id": "B5-C01",
+    "branch_id": "BR-B5",
+    "facility_type_id": "FAC-CAPSULE",
+    "name": "Capsule 01",
+    "status": "AVAILABLE",
+    "condition": "GOOD",
+    "data_status": "DRAFT"
+  },
+  {
+    "unit_id": "B5-C02",
+    "branch_id": "BR-B5",
+    "facility_type_id": "FAC-CAPSULE",
+    "name": "Capsule 02",
+    "status": "AVAILABLE",
+    "condition": "GOOD",
+    "data_status": "DRAFT"
+  },
+  {
+    "unit_id": "B5-S01",
+    "branch_id": "BR-B5",
+    "facility_type_id": "FAC-STEERING",
+    "name": "Steering 01",
+    "status": "AVAILABLE",
+    "condition": "GOOD",
+    "data_status": "DRAFT"
+  },
+  {
+    "unit_id": "GN-R01",
+    "branch_id": "BR-GANET",
+    "facility_type_id": "FAC-REGULAR",
+    "name": "Regular 01",
+    "status": "AVAILABLE",
+    "condition": "GOOD",
+    "data_status": "DRAFT"
+  },
+  {
+    "unit_id": "GN-R02",
+    "branch_id": "BR-GANET",
+    "facility_type_id": "FAC-REGULAR",
+    "name": "Regular 02",
+    "status": "AVAILABLE",
+    "condition": "GOOD",
+    "data_status": "DRAFT"
+  },
+  {
+    "unit_id": "GN-R03",
+    "branch_id": "BR-GANET",
+    "facility_type_id": "FAC-REGULAR",
+    "name": "Regular 03",
+    "status": "AVAILABLE",
+    "condition": "GOOD",
+    "data_status": "DRAFT"
+  },
+  {
+    "unit_id": "GN-R04",
+    "branch_id": "BR-GANET",
+    "facility_type_id": "FAC-REGULAR",
+    "name": "Regular 04",
+    "status": "AVAILABLE",
+    "condition": "GOOD",
+    "data_status": "DRAFT"
+  },
+  {
+    "unit_id": "GN-R05",
+    "branch_id": "BR-GANET",
+    "facility_type_id": "FAC-REGULAR",
+    "name": "Regular 05",
+    "status": "AVAILABLE",
+    "condition": "GOOD",
+    "data_status": "DRAFT"
+  },
+  {
+    "unit_id": "GN-R06",
+    "branch_id": "BR-GANET",
+    "facility_type_id": "FAC-REGULAR",
+    "name": "Regular 06",
+    "status": "AVAILABLE",
+    "condition": "GOOD",
+    "data_status": "DRAFT"
+  },
+  {
+    "unit_id": "GN-C01",
+    "branch_id": "BR-GANET",
+    "facility_type_id": "FAC-CAPSULE",
+    "name": "Capsule 01",
+    "status": "AVAILABLE",
+    "condition": "GOOD",
+    "data_status": "DRAFT"
+  },
+  {
+    "unit_id": "GN-C02",
+    "branch_id": "BR-GANET",
+    "facility_type_id": "FAC-CAPSULE",
+    "name": "Capsule 02",
+    "status": "AVAILABLE",
+    "condition": "GOOD",
+    "data_status": "DRAFT"
+  },
+  {
+    "unit_id": "GN-V01",
+    "branch_id": "BR-GANET",
+    "facility_type_id": "FAC-VIP",
+    "name": "VIP 01",
+    "status": "AVAILABLE",
+    "condition": "GOOD",
+    "data_status": "DRAFT"
+  },
+  {
+    "unit_id": "GN-V02",
+    "branch_id": "BR-GANET",
+    "facility_type_id": "FAC-VIP",
+    "name": "VIP 02",
+    "status": "AVAILABLE",
+    "condition": "GOOD",
+    "data_status": "DRAFT"
+  },
+  {
+    "unit_id": "GN-VV01",
+    "branch_id": "BR-GANET",
+    "facility_type_id": "FAC-VVIP",
+    "name": "VVIP 01",
+    "status": "AVAILABLE",
+    "condition": "GOOD",
+    "data_status": "DRAFT"
+  },
+  {
+    "unit_id": "GN-SW01",
+    "branch_id": "BR-GANET",
+    "facility_type_id": "FAC-SWITCH",
+    "name": "Nintendo Switch 01",
+    "status": "AVAILABLE",
+    "condition": "GOOD",
+    "data_status": "DRAFT"
+  },
+  {
+    "unit_id": "GN-SW02",
+    "branch_id": "BR-GANET",
+    "facility_type_id": "FAC-SWITCH",
+    "name": "Nintendo Switch 02",
+    "status": "AVAILABLE",
+    "condition": "GOOD",
+    "data_status": "DRAFT"
+  },
+  {
+    "unit_id": "GN-VR01",
+    "branch_id": "BR-GANET",
+    "facility_type_id": "FAC-PSVR2",
+    "name": "PSVR2 01",
+    "status": "AVAILABLE",
+    "condition": "GOOD",
+    "data_status": "DRAFT"
+  }
+]

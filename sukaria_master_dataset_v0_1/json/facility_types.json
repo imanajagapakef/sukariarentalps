@@ -1,0 +1,58 @@
+[
+  {
+    "facility_type_id": "FAC-REGULAR",
+    "code": "REGULAR",
+    "name": "Regular",
+    "platform": "PS5",
+    "category": "RENTAL",
+    "data_status": "SOURCE"
+  },
+  {
+    "facility_type_id": "FAC-CAPSULE",
+    "code": "CAPSULE",
+    "name": "Capsule",
+    "platform": "PS5",
+    "category": "RENTAL",
+    "data_status": "SOURCE"
+  },
+  {
+    "facility_type_id": "FAC-VIP",
+    "code": "VIP",
+    "name": "VIP",
+    "platform": "PS5",
+    "category": "RENTAL",
+    "data_status": "SOURCE"
+  },
+  {
+    "facility_type_id": "FAC-VVIP",
+    "code": "VVIP",
+    "name": "VVIP",
+    "platform": "PS5",
+    "category": "RENTAL",
+    "data_status": "SOURCE"
+  },
+  {
+    "facility_type_id": "FAC-STEERING",
+    "code": "STEERING",
+    "name": "Steering Wheel",
+    "platform": "PS5",
+    "category": "RACING",
+    "data_status": "SOURCE"
+  },
+  {
+    "facility_type_id": "FAC-SWITCH",
+    "code": "SWITCH",
+    "name": "Nintendo Switch",
+    "platform": "Nintendo Switch",
+    "category": "CONSOLE",
+    "data_status": "SOURCE"
+  },
+  {
+    "facility_type_id": "FAC-PSVR2",
+    "code": "PSVR2",
+    "name": "PSVR2",
+    "platform": "PS5",
+    "category": "VR",
+    "data_status": "SOURCE"
+  }
+]

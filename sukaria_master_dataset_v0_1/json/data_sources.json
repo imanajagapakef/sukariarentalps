@@ -1,0 +1,51 @@
+[
+  {
+    "source_id": "SRC-IG-2025-01-24",
+    "source_type": "INSTAGRAM_POST",
+    "reference": "Price list Batu 5",
+    "source_date": "2025-01-24",
+    "verification_status": "SOURCE_CONFIRMED"
+  },
+  {
+    "source_id": "SRC-IG-2025-02-05",
+    "source_type": "INSTAGRAM_POST",
+    "reference": "Price list Ganet / Paket Mantai",
+    "source_date": "2025-02-05",
+    "verification_status": "SOURCE_CONFIRMED"
+  },
+  {
+    "source_id": "SRC-IG-GAMES",
+    "source_type": "INSTAGRAM_POST",
+    "reference": "Game list Klub Sukaria / Ganet / Batu 5",
+    "source_date": "2025-01-2025",
+    "verification_status": "SOURCE_CONFIRMED"
+  },
+  {
+    "source_id": "SRC-MAPS-B5",
+    "source_type": "GOOGLE_MAPS",
+    "reference": "Klub Sukaria Batu 5",
+    "source_date": null,
+    "verification_status": "SOURCE_PROVIDED_BY_USER"
+  },
+  {
+    "source_id": "SRC-MAPS-GANET",
+    "source_type": "GOOGLE_MAPS",
+    "reference": "Sukaria Ganet",
+    "source_date": null,
+    "verification_status": "SOURCE_PROVIDED_BY_USER"
+  },
+  {
+    "source_id": "SRC-DRAFT-UNITS",
+    "source_type": "INTERNAL_DRAFT",
+    "reference": "Provisional unit inventory",
+    "source_date": "2026-09-24",
+    "verification_status": "NEEDS_OWNER_CONFIRMATION"
+  },
+  {
+    "source_id": "SRC-DRAFT-SNACKS",
+    "source_type": "INTERNAL_DRAFT",
+    "reference": "Provisional snack catalog",
+    "source_date": "2026-09-24",
+    "verification_status": "NEEDS_OWNER_CONFIRMATION"
+  }
+]
