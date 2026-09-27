@@ -5,10 +5,8 @@
 -- Review table names/columns against the final migration before production.
 -- All values marked DRAFT are provisional and require owner confirmation.
 
-BEGIN;
-
--- Recommended enums / tables are assumed to exist in the final schema.
 -- This seed uses ON CONFLICT on stable business IDs.
+-- Run after migrations 0001-0003.
 
 INSERT INTO businesses (business_id, brand_name, business_type, city, province, country, timezone, operating_hours, instagram, website, online_booking, online_payment_provider, currency, data_status)
 VALUES
@@ -43,6 +41,17 @@ google_rating = EXCLUDED.google_rating,
 google_review_count = EXCLUDED.google_review_count,
 status = EXCLUDED.status,
 data_status = EXCLUDED.data_status;
+
+INSERT INTO platforms (platform_id, code, name, active)
+VALUES
+('PLAT-PS5', 'PS5', 'PlayStation 5', TRUE),
+('PLAT-PS4', 'PS4', 'PlayStation 4', TRUE),
+('PLAT-SWITCH', 'SWITCH', 'Nintendo Switch', TRUE),
+('PLAT-PSVR2', 'PSVR2', 'PlayStation VR2', TRUE)
+ON CONFLICT (platform_id) DO UPDATE SET
+code = EXCLUDED.code,
+name = EXCLUDED.name,
+active = EXCLUDED.active;
 
 INSERT INTO facility_types (facility_type_id, code, name, platform, category, data_status)
 VALUES
@@ -146,9 +155,7 @@ VALUES
 ('PROMO-MANTAI-GANET', 'FAC-VVIP', 120, 110000),
 ('PROMO-MANTAI-GANET', 'FAC-VVIP', 240, 210000),
 ('PROMO-MANTAI-GANET', 'FAC-VVIP', 360, 288000)
-ON CONFLICT (promotion_id) DO UPDATE SET
-facility_type_id = EXCLUDED.facility_type_id,
-duration_minutes = EXCLUDED.duration_minutes,
+ON CONFLICT (promotion_id, facility_type_id, duration_minutes) DO UPDATE SET
 price = EXCLUDED.price;
 
 INSERT INTO games (game_id, name, slug, description, short_description, developer, publisher, release_date, age_rating, research_status, active, data_status)
@@ -449,4 +456,4 @@ reference = EXCLUDED.reference,
 source_date = EXCLUDED.source_date,
 verification_status = EXCLUDED.verification_status;
 
-COMMIT;
+

@@ -1,14 +1,18 @@
-# OS
+node_modules/
+.next/
+out/
+build/
+dist/
+coverage/
+
+.env
+.env.*
+!.env.example
+!.env.test.example
+
 Thumbs.db
 Desktop.ini
 .DS_Store
-
-# Office temp/lock files
 ~$*
-
-# Secrets
-.env
-.env.*
-
-# Node
-node_modules/
+*.tsbuildinfo
+next-env.d.ts
