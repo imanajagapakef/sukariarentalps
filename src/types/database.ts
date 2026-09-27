@@ -1460,7 +1460,51 @@ export type Database = {
         }
         Returns: number
       }
+      cancel_booking: {
+        Args: { p_booking_id: string; p_reason?: string }
+        Returns: Database["public"]["Enums"]["booking_status"]
+      }
+      check_in: {
+        Args: { p_booking_id: string }
+        Returns: Database["public"]["Enums"]["booking_status"]
+      }
+      complete_booking: {
+        Args: { p_booking_id: string }
+        Returns: Database["public"]["Enums"]["booking_status"]
+      }
+      confirm_booking: {
+        Args: { p_booking_id: string }
+        Returns: Database["public"]["Enums"]["booking_status"]
+      }
+      create_booking: {
+        Args: {
+          p_branch_id: string
+          p_created_by?: string
+          p_customer_email?: string
+          p_customer_name: string
+          p_customer_phone: string
+          p_duration_minutes?: number
+          p_game_id?: string
+          p_notes?: string
+          p_snacks?: Json
+          p_source?: Database["public"]["Enums"]["booking_source"]
+          p_start_at?: string
+          p_unit_id: string
+        }
+        Returns: {
+          booking_code: string
+          booking_id: string
+          payment_deadline_at: string
+          scheduled_end_at: string
+          scheduled_start_at: string
+          total_amount: number
+        }[]
+      }
       expire_bookings: { Args: never; Returns: number }
+      find_or_create_customer: {
+        Args: { p_email?: string; p_name: string; p_phone: string }
+        Returns: string
+      }
       generate_booking_code: { Args: never; Returns: string }
       get_available_units: {
         Args: { p_branch_id: string; p_end: string; p_start: string }
@@ -1497,8 +1541,20 @@ export type Database = {
         }
       }
       latest_extendable: { Args: { p_booking_id: string }; Returns: string }
+      mark_no_show: {
+        Args: { p_booking_id: string }
+        Returns: Database["public"]["Enums"]["booking_status"]
+      }
+      mark_unit_ready: {
+        Args: { p_unit_id: string }
+        Returns: Database["public"]["Enums"]["unit_status"]
+      }
       next_available: {
         Args: { p_from?: string; p_unit_id: string }
+        Returns: string
+      }
+      round_to_interval: {
+        Args: { p_at: string; p_interval: number }
         Returns: string
       }
     }
