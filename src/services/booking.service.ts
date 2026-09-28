@@ -38,6 +38,7 @@ function wrap(error: { message: string; code?: string }): BookingError {
 export async function createBooking(
   db: DB,
   input: CreateBookingInput,
+  opts?: { source?: Database["public"]["Enums"]["booking_source"]; createdBy?: string },
 ): Promise<CreateBookingResult> {
   const { data, error } = await db
     .rpc("create_booking", {
@@ -50,12 +51,43 @@ export async function createBooking(
       p_customer_email: input.customer_email || undefined,
       p_game_id: input.game_id,
       p_snacks: input.snacks,
+      p_source: opts?.source ?? "ONLINE",
+      p_created_by: opts?.createdBy,
       p_notes: input.notes,
     })
     .single();
 
   if (error) throw wrap(error);
   return data as CreateBookingResult;
+}
+
+export type WalkInInput = CreateBookingInput & {
+  payMethod: Extract<Database["public"]["Enums"]["payment_method"], "CASH" | "QRIS_MANUAL" | "TRANSFER_MANUAL">;
+};
+
+/**
+ * Walk-in = same atomic create, then staff collects money at the counter:
+ * confirmed immediately + a manual payment row, all in the caller's session.
+ */
+export async function createWalkInBooking(
+  db: DB,
+  input: WalkInInput,
+  actor: { userId: string },
+): Promise<CreateBookingResult & { payment_status: string }> {
+  const booking = await createBooking(db, input, { source: "WALK_IN", createdBy: actor.userId });
+  await confirmBooking(db, booking.booking_id);
+
+  const { error: payError } = await db.from("payments").insert({
+    booking_id: booking.booking_id,
+    provider: input.payMethod === "CASH" ? "CASH" : "MANUAL",
+    method: input.payMethod,
+    status: "PAID",
+    gross_amount: booking.total_amount,
+    paid_at: new Date().toISOString(),
+  });
+  if (payError) throw wrap(payError);
+
+  return { ...booking, payment_status: "PAID" };
 }
 
 export async function confirmBooking(db: DB, bookingId: string): Promise<BookingStatus> {

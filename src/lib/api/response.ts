@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { AuthError } from "@/lib/authz";
 
 export function jsonError(message: string, status: number, code?: string) {
   return NextResponse.json({ error: { message, code } }, { status });
@@ -6,6 +7,7 @@ export function jsonError(message: string, status: number, code?: string) {
 
 /** Map a thrown error to an HTTP response, treating domain errors as 4xx. */
 export function handleRouteError(error: unknown) {
+  if (error instanceof AuthError) return jsonError(error.message, error.status);
   if (error instanceof Error) {
     const isClient =
       "isClientError" in error && (error as { isClientError?: boolean }).isClientError;
