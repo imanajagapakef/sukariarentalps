@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Anton, Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
+import { cn } from "@/lib/utils";
 
 const anton = Anton({
   weight: "400",
@@ -29,7 +30,7 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="id" className={`${anton.variable} ${jakarta.variable}`}>
+    <html lang="id" className={cn(anton.variable, jakarta.variable)}>
       <body>{children}</body>
     </html>
   );
