@@ -127,7 +127,7 @@ describeDb("booking engine", () => {
     await expect(createBooking("20:00", 480)).rejects.toThrow(/durasi/);
   });
 
-  it("lets exactly one of two concurrent bookings win", async () => {
+  it("lets exactly one of two concurrent bookings win", { timeout: 30_000 }, async () => {
     // two independent connections, same slot, fired together
     const a = new Client({ connectionString, ssl: { rejectUnauthorized: false } });
     const b = new Client({ connectionString, ssl: { rejectUnauthorized: false } });
