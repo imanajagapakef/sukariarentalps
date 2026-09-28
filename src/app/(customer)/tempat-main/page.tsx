@@ -1,6 +1,7 @@
 import { getBranches, getUnitsWithFacility } from "@/lib/catalog";
 import { UnitStatusPill } from "@/components/status-pill";
 import { EmptyState } from "@/components/empty-state";
+import { LiveUnits } from "@/components/live-units";
 import { fmtTime } from "@/lib/format";
 import { createClient } from "@/lib/supabase/server";
 
@@ -28,8 +29,15 @@ export default async function TempatMainPage({
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-10 md:px-8">
+      <LiveUnits />
       <h1 className="font-display text-3xl uppercase md:text-5xl">Tempat Main</h1>
-      <p className="mt-2 text-muted-foreground">Status langsung per unit. Hijau = bisa langsung gas.</p>
+      <p className="mt-2 flex items-center gap-2 text-muted-foreground">
+        <span aria-hidden className="relative flex size-2">
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75" />
+          <span className="relative inline-flex size-2 rounded-full bg-primary" />
+        </span>
+        Status langsung per unit. Hijau = bisa langsung gas.
+      </p>
 
       <div className="mt-6 flex flex-wrap gap-2">
         <a

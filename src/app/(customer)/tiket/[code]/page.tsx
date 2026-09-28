@@ -38,6 +38,19 @@ export default async function TicketPage({ params }: { params: Promise<{ code: s
         </div>
       )}
 
+      {booking.status === "IN_USE" && (
+        <div className="mt-4 rounded-lg border border-primary-container bg-primary/10 p-4">
+          <p className="text-sm text-primary">Sesi kamu selesai dalam:</p>
+          <Countdown deadline={booking.scheduled_end_at} doneLabel="Waktu main habis — perpanjang di kasir" />
+          <p className="mt-2 text-sm text-muted-foreground">
+            Butuh tambahan waktu?{" "}
+            <a className="text-primary hover:underline" href={`/extension?code=${booking.booking_code}`}>
+              Extension
+            </a>
+          </p>
+        </div>
+      )}
+
       <div className="mt-6 grid gap-4 sm:grid-cols-2">
         <div className="rounded-xl border border-border bg-card p-5">
           <p className="text-xs uppercase text-muted-foreground">Waktu</p>

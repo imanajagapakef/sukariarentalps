@@ -4,8 +4,8 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 
-/** Counts down to the payment deadline, client-side from an absolute time. */
-export function Countdown({ deadline }: { deadline: string }) {
+/** Counts down to an absolute deadline (payment window or session end), client-side. */
+export function Countdown({ deadline, doneLabel = "Waktu habis" }: { deadline: string; doneLabel?: string }) {
   const target = new Date(deadline).getTime();
   const [left, setLeft] = useState(() => target - Date.now());
 
@@ -14,7 +14,7 @@ export function Countdown({ deadline }: { deadline: string }) {
     return () => clearInterval(t);
   }, [target]);
 
-  if (left <= 0) return <p className="font-display text-lg text-danger">Waktu habis</p>;
+  if (left <= 0) return <p className="font-display text-lg text-danger">{doneLabel}</p>;
   const m = Math.floor(left / 60_000);
   const s = Math.floor((left % 60_000) / 1000);
   return (
