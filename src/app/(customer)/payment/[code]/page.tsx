@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getBookingByCode } from "@/services/booking.service";
-import { PayButton } from "@/components/ticket-actions";
+import { StartPaymentButton } from "@/components/ticket-actions";
 import { BookingStatusPill } from "@/components/status-pill";
 import { fmtDateTime, rp } from "@/lib/format";
 
@@ -35,7 +35,7 @@ export default async function PaymentPage({ params }: { params: Promise<{ code: 
       </div>
 
       {booking.status === "WAITING_PAYMENT" ? (
-        <PayButton code={booking.booking_code} className="mt-6 w-full" />
+        <StartPaymentButton code={booking.booking_code} className="mt-6 w-full" />
       ) : (
         <p className="mt-6 text-sm text-primary">Pembayaran untuk booking ini sudah tidak menunggu.</p>
       )}
