@@ -14,10 +14,11 @@ if (password.length < 12) throw new Error("Password minimal 12 karakter");
 
 const db = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
 
-const { data: existing } = await db.auth.admin.getUserByEmail(email);
-if (existing.user) {
-  const { data: prof } = await db.from("profiles").select("role, active").eq("user_id", existing.user.id).maybeSingle();
-  console.log(`sudah ada: ${email} (role=${prof?.role ?? "tanpa profile"}). Login pakai password baru lewat form /login.`);
+const { data: all } = await db.auth.admin.listUsers();
+const existing = (all?.users ?? []).find((u) => u.email?.toLowerCase() === email);
+if (existing) {
+  const { data: prof } = await db.from("profiles").select("role, active").eq("user_id", existing.id).maybeSingle();
+  console.log(`sudah ada: ${email} (role=${prof?.role ?? "tanpa profile"}). Login pakai lewat form /login.`);
   process.exit(0);
 }
 

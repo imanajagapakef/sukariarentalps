@@ -73,9 +73,9 @@ export async function createWalkInBooking(
   db: DB,
   input: WalkInInput,
   actor: { userId: string },
-): Promise<CreateBookingResult & { payment_status: string }> {
+): Promise<CreateBookingResult & { status: BookingStatus; payment_status: string }> {
   const booking = await createBooking(db, input, { source: "WALK_IN", createdBy: actor.userId });
-  await confirmBooking(db, booking.booking_id);
+  const status = await confirmBooking(db, booking.booking_id);
 
   const { error: payError } = await db.from("payments").insert({
     booking_id: booking.booking_id,
@@ -87,7 +87,7 @@ export async function createWalkInBooking(
   });
   if (payError) throw wrap(payError);
 
-  return { ...booking, payment_status: "PAID" };
+  return { ...booking, status, payment_status: "PAID" };
 }
 
 export async function confirmBooking(db: DB, bookingId: string): Promise<BookingStatus> {
