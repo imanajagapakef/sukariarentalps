@@ -33,11 +33,19 @@ export async function createPaymentForBooking(
 
   const { data: live } = await db
     .from("payments")
-    .select("payment_id")
+    .select("payment_id, raw_response")
     .eq("booking_id", booking.booking_id)
     .in("status", ["PENDING", "PAID"])
     .maybeSingle();
-  if (live) throw new PaymentError("Pembayaran sudah dibuat untuk booking ini");
+  if (live) {
+    // Reuse the Snap redirect already generated for this payment — reloads of
+    // the payment page must not create a second transaction.
+    const snap = live.raw_response as unknown as { redirect_url?: string } | null;
+    if (snap?.redirect_url) {
+      return { payment_id: live.payment_id, token: "", redirect_url: snap.redirect_url };
+    }
+    throw new PaymentError("Pembayaran sudah dibuat untuk booking ini");
+  }
 
   const { data: payment, error: insertError } = await db
     .from("payments")

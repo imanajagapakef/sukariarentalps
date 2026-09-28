@@ -106,6 +106,7 @@ export async function markUnitReady(
 
 export type BookingDetail = Database["public"]["Tables"]["bookings"]["Row"] & {
   booking_items: Database["public"]["Tables"]["booking_items"]["Row"][];
+  customers: { name: string | null; phone: string | null } | null;
 };
 
 /** Customer-facing lookup by booking code. No login required. */
@@ -115,7 +116,7 @@ export async function getBookingByCode(
 ): Promise<BookingDetail | null> {
   const { data, error } = await db
     .from("bookings")
-    .select("*, booking_items(*)")
+    .select("*, booking_items(*), customers(name, phone)")
     .eq("booking_code", code.trim().toUpperCase())
     .maybeSingle();
 

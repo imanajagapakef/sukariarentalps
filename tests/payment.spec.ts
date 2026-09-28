@@ -131,8 +131,14 @@ describeDb("payment service", () => {
     expect(payment.status).toBe("PENDING");
     expect(payment.provider_order_id).toBe(payment.payment_id);
 
-    // a second request for the same booking must not double-charge
-    await expect(createPaymentForBooking(admin, booking.booking_code)).rejects.toThrow(/sudah dibuat/);
+    // a second request reuses the same Snap redirect instead of double-charging
+    const again = await createPaymentForBooking(admin, booking.booking_code);
+    expect(again.payment_id).toBe(payment.payment_id);
+    const { rows: payCount } = await db.query(
+      `select count(*)::int as n from payments where booking_id = $1`,
+      [booking.booking_id],
+    );
+    expect(payCount[0].n).toBe(1);
 
     await db.query(`select public.cancel_booking($1)`, [booking.booking_id]);
   });
