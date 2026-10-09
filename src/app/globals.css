@@ -9,6 +9,22 @@
 /*
   Klub Sukaria Arcade & Lounge — design tokens
   Source: Stitch design system assets/0a53ea4032e44043bfd2aeda6c1e3b77
+
+  This block is the authority for the brand. A shadcn-compat block sits below it
+  (`@theme inline` + `:root`) that owns the surface/foreground/border semantics
+  the shadcn primitives in components/ui expect. Because a later `@theme` block
+  wins in Tailwind v4, the two must not declare the same custom property name.
+
+  Names deliberately NOT used here, because the shadcn layer already owns them
+  and the values mean something different:
+    - `muted`    shadcn = muted *surface* (#2a2a2a), paired with
+                 --muted-foreground for body text. The brand gray below is
+                 exposed as `controller-gray` instead, so `bg-muted` can never
+                 silently resolve to a mid gray and break text contrast.
+    - `secondary` shadcn = muted surface (#2a2a2a). The brand off-white below is
+                 exposed as `warm-paper`; `bg-secondary`/`text-secondary` are
+                 unused in this codebase.
+    - `primary`   both resolve to the same #61e06a, so the overlap is harmless.
 */
 @theme {
   --color-surface: #131313;
@@ -30,19 +46,24 @@
   --color-on-primary: #00390b;
   --color-on-primary-container: #003309;
 
-  --color-secondary: #c6c7c2;
   --color-secondary-container: #484a46;
   --color-on-secondary: #2f312e;
 
   --color-tertiary: #c7c6c6;
   --color-off-white: #f7f7f2;
-  --color-muted: #6b6b6b;
+  /* Muted Controller Gray — brand tertiary, see note above on `muted`. */
+  --color-controller-gray: #6b6b6b;
+  /* Warm Paper Off-White — brand secondary, see note above on `secondary`. */
+  --color-warm-paper: #c6c7c2;
 
   --color-error: #ffb4ab;
   --color-error-container: #93000a;
   --color-on-error: #690005;
-  --color-warning: #ffb800;
-  --color-danger: #ff4d4d;
+  /* Status HUD per brand guide v2.4: Telemetry Amber & Coral */
+  --color-warning: #f59e0b;
+  --color-danger: #ef4444;
+  --color-amber: #f59e0b;
+  --color-coral: #ef4444;
 
   --font-display: var(--font-anton), Impact, sans-serif;
   --font-sans: var(--font-jakarta), system-ui, sans-serif;
@@ -52,6 +73,8 @@
   --radius-md: 0.75rem;
   --radius-lg: 1rem;
   --radius-xl: 1.5rem;
+  /* Design system: "deep 32px corners (rounded-3xl for featured heroes)". */
+  --radius-3xl: 2rem;
 
   --animate-marquee: marquee 30s linear infinite;
 
@@ -59,6 +82,52 @@
     to {
       transform: translateX(-50%);
     }
+  }
+
+  --animate-bobbing: bobbing 2.4s ease-in-out infinite;
+  --animate-tv-glow: tv-glow 3.5s ease-in-out infinite;
+  --animate-blink: blink 1.2s ease-in-out infinite;
+
+  @keyframes bobbing {
+    0%, 100% { transform: translateY(0) rotate(-1deg); }
+    50% { transform: translateY(-6px) rotate(1deg); }
+  }
+
+  @keyframes tv-glow {
+    0%, 100% { filter: drop-shadow(0 0 8px rgba(32,168,58,.45)); }
+    50% { filter: drop-shadow(0 0 24px rgba(32,168,58,.9)); }
+  }
+
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: .25; }
+  }
+
+  --animate-float: float 3s ease-in-out infinite;
+  --animate-steam: steam 2.5s ease-in-out infinite;
+  --animate-radar: radar 2.8s linear infinite;
+  --animate-coupon: coupon 2s ease-in-out infinite;
+  --animate-headset-glow: headset-glow 3s ease-in-out infinite;
+
+  @keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-8px); }
+  }
+  @keyframes steam {
+    0% { transform: translateY(0); opacity: .8; }
+    100% { transform: translateY(-18px); opacity: 0; }
+  }
+  @keyframes radar {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+  @keyframes coupon {
+    0%, 100% { transform: rotate(-2deg) translateY(0); }
+    50% { transform: rotate(2deg) translateY(-6px); }
+  }
+  @keyframes headset-glow {
+    0%, 100% { filter: drop-shadow(0 0 6px rgba(97,224,106,.25)); }
+    50% { filter: drop-shadow(0 0 18px rgba(97,224,106,.7)); }
   }
 }
 
@@ -121,13 +190,16 @@
   --color-card: var(--card);
   --color-foreground: var(--foreground);
   --color-background: var(--background);
-  --radius-sm: calc(var(--radius) * 0.6);
-  --radius-md: calc(var(--radius) * 0.8);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) * 1.4);
-  --radius-2xl: calc(var(--radius) * 1.8);
-  --radius-3xl: calc(var(--radius) * 2.2);
-  --radius-4xl: calc(var(--radius) * 2.6);
+  /*
+    Radius scale intentionally absent.
+
+    This block used to redefine --radius-sm/md/lg/xl as calc(var(--radius) * N)
+    against a 0.5rem base, which overrode the Stitch values above and rendered
+    rounded-xl at 11.2px instead of the specified 24px — every card in the app
+    came out less than half as soft as the design. `rounded-md` (3 uses),
+    `rounded-lg` (9) and `rounded-xl` (1) now resolve to the Stitch scale.
+    rounded-2xl/3xl/4xl were unused; 3xl is defined above per the design.
+  */
 }
 /*
   ---break---
@@ -147,15 +219,15 @@
   --muted-foreground: #bdcab7;
   --accent: #353534;
   --accent-foreground: #e5e2e1;
-  --destructive: #93000a;
-  --destructive-foreground: #ffb4ab;
+  --destructive: #ef4444;
+  --destructive-foreground: #20120f;
   --border: #3e4a3b;
   --input: #3e4a3b;
   --ring: #20a83a;
   --chart-1: #61e06a;
   --chart-2: #bdcab7;
-  --chart-3: #ffb800;
-  --chart-4: #ff4d4d;
+  --chart-3: #f59e0b;
+  --chart-4: #ef4444;
   --chart-5: #879483;
   --radius: 0.5rem;
   --sidebar: #0e0e0e;
@@ -167,35 +239,53 @@
   --sidebar-border: #3e4a3b;
   --sidebar-ring: #20a83a;
 }
+
 /*
-  ---break---
+  Arcade component utilities — physical, punchy plastic-button feel.
+  Hard-edge offset shadows (0 blur) per design system "Physical Arcade Drop".
 */
-.dark {
-  --background: #131313;
-  --foreground: #e5e2e1;
-  --card: #1c1b1b;
-  --card-foreground: #e5e2e1;
-  --popover: #201f1f;
-  --popover-foreground: #e5e2e1;
-  --primary: #61e06a;
-  --primary-foreground: #00390b;
-  --secondary: #2a2a2a;
-  --secondary-foreground: #e5e2e1;
-  --muted: #2a2a2a;
-  --muted-foreground: #bdcab7;
-  --accent: #353534;
-  --accent-foreground: #e5e2e1;
-  --destructive: #93000a;
-  --destructive-foreground: #ffb4ab;
-  --border: #3e4a3b;
-  --input: #3e4a3b;
-  --ring: #20a83a;
-  --sidebar: #0e0e0e;
-  --sidebar-foreground: #e5e2e1;
-  --sidebar-primary: #61e06a;
-  --sidebar-primary-foreground: #00390b;
-  --sidebar-accent: #2a2a2a;
-  --sidebar-accent-foreground: #e5e2e1;
-  --sidebar-border: #3e4a3b;
-  --sidebar-ring: #20a83a;
+@layer utilities {
+  .shadow-arcade {
+    box-shadow: 0 4px 0 0 #000000;
+  }
+  .shadow-arcade-sm {
+    box-shadow: 0 3px 0 0 #000000;
+  }
+  .shadow-arcade-primary {
+    box-shadow: 0 4px 0 0 #20a83a;
+  }
+  .shadow-arcade-coral {
+    box-shadow: 0 4px 0 0 #ef4444;
+  }
+  /* Active/focus state: 2px primary stroke + ambient radial glow */
+  .glow-primary {
+    box-shadow:
+      0 0 0 2px #20a83a,
+      0 0 24px 4px rgba(32, 168, 58, 0.25);
+  }
+  .text-shadow-arcade {
+    text-shadow: 0 2px 0 rgba(0, 0, 0, 0.6);
+  }
+  .no-scrollbar {
+    scrollbar-width: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  /*
+    Native select fields. `appearance: none` removes the platform chevron, so it
+    has to be drawn back — otherwise the control looks half-styled. Inlined SVG
+    rather than a second request; stroke is on-surface-variant for contrast on the
+    dark surface.
+  */
+  .select-field {
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23bdcab7' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.75rem center;
+    background-size: 1rem 1rem;
+    /* Room for the chevron so long option text cannot run under it. */
+    padding-right: 2.25rem;
+  }
 }

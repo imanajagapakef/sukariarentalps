@@ -1,9 +1,10 @@
 import { getBranches, getUnitsWithFacility } from "@/lib/catalog";
-import { UnitStatusPill } from "@/components/status-pill";
 import { EmptyState } from "@/components/empty-state";
 import { LiveUnits } from "@/components/live-units";
-import { fmtTime } from "@/lib/format";
+import { StationCard } from "@/components/kit/station-card";
+import { TempatMainHeroAnimation } from "@/components/tempat-main-hero-animation";
 import { createClient } from "@/lib/supabase/server";
+import { getNextFreeMap } from "@/lib/next-free";
 
 export const dynamic = "force-dynamic";
 
@@ -17,27 +18,24 @@ export default async function TempatMainPage({
   const shown = branch ? units.filter((u) => u.branch_id === branch) : units;
 
   const db = await createClient();
-  const now = new Date();
-  const nextFree = new Map<string, string | null>();
-  await Promise.all(
-    shown.map(async (u) => {
-      if (u.status === "AVAILABLE") return;
-      const { data } = await db.rpc("next_available", { p_unit_id: u.unit_id, p_from: now.toISOString() });
-      nextFree.set(u.unit_id, data ?? null);
-    }),
-  );
+  const nextFree = await getNextFreeMap(db, shown);
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-10 md:px-8">
       <LiveUnits />
-      <h1 className="font-display text-3xl uppercase md:text-5xl">Tempat Main</h1>
-      <p className="mt-2 flex items-center gap-2 text-muted-foreground">
-        <span aria-hidden className="relative flex size-2">
-          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75" />
-          <span className="relative inline-flex size-2 rounded-full bg-primary" />
-        </span>
-        Status langsung per unit. Hijau = bisa langsung gas.
-      </p>
+      <div className="mt-6 flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+        <div className="max-w-2xl">
+          <h1 className="font-display text-3xl uppercase md:text-5xl">Tempat Main</h1>
+          <p className="mt-2 flex items-center gap-2 text-muted-foreground">
+            <span aria-hidden className="relative flex size-2">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75" />
+              <span className="relative inline-flex size-2 rounded-full bg-primary" />
+            </span>
+            Status langsung per unit. Hijau = bisa langsung gas.
+          </p>
+        </div>
+        <TempatMainHeroAnimation className="h-24 w-full md:h-44 md:w-[480px] shrink-0" />
+      </div>
 
       <div className="mt-6 flex flex-wrap gap-2">
         <a
@@ -63,37 +61,9 @@ export default async function TempatMainPage({
         </div>
       ) : (
         <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {shown.map((u) => {
-            const free = nextFree.get(u.unit_id);
-            return (
-              <div key={u.unit_id} className="flex flex-col gap-3 rounded-xl border border-border bg-card p-5">
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <p className="font-display text-lg uppercase leading-tight">{u.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {u.facility_types?.name} · {u.facility_types?.platform} · {u.branches?.short_name ?? u.branches?.name}
-                    </p>
-                  </div>
-                  <UnitStatusPill status={u.status} />
-                </div>
-                <div className="mt-auto flex items-center justify-between gap-2 pt-2">
-                  {u.status === "AVAILABLE" || !free ? (
-                    <p className="text-sm text-primary">{u.status === "AVAILABLE" ? "Langsung available" : "—"}</p>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">
-                      Kosong jam <span className="text-foreground">{fmtTime(free)}</span>
-                    </p>
-                  )}
-                  <a
-                    href={`/booking?unit=${u.unit_id}&branch=${u.branch_id}`}
-                    className={u.status === "AVAILABLE" ? "text-sm font-medium text-primary hover:underline" : "text-sm text-muted-foreground hover:text-foreground"}
-                  >
-                    Booking →
-                  </a>
-                </div>
-              </div>
-            );
-          })}
+          {shown.map((u) => (
+            <StationCard key={u.unit_id} unit={u} nextFree={nextFree.get(u.unit_id)} />
+          ))}
         </div>
       )}
     </div>

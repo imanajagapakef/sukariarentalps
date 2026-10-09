@@ -1,39 +1,21 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { createHash } from "node:crypto";
+import { createHmac } from "node:crypto";
 import { Client } from "pg";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createPaymentForBooking, handleMidtransNotification } from "@/services/payment.service";
+import { createPaymentForBooking, handleCasakuNotification } from "@/services/payment.service";
 
-const TEST_SERVER_KEY = "test-server-key";
-process.env.MIDTRANS_SERVER_KEY = TEST_SERVER_KEY;
+const TEST_WEBHOOK_SECRET = "test-webhook-secret";
+process.env.CASAKU_WEBHOOK_SECRET = TEST_WEBHOOK_SECRET;
+process.env.CASAKU_LICENSE_KEY = "test-license-key";
+process.env.CASAKU_QR_ID = "test-qr-id";
+process.env.CASAKU_PACKAGE_IDS = "id.dana,com.shopee.id";
+process.env.QRIS_STATIC_STRING = "00020101021126650013ID.CO.BTN.WWW011893600200117210000202154051101721000020303UMI51440014ID.CO.QRIS.WWW0215ID10265958817190303UMI5204721053033605802ID5911Dedi Kaisar6014TANJUNG PINANG61052912562070703A016304CA3B";
 
-const sig = (orderId: string, statusCode: string, gross: string) =>
-  createHash("sha512").update(`${orderId}${statusCode}${gross}${TEST_SERVER_KEY}`).digest("hex");
-
-// supabase-js reads globalThis.fetch at call time, so a blanket stub would
-// hijack DB queries too — intercept only the Snap endpoint.
-const realFetch = globalThis.fetch;
-function stubSnap(token: string) {
-  vi.stubGlobal("fetch", (input: RequestInfo | URL, init?: RequestInit) => {
-    const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
-    if (url.includes("/snap/v1/transactions")) {
-      return Promise.resolve(
-        new Response(JSON.stringify({ token, redirect_url: `https://app.sandbox.midtrans.com/snap/v2/vtx.html?token=${token}` }), { status: 200 }),
-      );
-    }
-    return realFetch(input as RequestInfo, init);
-  });
-}
+const sig = (rawBody: string) => createHmac("sha256", TEST_WEBHOOK_SECRET).update(rawBody).digest("hex");
 
 const connectionString = process.env.TEST_DATABASE_URL;
 const describeDb = connectionString ? describe : describe.skip;
 
-/**
- * Payment service integration tests. handleMidtransNotification is driven with
- * real supabase-js against the real database — the behaviour under test is the
- * idempotency index and the booking RPC transition, neither of which a mock
- * would catch. Snap itself is stubbed at fetch level.
- */
 describeDb("payment service", () => {
   const suffix = Date.now().toString(36).toUpperCase();
   const unitId = `P-UNIT-${suffix}`;
@@ -85,8 +67,6 @@ describeDb("payment service", () => {
     await db.end();
   });
 
-  // each test owns a clean unit, and the admin client must be created BEFORE
-  // stubbing fetch — supabase-js captures the global at construction time
   beforeEach(async () => {
     await db.query(`delete from unit_reservations where unit_id = $1`, [unitId]);
     await db.query(
@@ -120,18 +100,16 @@ describeDb("payment service", () => {
     return rows[0];
   }
 
-  it("createPaymentForBooking stores the payment and returns the Snap token", async () => {
+  it("createPaymentForBooking stores the payment and returns the Casaku transaction id", async () => {
     const booking = await newBooking("09:00");
-    stubSnap("tok-1");
-
     const result = await createPaymentForBooking(admin, booking.booking_code);
-    expect(result.token).toBe("tok-1");
+    expect(result.redirect_url).toBe(`/payment/${booking.booking_code}/qris`);
 
     const payment = await paymentFor(booking.booking_id);
     expect(payment.status).toBe("PENDING");
+    expect(payment.method).toBe("QRIS_MANUAL");
     expect(payment.provider_order_id).toBe(payment.payment_id);
 
-    // a second request reuses the same Snap redirect instead of double-charging
     const again = await createPaymentForBooking(admin, booking.booking_code);
     expect(again.payment_id).toBe(payment.payment_id);
     const { rows: payCount } = await db.query(
@@ -145,20 +123,14 @@ describeDb("payment service", () => {
 
   it("ignores a notification with an invalid signature", async () => {
     const booking = await newBooking("11:00");
+    const payload = { transactionId: `TX-BAD-${suffix}`, amount: 35000, packageName: "id.dana", status: "paid" };
+    const rawBody = JSON.stringify(payload);
 
-    const result = await handleMidtransNotification(admin, {
-      transaction_id: `TX-BAD-${suffix}`,
-      order_id: booking.booking_code,
-      status_code: "200",
-      gross_amount: "35000",
-      transaction_status: "settlement",
-      signature_key: "definitely-wrong",
-    });
-
+    const result = await handleCasakuNotification(admin, payload, rawBody, "deadbeef");
     expect(result).toEqual({ processed: false, reason: "signature invalid" });
     const { rows: ev } = await db.query(
       `select signature_valid from payment_events where provider_event_id = $1`,
-      [`TX-BAD-${suffix}`],
+      [payload.transactionId],
     );
     expect(ev[0].signature_valid).toBe(false);
 
@@ -167,36 +139,30 @@ describeDb("payment service", () => {
 
   it("settles: payment PAID, booking CONFIRMED, duplicate ignored", async () => {
     const booking = await newBooking("13:00");
-    stubSnap("tok-2");
-    const { payment_id } = await createPaymentForBooking(admin, booking.booking_code);
+    await createPaymentForBooking(admin, booking.booking_code);
 
-    const notification = {
-      transaction_id: `TX-OK-${suffix}`,
-      order_id: payment_id,
-      status_code: "200",
-      gross_amount: "35000",
-      payment_type: "qris",
-      transaction_status: "settlement",
-      signature_key: sig(payment_id, "200", "35000"),
-    };
+    const paymentRecord = await paymentFor(booking.booking_id);
+    const transactionId = paymentRecord.payment_id;
+    const payload = { transactionId, amount: 35000, packageName: "id.dana", status: "paid", paidAt: new Date().toISOString() };
+    const rawBody = JSON.stringify(payload);
+    const signature = sig(rawBody);
 
-    const first = await handleMidtransNotification(admin, notification);
+    const first = await handleCasakuNotification(admin, payload, rawBody, signature);
     expect(first.processed).toBe(true);
 
     const payment = await paymentFor(booking.booking_id);
     expect(payment.status).toBe("PAID");
-    expect(payment.method).toBe("MIDTRANS_QRIS");
+    expect(payment.method).toBe("QRIS_MANUAL");
     expect(payment.paid_at).not.toBeNull();
 
     const { rows: bk } = await db.query(`select status from bookings where booking_id = $1`, [booking.booking_id]);
     expect(bk[0].status).toBe("CONFIRMED");
 
-    // Midtrans retries — second delivery must change nothing
-    const second = await handleMidtransNotification(admin, notification);
+    const second = await handleCasakuNotification(admin, payload, rawBody, signature);
     expect(second).toEqual({ processed: false, reason: "already processed" });
     const { rows: count } = await db.query(
       `select count(*)::int as n from payment_events where provider_event_id = $1`,
-      [`TX-OK-${suffix}`],
+      [transactionId],
     );
     expect(count[0].n).toBe(1);
 
@@ -205,17 +171,13 @@ describeDb("payment service", () => {
 
   it("expiry marks the payment EXPIRED but leaves the booking to the cron", async () => {
     const booking = await newBooking("15:00");
-    stubSnap("tok-3");
-    const { payment_id } = await createPaymentForBooking(admin, booking.booking_code);
+    await createPaymentForBooking(admin, booking.booking_code);
 
-    const result = await handleMidtransNotification(admin, {
-      transaction_id: `TX-EXP-${suffix}`,
-      order_id: payment_id,
-      status_code: "404",
-      gross_amount: "35000",
-      transaction_status: "expire",
-      signature_key: sig(payment_id, "404", "35000"),
-    });
+    const paymentRecord = await paymentFor(booking.booking_id);
+    const transactionId = paymentRecord.payment_id;
+    const payload = { transactionId, amount: 35000, packageName: "id.dana", status: "expired" };
+    const rawBody = JSON.stringify(payload);
+    const result = await handleCasakuNotification(admin, payload, rawBody, sig(rawBody));
     expect(result.processed).toBe(true);
 
     expect((await paymentFor(booking.booking_id)).status).toBe("EXPIRED");

@@ -2,14 +2,22 @@ import { getPromotions } from "@/lib/catalog";
 import { rp } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/empty-state";
+import { PromoHeroAnimation } from "@/components/promo-hero-animation";
+
+export const revalidate = 300;
 
 export default async function PromoPage() {
   const promos = await getPromotions();
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-10 md:px-8">
-      <h1 className="font-display text-3xl uppercase md:text-5xl">Promo</h1>
-      <p className="mt-2 text-muted-foreground">Paket hemat buat main lebih lama.</p>
+      <div className="mt-6 flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+        <div className="max-w-2xl">
+          <h1 className="font-display text-3xl uppercase md:text-5xl">Promo</h1>
+          <p className="mt-2 text-muted-foreground">Paket hemat buat main lebih lama.</p>
+        </div>
+        <PromoHeroAnimation className="h-24 w-full md:h-44 md:w-[480px] shrink-0" />
+      </div>
 
       {promos.length === 0 ? (
         <div className="mt-8">

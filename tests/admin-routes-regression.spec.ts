@@ -1,0 +1,272 @@
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { GET as exportReports } from "@/app/api/admin/reports/export/route";
+import { GET as exportBookings } from "@/app/api/admin/bookings/export/route";
+import { PATCH as patchSnack } from "@/app/api/admin/snacks/route";
+import {
+  callRoute,
+  canAuthenticate,
+  signInAsOwner,
+  signOut,
+} from "./admin-harness";
+import { createAdminClient } from "@/lib/supabase/admin";
+
+const describeLive = canAuthenticate ? describe : describe.skip;
+
+/**
+ * The two other admin routes that shipped with a real defect, now covered by the same
+ * harness. Both were found by hand; both were invisible to the suite.
+ */
+describeLive("admin routes regression", () => {
+  const suffix = Date.now().toString(36).toUpperCase();
+  const snackId = `B-SNK-RT${suffix}`;
+  const unitId = `B-U-RT${suffix}`;
+  const startStock = 10;
+  let bookingId = "";
+  // Both CSV-injection tests create a booking. A single `bookingId` let the second test
+  // overwrite the first, so afterAll only ever removed one of them — leaking a booking,
+  // its customer and, via the unit FK, the test unit itself.
+  const createdBookings: string[] = [];
+  const createdPhones: string[] = [];
+
+  beforeAll(async () => {
+    await signInAsOwner();
+    const db = createAdminClient();
+    // A dedicated snack and unit, not shared catalogue rows. An earlier draft reused
+    // SNK-001 and "undid" it by inserting a movement of +stock, which compounded:
+    // SNK-001 reached stock 1022 with ~750 junk ledger rows before this was caught.
+    const { error } = await db.from("snacks").insert({
+      snack_id: snackId,
+      name: "Route Test Snack",
+      category: "SNACK",
+      price: 10000,
+      stock: startStock,
+      min_stock: 1,
+    });
+    if (error) throw new Error(`gagal membuat snack test: ${error.message}`);
+
+    // IN_ORDER, not AVAILABLE: bookings-query.spec.ts picks the first *AVAILABLE* unit
+    // it finds, and borrowing one is how a foreign booking ends up FK-referencing this
+    // row and breaking cleanup. It only ever looks at BR-B5, and this is at BR-GANET,
+    // so the status is belt-and-braces.
+    const { error: unitError } = await db.from("units").insert({
+      unit_id: unitId,
+      branch_id: "BR-GANET",
+      facility_type_id: "FAC-REGULAR",
+      name: "Route Test Unit",
+      condition: "GOOD",
+      status: "IN_ORDER",
+    });
+    if (unitError) throw new Error(`gagal membuat unit test: ${unitError.message}`);
+  });
+
+  afterAll(async () => {
+    if (!snackId) return;
+    const db = createAdminClient();
+    for (const id of createdBookings) {
+      await db.from("unit_reservations").delete().eq("booking_id", id);
+      await db.from("booking_items").delete().eq("booking_id", id);
+      await db.from("unit_status_history").delete().eq("booking_id", id);
+      await db.from("bookings").delete().eq("booking_id", id);
+    }
+    for (const phone of createdPhones) {
+      await db.from("customers").delete().eq("phone", phone);
+    }
+    // adminCrud writes an audit row for every write, so those have to go too or the
+    // audit log fills with rows about a snack that no longer exists.
+    await db.from("audit_logs").delete().eq("entity_id", snackId);
+    await db.from("inventory_movements").delete().eq("snack_id", snackId);
+    await db.from("snacks").delete().eq("snack_id", snackId);
+    await db.from("unit_status_history").delete().eq("unit_id", unitId);
+    await db.from("unit_reservations").delete().eq("unit_id", unitId);
+    await db.from("units").delete().eq("unit_id", unitId);
+    signOut();
+  });
+
+  it("refuses the bookings CSV export with no session", async () => {
+    signOut();
+    const result = await callRoute(exportBookings, undefined as never, {
+      method: "GET",
+      url: "http://localhost/api/admin/bookings/export",
+    });
+    expect(result.status).toBe(401);
+  });
+
+  it("serves the CSV export for a signed-in owner, without a stale filter", async () => {
+    await signInAsOwner();
+    const response = await exportBookings({
+      nextUrl: new URL("http://localhost/api/admin/bookings/export"),
+    } as never);
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toContain("text/csv");
+    // No ?query in the URL — a trailing "?" here used to be baked into every href.
+    expect(response.headers.get("content-disposition")).toMatch(/filename="bookings-[\d-]+\.csv"/);
+  });
+
+  it("does not 500 on a search term, whatever the user types", async () => {
+    // The original bug: customers.name inside .or() is a PostgREST parse error, so
+    // every search term returned 500.
+    for (const term of ["Slot", "SR-ABCDEF", "0812", "%)", "nosuchthing"]) {
+      const response = await exportBookings({
+        nextUrl: new URL(`http://localhost/api/admin/bookings/export?q=${encodeURIComponent(term)}`),
+      } as never);
+      expect(response.status, `term ${JSON.stringify(term)}`).toBe(200);
+    }
+  });
+
+  it("neutralises a CSV formula prefix in a customer-controlled name", async () => {
+    // Real end-to-end: a booking is created with a name that Excel would execute, then
+    // the export is read back. Customer names are attacker-controlled, so a leading
+    // "=" reaching the file is a formula-injection hole. The apostrophe prefix is the
+    // standard fix and is invisible in the cell.
+    const db = createAdminClient();
+    // Available only for the moment it takes to book, so a crashed run cannot leave an
+    // extra AVAILABLE unit lying around for another suite to pick up.
+    await db.from("units").update({ status: "AVAILABLE" }).eq("unit_id", unitId);
+
+    const created = await db.rpc("create_booking", {
+      p_branch_id: "BR-GANET",
+      p_unit_id: unitId,
+      p_customer_name: `=cmd|${suffix}`,
+      p_customer_phone: `0897${suffix}`,
+      p_start_at: new Date(Date.now() + 5 * 864e5).toISOString(),
+      p_duration_minutes: 60,
+    } as never);
+
+    await db.from("units").update({ status: "IN_ORDER" }).eq("unit_id", unitId);
+
+    const rows = (created.data ?? []) as { booking_id: string; booking_code: string }[];
+    expect(rows[0]?.booking_id).toBeTruthy();
+    bookingId = rows[0].booking_id;
+    createdBookings.push(bookingId);
+    createdPhones.push(`0897${suffix}`);
+
+    const response = await exportBookings({
+      nextUrl: new URL(`http://localhost/api/admin/bookings/export?q=${suffix}`),
+    } as never);
+    const csv = await response.text();
+    const line = csv.split("\r\n").find((l) => l.includes(rows[0].booking_code));
+
+    expect(line, "booking should appear in the export").toBeTruthy();
+    expect(line).toContain(`'=cmd|${suffix}`);
+    expect(line).not.toMatch(/,=cmd\|/);
+  });
+
+  it("refuses the reports CSV export with no session", async () => {
+    signOut();
+    const res = await exportReports({
+      nextUrl: new URL("http://localhost/api/admin/reports/export"),
+    } as never);
+    // The gate is OWNER/ADMIN, so an anonymous request must not fall through to a file.
+    expect(res.status).toBeGreaterThanOrEqual(401);
+  });
+
+  it("serves the reports CSV as a header row plus data", async () => {
+    await signInAsOwner();
+    const res = await exportReports({
+      nextUrl: new URL("http://localhost/api/admin/reports/export?from=2000-01-01&to=2100-01-01"),
+    } as never);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toContain("text/csv");
+    expect(res.headers.get("content-disposition")).toContain("attachment");
+
+    const text = await res.text();
+    const lines = text.split("\r\n").filter(Boolean);
+    expect(lines[0]).toContain("Kode Booking");
+    expect(lines[0]).toContain("Tagihan");
+    // No Rp formatting in a numeric column, or the sheet stops summing.
+    expect(lines[0]).not.toContain("Rp");
+  });
+
+  it("exports nothing but a header for a window with no bookings", async () => {
+    await signInAsOwner();
+    const res = await exportReports({
+      nextUrl: new URL("http://localhost/api/admin/reports/export?from=1990-01-01&to=1990-01-02"),
+    } as never);
+    const text = await res.text();
+    expect(res.status).toBe(200);
+    expect(text.split("\r\n").filter(Boolean)).toHaveLength(1);
+  });
+
+  it("neutralises a CSV formula prefix in the reports export too", async () => {
+    // Same trust boundary as the bookings export: guest names are attacker-controlled.
+    const db = createAdminClient();
+    const { data: unitRows } = await db
+      .from("units")
+      .select("unit_id")
+      .eq("branch_id", "BR-GANET")
+      .eq("status", "AVAILABLE")
+      .limit(1);
+    const unitId = unitRows![0].unit_id;
+
+    await db.from("units").update({ status: "AVAILABLE" }).eq("unit_id", unitId);
+    const created = await db.rpc("create_booking", {
+      p_branch_id: "BR-GANET",
+      p_unit_id: unitId,
+      p_customer_name: `=cmd|${suffix}`,
+      p_customer_phone: `0896${suffix}`,
+      p_start_at: new Date(Date.now() + 5 * 864e5).toISOString(),
+      p_duration_minutes: 60,
+    } as never);
+    const rows = (created.data ?? []) as { booking_id: string; booking_code: string }[];
+    if (!rows[0]?.booking_id) return;
+    bookingId = rows[0].booking_id;
+    createdBookings.push(bookingId);
+    createdPhones.push(`0896${suffix}`);
+    await db.from("units").update({ status: "IN_ORDER" }).eq("unit_id", unitId);
+
+    const res = await exportReports({
+      // An explicit wide range, not ?q= — the export takes branch/from/to only, and a
+      // booking dated in the future falls outside the default 30-day window.
+      nextUrl: new URL("http://localhost/api/admin/reports/export?from=2000-01-01&to=2100-01-01"),
+    } as never);
+    const line = (await res.text())
+      .split("\r\n")
+      .find((l) => l.includes(rows[0].booking_code));
+
+    expect(line, "hostile booking should appear in the export").toBeTruthy();
+    expect(line).toContain(`'=cmd|${suffix}`);
+    expect(line).not.toMatch(/,=cmd\|/);
+  });
+
+  it("records a manual stock edit as an ADJUSTMENT instead of writing the column", async () => {
+    const target = startStock + 1;
+    const result = await callRoute(patchSnack, undefined as never, {
+      method: "PATCH",
+      body: { id: snackId, stock: target, stock_reason: "route test" },
+    });
+    expect(result.status).toBe(200);
+
+    const db = createAdminClient();
+    const { data: move } = await db
+      .from("inventory_movements")
+      .select("movement_type, qty_delta, stock_after, reason, actor_id")
+      .eq("snack_id", snackId)
+      .order("id", { ascending: false })
+      .limit(1)
+      .single();
+
+    expect(move).toMatchObject({
+      movement_type: "ADJUSTMENT",
+      qty_delta: 1,
+      stock_after: target,
+      reason: "route test",
+    });
+    expect(move?.actor_id).toBeTruthy();
+
+    const { data: snack } = await db.from("snacks").select("stock").eq("snack_id", snackId).single();
+    expect(snack!.stock).toBe(target);
+  });
+
+  it("reports success when the whole change was a stock adjustment", async () => {
+    // The regression: the hook consumes `stock`, leaving an empty body, and the old
+    // empty-body check then answered 400 — after applying the movement.
+    const db = createAdminClient();
+    const { data } = await db.from("snacks").select("stock").eq("snack_id", snackId).single();
+    const result = await callRoute(patchSnack, undefined as never, {
+      method: "PATCH",
+      body: { id: snackId, stock: data!.stock + 1 },
+    });
+    expect(result.status).toBe(200);
+    expect((result.body as { row: { stock: number } }).row.stock).toBe(data!.stock + 1);
+  });
+});

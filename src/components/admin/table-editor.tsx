@@ -3,11 +3,13 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { ImageUploader } from "@/components/admin/image-uploader";
+import { SelectField } from "@/components/ui/select-field";
 
 export type Column = {
   key: string;
   label: string;
-  type?: "text" | "number" | "select" | "bool";
+  type?: "text" | "number" | "select" | "bool" | "image" | "date";
   options?: { value: string; label: string }[];
   required?: boolean;
 };
@@ -17,6 +19,11 @@ type Row = Record<string, unknown>;
 /**
  * Thin client over the adminCrud API (POST/PATCH/DELETE {id}).
  * One component covers snacks/games/pricing — no per-table boilerplate.
+ *
+ * Columns of type "image" render an uploader instead of a text input. The file
+ * goes to the public `media` bucket and the row's image_url column is set to the
+ * resulting public URL, so the customer-facing Cover component picks it up with
+ * no further wiring. `mediaPrefix` names the bucket namespace, e.g. "games".
  */
 export function TableEditor({
   endpoint,
@@ -24,12 +31,14 @@ export function TableEditor({
   columns,
   rows,
   readOnly = false,
+  mediaPrefix,
 }: {
   endpoint: string;
   idKey: string;
   columns: Column[];
   rows: Row[];
   readOnly?: boolean;
+  mediaPrefix?: string;
 }) {
   const router = useRouter();
   const [draft, setDraft] = useState<Row>({});
@@ -54,21 +63,51 @@ export function TableEditor({
       .finally(() => setBusy(false));
   }
 
-  const field = (col: Column, value: unknown, onChange: (v: unknown) => void) => {
+  const field = (col: Column, value: unknown, onChange: (v: unknown) => void, rowId = "") => {
+    if (col.type === "image") {
+      // The bucket path is namespaced by row id, and ids are generated on
+      // insert, so a not-yet-created row cannot be uploaded to yet.
+      if (!rowId) {
+        return <span className="text-xs text-muted-foreground">Setelah disimpan</span>;
+      }
+      if (!mediaPrefix) {
+        return <span className="text-xs text-muted-foreground">—</span>;
+      }
+      return (
+        <ImageUploader
+          entity={mediaPrefix}
+          rowId={rowId}
+          value={value === null || value === undefined ? null : String(value)}
+          onChange={onChange as (v: string) => void}
+          label={col.label}
+        />
+      );
+    }
+    if (col.type === "date") {
+      return (
+        <input
+          type="date"
+          aria-label={col.label}
+          value={value === null || value === undefined ? "" : String(value).slice(0, 10)}
+          onChange={(e) => onChange(e.target.value || null)}
+          className="h-8 w-full rounded-md border border-input bg-card px-2 text-sm"
+        />
+      );
+    }
     if (col.type === "select") {
       return (
-        <select
+        <SelectField
+          size="sm"
           aria-label={col.label}
           value={String(value ?? "")}
           onChange={(e) => onChange(e.target.value)}
-          className="h-8 w-full rounded-md border border-input bg-card px-2 text-sm"
         >
           {col.options?.map((o) => (
             <option key={o.value} value={o.value}>
               {o.label}
             </option>
           ))}
-        </select>
+        </SelectField>
       );
     }
     if (col.type === "bool") {
@@ -142,7 +181,7 @@ export function TableEditor({
                         String(r[c.key] ?? "—")
                       ) : (
                         <div className="w-32">
-                          {field(c, cellValue(c), (v) => setEdits({ ...edits, [id]: { ...edits[id], [c.key]: v } }))}
+                          {field(c, cellValue(c), (v) => setEdits({ ...edits, [id]: { ...edits[id], [c.key]: v } }), id)}
                         </div>
                       )}
                     </td>

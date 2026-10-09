@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { UnitStatusPill } from "@/components/status-pill";
+import { StatCards } from "@/components/admin/stat-cards";
 import { fmtTime, rp } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
@@ -31,24 +32,14 @@ export default async function AdminDashboard() {
     <div>
       <h1 className="font-display text-2xl uppercase">Dashboard</h1>
 
-      <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {[
-          { label: "Sesi aktif", value: sessions ?? 0, href: "/admin/bookings?status=IN_USE", tone: "text-primary" },
-          { label: "Menunggu bayar", value: waiting ?? 0, href: "/admin/bookings?status=WAITING_PAYMENT", tone: "text-warning" },
-          { label: "Booking aktif", value: activeBookings ?? 0, href: "/admin/bookings", tone: "" },
-          { label: "Omzet hari ini", value: rp(todayRevenue), href: null, tone: "text-primary" },
-        ].map((c) => (
-          <div key={c.label} className="rounded-xl border border-border bg-card p-4">
-            <p className="text-xs uppercase text-muted-foreground">{c.label}</p>
-            <p className={`font-display mt-1 text-2xl ${c.tone}`}>{c.value}</p>
-            {c.href && (
-              <Link href={c.href} className="text-xs text-primary hover:underline">
-                Lihat →
-              </Link>
-            )}
-          </div>
-        ))}
-      </div>
+      <StatCards
+        cards={[
+          { label: "Sesi aktif", value: sessions ?? 0, href: "/admin/bookings?status=IN_USE", tone: "primary" },
+          { label: "Menunggu bayar", value: waiting ?? 0, href: "/admin/bookings?status=WAITING_PAYMENT", tone: "warning" },
+          { label: "Booking aktif", value: activeBookings ?? 0, href: "/admin/bookings" },
+          { label: "Omzet hari ini", value: rp(todayRevenue), tone: "primary" },
+        ]}
+      />
 
       <h2 className="font-display mt-8 text-xl uppercase">Unit Sekarang</h2>
       <div className="mt-3 grid gap-2 sm:grid-cols-3 lg:grid-cols-4">

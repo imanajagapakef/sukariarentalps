@@ -8,6 +8,13 @@ export const snackSchema = z.object({
   stock: z.number().int().min(0),
   min_stock: z.number().int().min(0),
   active: z.boolean().optional(),
+  // Not a column — the admin PATCH turns it into an ADJUSTMENT movement on
+  // inventory_movements, which is what actually moves `stock`. Declared here
+  // because zod strips unknown keys, so without it the reason is silently dropped.
+  stock_reason: z.string().trim().max(200).optional(),
+  // Nullable so the uploader can clear an image; zod strips unknown keys, so
+  // this must be declared or the PATCH would silently drop the column.
+  image_url: z.string().trim().max(600).nullable().optional(),
 });
 
 export const gameSchema = z.object({
@@ -15,8 +22,30 @@ export const gameSchema = z.object({
   name: z.string().trim().min(1).max(150),
   short_description: z.string().trim().max(300).optional().nullable(),
   developer: z.string().trim().max(100).optional().nullable(),
+  publisher: z.string().trim().max(100).optional().nullable(),
+  // The column is a real date, so accept only a full ISO day or null — an empty
+  // string or a partial "2024" would be rejected by Postgres anyway, and a loud
+  // 400 beats a 500 from a bad cast.
+  release_date: z
+    .string()
+    .trim()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "tanggal harus format YYYY-MM-DD")
+    .nullable()
+    .optional(),
   age_rating: z.string().trim().max(10).optional().nullable(),
   active: z.boolean().optional(),
+  image_url: z.string().trim().max(600).nullable().optional(),
+});
+
+/**
+ * Units are never created or deleted from the admin UI — the catalogue is
+ * seeded, and staff only change status (via /api/admin/units/status) and
+ * presentation. So only the PATCH verb is exported for this table.
+ */
+export const unitSchema = z.object({
+  unit_id: z.string().min(1).max(20).optional(),
+  name: z.string().trim().min(1).max(100).optional(),
+  image_url: z.string().trim().max(600).nullable().optional(),
 });
 
 export const pricingSchema = z.object({

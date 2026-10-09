@@ -3,25 +3,12 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-
-const ACTIONS: Record<string, { label: string; action: string; danger?: boolean }[]> = {
-  WAITING_PAYMENT: [
-    { label: "Konfirmasi", action: "confirm" },
-    { label: "Batalkan", action: "cancel", danger: true },
-  ],
-  CONFIRMED: [
-    { label: "Check-in", action: "check_in" },
-    { label: "No-show", action: "no_show", danger: true },
-    { label: "Batalkan", action: "cancel", danger: true },
-  ],
-  IN_USE: [{ label: "Selesai (check-out)", action: "complete" }],
-  COMPLETED: [{ label: "Unit Siap", action: "mark_ready" }],
-};
+import { BOOKING_ACTIONS } from "@/lib/booking-actions";
 
 export function ActionButtons({ code, status }: { code: string; status: string; source?: string }) {
   const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
-  const buttons = ACTIONS[status] ?? [];
+  const buttons = BOOKING_ACTIONS[status] ?? [];
 
   async function run(action: string) {
     if (action === "cancel" && !confirm(`Batalkan ${code}?`)) return;

@@ -1,12 +1,28 @@
 import { notFound } from "next/navigation";
+import { headers } from "next/headers";
+import QRCode from "qrcode";
+import { MessageCircle } from "lucide-react";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getBookingByCode } from "@/services/booking.service";
 import { BookingStatusPill } from "@/components/status-pill";
 import { Cover } from "@/components/cover";
-import { PayButton, CancelButton, Countdown } from "@/components/ticket-actions";
+import { PayButton, CancelButton, Countdown, CopyCodeButton } from "@/components/ticket-actions";
 import { fmtDateTime, rp } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
+
+/**
+ * Absolute origin for the QR payload. Read from the request rather than a new
+ * env var: there is no configured site URL in this project, and a QR that
+ * encodes a relative path is unscannable. The page is already force-dynamic, so
+ * this opts it out of nothing.
+ */
+async function siteOrigin() {
+  const h = await headers();
+  const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost:3000";
+  const proto = h.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
+  return `${proto}://${host}`;
+}
 
 export default async function TicketPage({ params }: { params: Promise<{ code: string }> }) {
   const { code } = await params;
@@ -16,19 +32,93 @@ export default async function TicketPage({ params }: { params: Promise<{ code: s
 
   const unit = await db
     .from("units")
-    .select("name, branches(name, short_name, address)")
+    .select("name, image_url, branches(name, short_name, address)")
     .eq("unit_id", booking.unit_id)
     .single();
+
+  // The QR encodes the ticket URL rather than the bare code: any phone camera
+  // then opens the booking, which is what staff actually want to see.
+  const ticketUrl = `${await siteOrigin()}/tiket/${booking.booking_code}`;
+  const qr = await QRCode.toDataURL(ticketUrl, {
+    width: 512,
+    margin: 1,
+    errorCorrectionLevel: "M",
+  });
+  const shareText = encodeURIComponent(
+    `Halo, ini booking saya di Klub Sukaria — kode ${booking.booking_code}.`,
+  );
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-10 md:px-8">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-sm text-muted-foreground">Tiket</p>
-          <h1 className="font-display text-3xl uppercase tracking-wide md:text-4xl">{booking.booking_code}</h1>
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="font-display text-3xl uppercase tracking-wide md:text-4xl">{booking.booking_code}</h1>
+            <CopyCodeButton code={booking.booking_code} />
+          </div>
         </div>
         <BookingStatusPill status={booking.status} />
       </div>
+
+      <div className="mt-4 flex flex-wrap items-center gap-4 rounded-xl border border-border bg-card p-5">
+        {/* The white padding is the QR quiet zone, not styling: scanners need the
+            light margin to locate the finder patterns. */}
+        {/* eslint-disable-next-line @next/next/no-img-element -- data URI, sized explicitly */}
+        <img
+          src={qr}
+          alt={`QR booking ${booking.booking_code}`}
+          width={144}
+          height={144}
+          className="size-36 shrink-0 rounded-lg bg-white p-1"
+        />
+        <div className="min-w-0 flex-1">
+          <h2 className="font-display uppercase">Tunjukkan di kasir</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Pindai QR ini, atau sebutkan kode{" "}
+            <span className="text-foreground">{booking.booking_code}</span> saat datang.
+          </p>
+          <a
+            href={`https://wa.me/?text=${shareText}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-3 inline-flex items-center gap-1.5 text-sm font-bold text-primary hover:underline"
+          >
+            <MessageCircle aria-hidden className="size-4" />
+            Bagikan via WhatsApp
+          </a>
+        </div>
+      </div>
+
+      {/* Paid. The design leads with this; live previously added a single muted
+          paragraph, so a confirmed booking looked identical to an unpaid one. */}
+      {booking.status === "CONFIRMED" && (
+        <div className="mt-4 rounded-xl border border-success/40 bg-success/10 p-5">
+          <p className="text-xs font-bold uppercase tracking-widest text-success">
+            Pembayaran terverifikasi · Lunas
+          </p>
+          <h2 className="font-display mt-1 text-xl uppercase">
+            Booking berhasil — tiket siap
+          </h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Simpan halaman ini. Tunjukkan QR atau sebutkan kode di kasir saat datang.
+          </p>
+        </div>
+      )}
+
+      {/* Session start. Only meaningful before the slot begins, so it is limited
+          to CONFIRMED; once IN_USE the end countdown below takes over. */}
+      {booking.status === "CONFIRMED" && (
+        <div className="mt-4 rounded-xl border border-border bg-card p-5 text-center">
+          <h2 className="text-xs uppercase text-muted-foreground">Sesi kamu mulai dalam</h2>
+          <Countdown
+            deadline={booking.scheduled_start_at}
+            tone="primary"
+            doneLabel="Sesi sudah dimulai — cek di kasir"
+          />
+          <p className="mt-1 text-sm text-muted-foreground">{fmtDateTime(booking.scheduled_start_at)}</p>
+        </div>
+      )}
 
       {booking.status === "WAITING_PAYMENT" && booking.payment_deadline_at && (
         <div className="mt-4 rounded-lg border border-warning/40 bg-warning/10 p-4">
@@ -53,22 +143,27 @@ export default async function TicketPage({ params }: { params: Promise<{ code: s
 
       <div className="mt-6 grid gap-4 sm:grid-cols-2">
         <div className="rounded-xl border border-border bg-card p-5">
-          <p className="text-xs uppercase text-muted-foreground">Waktu</p>
+          <h2 className="text-xs uppercase text-muted-foreground">Waktu</h2>
           <p className="font-display mt-1 text-lg uppercase">{fmtDateTime(booking.scheduled_start_at)}</p>
           <p className="text-sm text-muted-foreground">sampai {fmtDateTime(booking.scheduled_end_at)}</p>
           <p className="mt-1 text-sm text-primary">{booking.duration_minutes} menit</p>
         </div>
         <div className="rounded-xl border border-border bg-card p-5">
-          <p className="text-xs uppercase text-muted-foreground">Tempat</p>
+          <h2 className="text-xs uppercase text-muted-foreground">Tempat</h2>
           <p className="font-display mt-1 text-lg uppercase">{unit.data?.name}</p>
           <p className="text-sm text-muted-foreground">
             {unit.data?.branches?.short_name ?? unit.data?.branches?.name}
           </p>
+          {/* This was already in the select and never rendered — a customer holding
+              this page has no way to find the room. */}
+          {unit.data?.branches?.address && (
+            <p className="mt-2 text-sm text-muted-foreground">{unit.data.branches.address}</p>
+          )}
         </div>
       </div>
 
       <div className="mt-4 rounded-xl border border-border bg-card p-5">
-        <p className="font-display uppercase">Rincian</p>
+        <h2 className="font-display uppercase">Rincian</h2>
         <ul className="mt-3 space-y-1 text-sm">
           {booking.booking_items.map((it) => (
             <li key={it.booking_item_id} className="flex justify-between gap-2">
@@ -94,7 +189,7 @@ export default async function TicketPage({ params }: { params: Promise<{ code: s
 
       <div className="mt-4 flex items-center justify-between gap-4">
         <div className="flex items-center gap-3 text-sm text-muted-foreground">
-          <Cover seed={booking.unit_id} label={unit.data?.branches?.short_name ?? ""} className="size-12 rounded-lg" />
+          <Cover seed={booking.unit_id} src={unit.data?.image_url ?? null} label={unit.data?.branches?.short_name ?? ""} className="size-12 rounded-lg" />
           <span>{booking.customers?.name}</span>
         </div>
         {(booking.status === "WAITING_PAYMENT" || booking.status === "CONFIRMED") && (

@@ -2,6 +2,9 @@ import { getSnacks } from "@/lib/catalog";
 import { Cover } from "@/components/cover";
 import { rp } from "@/lib/format";
 import { EmptyState } from "@/components/empty-state";
+import { SnacksHeroAnimation } from "@/components/snacks-hero-animation";
+
+export const revalidate = 300;
 
 export default async function SnacksPage() {
   const snacks = await getSnacks();
@@ -12,8 +15,13 @@ export default async function SnacksPage() {
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-10 md:px-8">
-      <h1 className="font-display text-3xl uppercase md:text-5xl">Snacks & Drinks</h1>
-      <p className="mt-2 text-muted-foreground">Tinggal ambil di kasir saat check-in atau request lewat staff.</p>
+      <div className="mt-6 flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+        <div className="max-w-2xl">
+          <h1 className="font-display text-3xl uppercase md:text-5xl">Snacks & Drinks</h1>
+          <p className="mt-2 text-muted-foreground">Tinggal ambil di kasir saat check-in atau request lewat staff.</p>
+        </div>
+        <SnacksHeroAnimation className="h-24 w-full md:h-44 md:w-[480px] shrink-0" />
+      </div>
 
       {snacks.length === 0 ? (
         <div className="mt-8">
@@ -26,7 +34,7 @@ export default async function SnacksPage() {
             <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {items.map((s) => (
                 <div key={s.snack_id} className="flex items-center gap-4 rounded-xl border border-border bg-card p-4">
-                  <Cover seed={s.snack_id} label={s.name} className="size-14 shrink-0 rounded-lg" />
+                  <Cover seed={s.snack_id} src={s.image_url} label={s.name} className="size-14 shrink-0 rounded-lg" />
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-medium">{s.name}</p>
                     <p className="text-sm text-primary">{rp(s.price)}</p>

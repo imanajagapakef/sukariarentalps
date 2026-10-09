@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { rp } from "@/lib/format";
+import { SelectField } from "@/components/ui/select-field";
 
 type Branch = { id: string; name: string };
 type Unit = { id: string; name: string; branchId: string; status: string };
@@ -57,8 +58,7 @@ export function WalkInForm({ branches, units }: { branches: Branch[]; units: Uni
     router.refresh();
   }
 
-  const selectCls = "h-9 w-full rounded-lg border border-input bg-card px-3 text-sm";
-
+  
   return (
     <Card className="mt-6">
       <CardContent>
@@ -66,22 +66,22 @@ export function WalkInForm({ branches, units }: { branches: Branch[]; units: Uni
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="wi-branch">Cabang</Label>
-              <select id="wi-branch" className={selectCls} value={branchId} onChange={(e) => { setBranchId(e.target.value); setUnitId(""); }}>
+              <SelectField id="wi-branch" value={branchId} onChange={(e) => { setBranchId(e.target.value); setUnitId(""); }}>
                 {branches.map((b) => (
                   <option key={b.id} value={b.id}>{b.name}</option>
                 ))}
-              </select>
+              </SelectField>
             </div>
             <div className="space-y-2">
               <Label htmlFor="wi-unit">Unit</Label>
-              <select id="wi-unit" className={selectCls} value={unitId} onChange={(e) => setUnitId(e.target.value)} required>
+              <SelectField id="wi-unit" value={unitId} onChange={(e) => setUnitId(e.target.value)} required>
                 <option value="">Pilih unit…</option>
                 {branchUnits.map((u) => (
                   <option key={u.id} value={u.id} disabled={u.status === "MAINTENANCE" || u.status === "OFFLINE"}>
                     {u.name} {u.status !== "AVAILABLE" ? `(${u.status})` : ""}
                   </option>
                 ))}
-              </select>
+              </SelectField>
             </div>
             <div className="space-y-2">
               <Label htmlFor="wi-name">Nama</Label>
@@ -93,19 +93,19 @@ export function WalkInForm({ branches, units }: { branches: Branch[]; units: Uni
             </div>
             <div className="space-y-2">
               <Label htmlFor="wi-duration">Durasi (menit)</Label>
-              <select id="wi-duration" className={selectCls} value={duration} onChange={(e) => setDuration(Number(e.target.value))}>
+              <SelectField id="wi-duration" value={duration} onChange={(e) => setDuration(Number(e.target.value))}>
                 {[30, 60, 90, 120, 180, 240, 300, 360].map((d) => (
                   <option key={d} value={d}>{d} menit</option>
                 ))}
-              </select>
+              </SelectField>
             </div>
             <div className="space-y-2">
               <Label htmlFor="wi-pay">Bayar pakai</Label>
-              <select id="wi-pay" className={selectCls} value={payMethod} onChange={(e) => setPayMethod(e.target.value as typeof payMethod)}>
+              <SelectField id="wi-pay" value={payMethod} onChange={(e) => setPayMethod(e.target.value as typeof payMethod)}>
                 <option value="CASH">Tunai</option>
                 <option value="QRIS_MANUAL">QRIS (manual)</option>
                 <option value="TRANSFER_MANUAL">Transfer (manual)</option>
-              </select>
+              </SelectField>
             </div>
             <div className="space-y-2 sm:col-span-2">
               <Label htmlFor="wi-start">Mulai (kosongkan = sekarang)</Label>

@@ -39,6 +39,11 @@ export async function POST(
       switch (action) {
         case "confirm":
           await confirmBooking(db, booking.booking_id);
+          await db
+            .from("payments")
+            .update({ status: "PAID", paid_at: new Date().toISOString() })
+            .eq("booking_id", booking.booking_id)
+            .eq("status", "PENDING");
           break;
         case "check_in":
           await checkIn(db, booking.booking_id);

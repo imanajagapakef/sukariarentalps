@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 
 export type StaffProfile = {
@@ -17,7 +18,7 @@ export class AuthError extends Error {
 }
 
 /** Logged-in user with an active staff profile, or throws 401/403. */
-export async function getStaffUser(allowRoles?: StaffProfile["role"][]): Promise<StaffProfile> {
+const fetchStaffProfile = cache(async (): Promise<StaffProfile> => {
   const db = await createClient();
   const {
     data: { user },
@@ -31,8 +32,13 @@ export async function getStaffUser(allowRoles?: StaffProfile["role"][]): Promise
     .maybeSingle();
 
   if (!profile || !profile.active) throw new AuthError("Akun staff tidak ditemukan / tidak aktif", 403);
+  return profile as StaffProfile;
+});
+
+export async function getStaffUser(allowRoles?: StaffProfile["role"][]): Promise<StaffProfile> {
+  const profile = await fetchStaffProfile();
   if (allowRoles && !allowRoles.includes(profile.role)) {
     throw new AuthError(`Butuh role ${allowRoles.join("/")}, bukan ${profile.role}`, 403);
   }
-  return profile as StaffProfile;
+  return profile;
 }

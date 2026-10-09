@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Anton, Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 import { cn } from "@/lib/utils";
+import { WebVitals } from "@/components/web-vitals";
 
 const anton = Anton({
   weight: "400",
@@ -20,6 +21,10 @@ export const metadata: Metadata = {
   title: "Klub Sukaria — Gaming Lounge 24 Jam",
   description:
     "PS5, Nintendo Switch, game rame-rame, sampai tempat VIP. Pilih cabang, pilih waktu, langsung booking.",
+  icons: {
+    icon: [{ url: "/brand/icon.svg", type: "image/svg+xml" }],
+    shortcut: [{ url: "/brand/icon.svg", type: "image/svg+xml" }],
+  },
 };
 
 export const viewport: Viewport = {
@@ -31,7 +36,7 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="id" className={cn(anton.variable, jakarta.variable)}>
-      <body>{children}</body>
+      <body>{children}<WebVitals /></body>
     </html>
   );
 }

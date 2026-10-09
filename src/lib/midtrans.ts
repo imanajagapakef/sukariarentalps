@@ -21,6 +21,12 @@ export type SnapTransaction = {
   gross_amount: number;
   customer: { first_name: string; phone: string };
   description?: string;
+  /**
+   * Restrict the channels Snap offers. Snap always renders its own chooser, so
+   * this narrows it rather than preselecting one — the customer's actual choice
+   * comes back on the webhook as `payment_type` and is what we record.
+   */
+  enabled_payments?: string[];
 };
 
 export type SnapToken = {
@@ -45,6 +51,7 @@ export async function createSnapTransaction(t: SnapTransaction): Promise<SnapTok
       transaction_details: { order_id: t.order_id, gross_amount: t.gross_amount },
       customer: { first_name: t.customer.first_name, phone: t.customer.phone },
       ...(t.description ? { item_details: [{ id: t.order_id, name: t.description, quantity: 1, price: t.gross_amount }] } : {}),
+      ...(t.enabled_payments?.length ? { enabled_payments: t.enabled_payments } : {}),
     }),
   });
 

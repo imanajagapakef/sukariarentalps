@@ -1,6 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getStaffUser } from "@/lib/authz";
 import { fmtDateTime } from "@/lib/format";
+import { StatCards } from "@/components/admin/stat-cards";
 
 export const dynamic = "force-dynamic";
 
@@ -19,15 +20,18 @@ export default async function AdminFeedbackPage() {
   };
   const rows = items ?? [];
 
-  return (
-    <div>
-      <h1 className="font-display text-2xl uppercase">Feedback</h1>
-      <div className="mt-4 flex gap-6 text-sm">
-        <p><span className="text-muted-foreground">Keseluruhan</span> <b>{avg(rows.map((r) => r.rating))}</b>/5</p>
-        <p><span className="text-muted-foreground">Pelayanan</span> <b>{avg(rows.map((r) => r.service_rating))}</b>/5</p>
-        <p><span className="text-muted-foreground">Unit</span> <b>{avg(rows.map((r) => r.unit_rating))}</b>/5</p>
-        <p><span className="text-muted-foreground">Kebersihan</span> <b>{avg(rows.map((r) => r.cleanliness_rating))}</b>/5</p>
-      </div>
+    return (
+      <div>
+        <h1 className="font-display text-2xl uppercase">Feedback</h1>
+        <StatCards
+          cards={[
+            { label: "Jumlah feedback", value: rows.length },
+            { label: "Keseluruhan", value: `${avg(rows.map((r) => r.rating))}/5`, tone: "primary" },
+            { label: "Pelayanan", value: `${avg(rows.map((r) => r.service_rating))}/5` },
+            { label: "Unit", value: `${avg(rows.map((r) => r.unit_rating))}/5` },
+            { label: "Kebersihan", value: `${avg(rows.map((r) => r.cleanliness_rating))}/5` },
+          ]}
+        />
 
       <div className="mt-4 space-y-2">
         {rows.length === 0 && <p className="text-sm text-muted-foreground">Belum ada feedback.</p>}

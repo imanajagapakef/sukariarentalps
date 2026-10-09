@@ -17,7 +17,28 @@ type Table = keyof Database["public"]["Tables"];
 /** Every adminCrud schema is a z.object(...) — it carries .partial() at runtime. */
 type CrudSchema = z.ZodTypeAny & { partial(): z.ZodTypeAny };
 
-export function adminCrud(table: Table, schema: CrudSchema, allowRoles?: StaffProfile["role"][]) {
+/**
+ * Runs before the UPDATE and returns the body actually written.
+ *
+ * Exists for `snacks.stock`, which must not be written directly: the
+ * `inventory_movements` BEFORE INSERT trigger owns that column, so a hand
+ * correction has to be expressed as an ADJUSTMENT movement or the ledger lies.
+ * The hook gets the current row so it can compute the delta.
+ */
+type BeforeWrite = (ctx: {
+  db: ReturnType<typeof createAdminClient>;
+  profile: StaffProfile;
+  id: string;
+  before: Record<string, unknown>;
+  body: Record<string, unknown>;
+}) => Promise<Record<string, unknown>>;
+
+export function adminCrud(
+  table: Table,
+  schema: CrudSchema,
+  allowRoles?: StaffProfile["role"][],
+  beforeWrite?: BeforeWrite,
+) {
   async function staff() {
     const profile = await getStaffUser(allowRoles);
     return { db: createAdminClient(), profile };
@@ -51,11 +72,31 @@ export function adminCrud(table: Table, schema: CrudSchema, allowRoles?: StaffPr
       const id = raw.id;
       delete raw.id;
       const body = schema.partial().parse(raw);
-      if (Object.keys(body).length === 0) return jsonError("Tidak ada field yang diubah", 400);
       const { data: before } = await db.from(table).select("*").eq(pkOf(table), id).maybeSingle();
       if (!before) return jsonError("Data tidak ditemukan", 404);
-      const { data, error } = await db.from(table).update(body).eq(pkOf(table), id).select().single();
-      if (error) throw new AuthError(error.message, 500);
+      // The hook may consume fields from the body (snacks.stock) and apply them
+      // through their own path, so it returns the body that is actually written.
+      const patch = beforeWrite
+        ? await beforeWrite({ db, profile, id, before: before as Record<string, unknown>, body })
+        : body;
+
+      let after;
+      if (Object.keys(patch).length > 0) {
+        const { data, error } = await db.from(table).update(patch).eq(pkOf(table), id).select().single();
+        if (error) throw new AuthError(error.message, 500);
+        after = data;
+      } else if (beforeWrite) {
+        // The hook consumed the whole body and already applied the change through
+        // its own path (snacks.stock -> an ADJUSTMENT movement). That is a success,
+        // not a no-op — returning 400 here told the caller a correction had failed
+        // when it had in fact been recorded. Re-read the row so the response and the
+        // audit entry still show the post-change state.
+        const { data } = await db.from(table).select("*").eq(pkOf(table), id).single();
+        after = data;
+      } else {
+        return jsonError("Tidak ada field yang diubah", 400);
+      }
+
       await audit(db, {
         actorId: profile.user_id,
         actorRole: profile.role,
@@ -63,9 +104,9 @@ export function adminCrud(table: Table, schema: CrudSchema, allowRoles?: StaffPr
         entityType: table,
         entityId: id,
         before: before as never,
-        after: data as never,
+        after: after as never,
       });
-      return NextResponse.json({ row: data });
+      return NextResponse.json({ row: after });
     } catch (e) {
       return handleRouteError(e);
     }

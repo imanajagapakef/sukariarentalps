@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getBranches } from "@/lib/catalog";
 import { TableEditor } from "@/components/admin/table-editor";
 import type { Column } from "@/components/admin/table-editor";
+import { StatCards } from "@/components/admin/stat-cards";
 
 export const dynamic = "force-dynamic";
 
@@ -27,6 +28,22 @@ export default async function AdminPricingPage() {
   return (
     <div>
       <h1 className="font-display text-2xl uppercase">Harga</h1>
+      <StatCards
+        cards={[
+          { label: "Aturan aktif", value: rules?.length ?? 0 },
+          { label: "Cabang tercakup", value: new Set((rules ?? []).map((r) => r.branch_id)).size },
+          {
+            label: "Fasilitas tercakup",
+            value: `${new Set((rules ?? []).map((r) => r.facility_type_id)).size} dari ${facilities?.length ?? 0}`,
+            // Gaps here are why a booking form can be missing an option.
+            tone:
+              new Set((rules ?? []).map((r) => r.facility_type_id)).size < (facilities?.length ?? 0)
+                ? "warning"
+                : "primary",
+          },
+          { label: "Jenis paket", value: (rules ?? []).filter((r) => r.pricing_type === "PACKAGE").length },
+        ]}
+      />
       <p className="mt-1 text-sm text-muted-foreground">HOURLY = per jam; PACKAGE = harga flat untuk durasi tertentu. (ADMIN/OWNER)</p>
       <div className="mt-4">
         <TableEditor endpoint="/api/admin/pricing" idKey="pricing_id" columns={COLUMNS} rows={rules ?? []} />

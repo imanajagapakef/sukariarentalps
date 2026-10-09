@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { SelectField } from "@/components/ui/select-field";
 
 type Staff = {
   user_id: string;
@@ -19,8 +20,7 @@ export function StaffManager({ staff, meId }: { staff: Staff[]; meId: string }) 
   const [form, setForm] = useState({ email: "", password: "", full_name: "", role: "STAFF" });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const selectCls = "h-9 rounded-lg border border-input bg-card px-2 text-sm";
-
+  
   async function post(method: string, url: string, body: unknown) {
     setBusy(true);
     setError(null);
@@ -62,10 +62,10 @@ export function StaffManager({ staff, meId }: { staff: Staff[]; meId: string }) 
         </label>
         <label className="text-xs text-muted-foreground">
           Role
-          <select className={selectCls} value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}>
+          <SelectField value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}>
             <option value="STAFF">STAFF</option>
             <option value="ADMIN">ADMIN</option>
-          </select>
+          </SelectField>
         </label>
         <Button type="submit" size="sm" disabled={busy}>
           Buat Akun
@@ -88,20 +88,30 @@ export function StaffManager({ staff, meId }: { staff: Staff[]; meId: string }) 
             </span>
             {s.role !== "OWNER" && s.user_id !== meId && (
               <>
-                <select
+                <SelectField
                   aria-label={`Role ${s.full_name ?? ""}`}
-                  className={selectCls}
+
                   defaultValue={s.role}
                   disabled={busy}
                   onChange={(e) => void post("PATCH", `/api/admin/users/${s.user_id}`, { role: e.target.value })}
                 >
                   <option value="STAFF">STAFF</option>
                   <option value="ADMIN">ADMIN</option>
-                </select>
-                <Button size="xs" variant="destructive" disabled={busy} onClick={() => void post("PATCH", `/api/admin/users/${s.user_id}`, { active: false })}>
+                </SelectField>
+                <Button size="xs" variant="destructive" disabled={busy} onClick={() => {
+                  if (!confirm(`Nonaktifkan akun ${s.full_name ?? s.email ?? s.user_id}?`)) return;
+                  void post("PATCH", `/api/admin/users/${s.user_id}`, { active: false });
+                }}>
                   Nonaktif
                 </Button>
               </>
+            )}
+            {/* Deactivation is a ban, not a delete, so it is reversible. Offering only
+                "Nonaktif" made it a one-way button with no way back. */}
+            {!s.active && s.user_id !== meId && (
+              <Button size="xs" variant="secondary" disabled={busy} onClick={() => void post("PATCH", `/api/admin/users/${s.user_id}`, { active: true })}>
+                Aktifkan
+              </Button>
             )}
           </div>
         ))}

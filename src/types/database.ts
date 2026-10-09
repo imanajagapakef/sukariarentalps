@@ -335,6 +335,7 @@ export type Database = {
           data_status: Database["public"]["Enums"]["data_status"]
           google_rating: number | null
           google_review_count: number | null
+          image_url: string | null
           name: string
           operating_hours: string
           phone: string | null
@@ -350,6 +351,7 @@ export type Database = {
           data_status?: Database["public"]["Enums"]["data_status"]
           google_rating?: number | null
           google_review_count?: number | null
+          image_url?: string | null
           name: string
           operating_hours: string
           phone?: string | null
@@ -365,6 +367,7 @@ export type Database = {
           data_status?: Database["public"]["Enums"]["data_status"]
           google_rating?: number | null
           google_review_count?: number | null
+          image_url?: string | null
           name?: string
           operating_hours?: string
           phone?: string | null
@@ -840,6 +843,7 @@ export type Database = {
           description: string | null
           developer: string | null
           game_id: string
+          image_url: string | null
           name: string
           publisher: string | null
           release_date: string | null
@@ -856,6 +860,7 @@ export type Database = {
           description?: string | null
           developer?: string | null
           game_id: string
+          image_url?: string | null
           name: string
           publisher?: string | null
           release_date?: string | null
@@ -872,6 +877,7 @@ export type Database = {
           description?: string | null
           developer?: string | null
           game_id?: string
+          image_url?: string | null
           name?: string
           publisher?: string | null
           release_date?: string | null
@@ -969,6 +975,33 @@ export type Database = {
           sent_at?: string | null
           status?: Database["public"]["Enums"]["notification_status"]
           template?: string
+        }
+        Relationships: []
+      }
+      web_vitals: {
+        Row: {
+          created_at: string
+          id: number
+          metric: string
+          path: string | null
+          rating: string | null
+          value: number
+        }
+        Insert: {
+          created_at?: string
+          id?: number
+          metric: string
+          path?: string | null
+          rating?: string | null
+          value: number
+        }
+        Update: {
+          created_at?: string
+          id?: number
+          metric?: string
+          path?: string | null
+          rating?: string | null
+          value?: number
         }
         Relationships: []
       }
@@ -1273,6 +1306,7 @@ export type Database = {
           category: Database["public"]["Enums"]["snack_category"]
           created_at: string
           data_status: Database["public"]["Enums"]["data_status"]
+          image_url: string | null
           min_stock: number
           name: string
           price: number
@@ -1285,6 +1319,7 @@ export type Database = {
           category: Database["public"]["Enums"]["snack_category"]
           created_at?: string
           data_status?: Database["public"]["Enums"]["data_status"]
+          image_url?: string | null
           min_stock?: number
           name: string
           price: number
@@ -1297,6 +1332,7 @@ export type Database = {
           category?: Database["public"]["Enums"]["snack_category"]
           created_at?: string
           data_status?: Database["public"]["Enums"]["data_status"]
+          image_url?: string | null
           min_stock?: number
           name?: string
           price?: number
@@ -1403,6 +1439,7 @@ export type Database = {
           created_at: string
           data_status: Database["public"]["Enums"]["data_status"]
           facility_type_id: string
+          image_url: string | null
           name: string
           status: Database["public"]["Enums"]["unit_status"]
           unit_id: string
@@ -1414,6 +1451,7 @@ export type Database = {
           created_at?: string
           data_status?: Database["public"]["Enums"]["data_status"]
           facility_type_id: string
+          image_url?: string | null
           name: string
           status?: Database["public"]["Enums"]["unit_status"]
           unit_id: string
@@ -1425,6 +1463,7 @@ export type Database = {
           created_at?: string
           data_status?: Database["public"]["Enums"]["data_status"]
           facility_type_id?: string
+          image_url?: string | null
           name?: string
           status?: Database["public"]["Enums"]["unit_status"]
           unit_id?: string
@@ -1553,9 +1592,27 @@ export type Database = {
         Args: { p_from?: string; p_unit_id: string }
         Returns: string
       }
+      next_available_batch: {
+        Args: { p_from?: string; p_unit_ids: string[] }
+        Returns: { unit_id: string; next_free: string }[]
+      }
       round_to_interval: {
         Args: { p_at: string; p_interval: number }
         Returns: string
+      }
+      slot_availability: {
+        Args: {
+          p_branch_id: string
+          p_date: string
+          p_duration_minutes?: number
+          p_unit_id: string
+        }
+        Returns: {
+          ready_at: string
+          slot_end: string
+          slot_start: string
+          state: string
+        }[]
       }
     }
     Enums: {
@@ -1593,7 +1650,11 @@ export type Database = {
         | "CASH"
         | "QRIS_MANUAL"
         | "TRANSFER_MANUAL"
-      payment_provider: "MIDTRANS" | "CASH" | "MANUAL"
+        | "CASAKU_QRIS"
+        | "CASAKU_E_WALLET"
+        | "CASAKU_QR_STATIC"
+        | "CASAKU_QR_DYNAMIC"
+      payment_provider: "MIDTRANS" | "CASH" | "MANUAL" | "CASAKU"
       payment_status:
         | "PENDING"
         | "PAID"
@@ -1783,8 +1844,12 @@ export const Constants = {
         "CASH",
         "QRIS_MANUAL",
         "TRANSFER_MANUAL",
+        "CASAKU_QRIS",
+        "CASAKU_E_WALLET",
+        "CASAKU_QR_STATIC",
+        "CASAKU_QR_DYNAMIC",
       ],
-      payment_provider: ["MIDTRANS", "CASH", "MANUAL"],
+      payment_provider: ["MIDTRANS", "CASH", "MANUAL", "CASAKU"],
       payment_status: [
         "PENDING",
         "PAID",

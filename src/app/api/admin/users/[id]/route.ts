@@ -37,7 +37,6 @@ export async function PATCH(
       ...(parsed.data.role ? { role: parsed.data.role } : {}),
       ...(parsed.data.active !== undefined ? { active: parsed.data.active } : {}),
     });
-    if (parsed.data.active === false) await db.auth.admin.deleteUser(id).catch(() => null);
 
     await audit(db, {
       actorId: actor.user_id,

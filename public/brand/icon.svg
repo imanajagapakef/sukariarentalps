@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" fill="none">
+  <!-- Klub Sukaria App Icon / Favicon / PWA Symbol -->
+  <defs>
+    <linearGradient id="iconGlowGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#34f258"/>
+      <stop offset="100%" stop-color="#20a83a"/>
+    </linearGradient>
+    <radialGradient id="darkBgGrad" cx="50%" cy="30%" r="70%">
+      <stop offset="0%" stop-color="#222222"/>
+      <stop offset="100%" stop-color="#0a0a0a"/>
+    </radialGradient>
+    <filter id="iconNeonShadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="4" stdDeviation="8" flood-color="#20a83a" flood-opacity="0.55"/>
+    </filter>
+  </defs>
+
+  <!-- Outer Squircle Body -->
+  <rect x="4" y="4" width="120" height="120" rx="28" fill="url(#darkBgGrad)" stroke="#282828" stroke-width="3"/>
+
+  <!-- Subtle Neon Inner Border -->
+  <rect x="8" y="8" width="112" height="112" rx="24" fill="none" stroke="#20a83a" stroke-opacity="0.2" stroke-width="1.5"/>
+
+  <!-- PlayStation / Console Geometric Aesthetic Corners -->
+  <path d="M22 34 L22 22 L34 22" stroke="#20a83a" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M106 94 L106 106 L94 106" stroke="#20a83a" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Core Gaming Station Cross Emblem (D-Pad + Station Core) -->
+  <g filter="url(#iconNeonShadow)">
+    <rect x="54" y="28" width="20" height="72" rx="6" fill="url(#iconGlowGrad)"/>
+    <rect x="28" y="54" width="72" height="20" rx="6" fill="url(#iconGlowGrad)"/>
+    <circle cx="64" cy="64" r="9" fill="#0d0d0d"/>
+    <circle cx="64" cy="64" r="5" fill="#34f258"/>
+  </g>
+
+  <!-- Controller Micro-dots -->
+  <circle cx="38" cy="38" r="3.5" fill="#20a83a" opacity="0.9"/>
+  <circle cx="90" cy="38" r="3.5" fill="#20a83a" opacity="0.9"/>
+</svg>
