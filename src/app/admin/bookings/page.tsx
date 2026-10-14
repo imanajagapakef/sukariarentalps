@@ -7,6 +7,8 @@ import { SelectField } from "@/components/ui/select-field";
 import { StatCards } from "@/components/admin/stat-cards";
 import { EmptyState } from "@/components/empty-state";
 import { STATUSES, countWaitingPayment, listBookings } from "@/lib/bookings-query";
+import { listPaymentProofs, type PaymentProofWithUrl } from "@/lib/payment-proofs";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
 
@@ -40,6 +42,66 @@ export default async function AdminBookingsPage({
   // close to current without N setInterval loops competing on the main thread.
   const showDeadlineColumn = rows.some((b) => b.status === "WAITING_PAYMENT");
   const now = Date.now();
+
+  // Proofs only matter while something is waiting, and only for those rows. Fetching
+  // them for all 60 would mint 60 signed URLs to show nothing.
+  const queueIds = rows.filter((b) => b.status === "WAITING_PAYMENT").map((b) => b.booking_id);
+  const proofs = await listPaymentProofs(createAdminClient(), queueIds).catch(() => new Map());
+  const proofCountFor = (bookingId: string) => proofs.get(bookingId) ?? [];
+
+/**
+ * What the customer claims they sent, next to what the club expects.
+ *
+ * The mismatch is the point. A claimed nominal that differs from the total is not a
+ * formatting problem, it is a question the cashier has to answer before pressing
+ * Konfirmasi - so it is rendered in warning colour rather than tucked away.
+ *
+ * Deliberately no accept/reject: a proof is a claim, and only the mutasi settles it.
+ * Making a file "approved" here would invent an authority this screen does not have.
+ */
+function ProofCell({ proofs, expected }: { proofs: PaymentProofWithUrl[]; expected: number }) {
+  if (proofs.length === 0) {
+    return <span className="text-xs text-muted-foreground">Belum ada bukti</span>;
+  }
+
+  const [latest, ...older] = proofs;
+  const mismatch = latest.nominal !== expected;
+
+  return (
+    <div className="min-w-[11rem] space-y-1">
+      <span className="flex items-baseline gap-1.5">
+        <span className={`font-mono text-sm font-bold ${mismatch ? "text-warning" : "text-primary"}`}>
+          {rp(latest.nominal)}
+        </span>
+        {mismatch && (
+          <span className="text-[10px] font-bold uppercase text-warning" title="Tidak sama dengan total tagihan">
+            ≠ tagihan
+          </span>
+        )}
+      </span>
+      {latest.signedUrl ? (
+        <a
+          href={latest.signedUrl}
+          target="_blank"
+          rel="noreferrer noopener"
+          className="block text-xs text-primary hover:underline"
+        >
+          Lihat bukti
+        </a>
+      ) : (
+        <span className="text-xs text-muted-foreground">File tidak bisa dibuka</span>
+      )}
+      {latest.note && (
+        <span className="block text-xs text-muted-foreground">{latest.note}</span>
+      )}
+      {older.length > 0 && (
+        <span className="block text-[10px] text-muted-foreground">
+          +{older.length} pengiriman sebelumnya
+        </span>
+      )}
+    </div>
+  );
+}
 
 /**
  * Relative time left on the payment window. The absolute time is rendered beside it
@@ -158,6 +220,9 @@ function deadlineHint(deadlineIso: string, nowMs: number) {
                 )}
                 <th scope="col" className="px-4 py-3 text-right font-semibold">Durasi</th>
                 <th scope="col" className="px-4 py-3 text-right font-semibold">Total</th>
+                {showDeadlineColumn && (
+                  <th scope="col" className="px-4 py-3 font-semibold">Bukti Bayar</th>
+                )}
                 <th scope="col" className="px-4 py-3 font-semibold">Sumber</th>
                 <th scope="col" className="px-4 py-3 font-semibold">Aksi</th>
               </tr>
@@ -205,6 +270,15 @@ function deadlineHint(deadlineIso: string, nowMs: number) {
                   )}
                   <td className="whitespace-nowrap px-4 py-3 text-right">{fmtDuration(b.duration_minutes)}</td>
                   <td className="whitespace-nowrap px-4 py-3 text-right font-medium">{rp(b.total_amount)}</td>
+                  {showDeadlineColumn && (
+                    <td className="px-4 py-3">
+                      {b.status === "WAITING_PAYMENT" ? (
+                        <ProofCell proofs={proofCountFor(b.booking_id)} expected={b.total_amount} />
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </td>
+                  )}
                   <td className="px-4 py-3 text-xs uppercase text-muted-foreground">{b.source ?? "—"}</td>
                   <td className="px-4 py-3">
                     {hasBookingActions(b.status) ? (

@@ -1046,6 +1046,41 @@ export type Database = {
           },
         ]
       }
+      payment_proofs: {
+        Row: {
+          booking_id: string
+          created_at: string
+          nominal: number
+          note: string | null
+          object_path: string
+          proof_id: number
+        }
+        Insert: {
+          booking_id: string
+          created_at?: string
+          nominal: number
+          note?: string | null
+          object_path: string
+          proof_id?: number
+        }
+        Update: {
+          booking_id?: string
+          created_at?: string
+          nominal?: number
+          note?: string | null
+          object_path?: string
+          proof_id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_proofs_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["booking_id"]
+          }
+        ]
+      }
       payments: {
         Row: {
           booking_id: string | null

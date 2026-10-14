@@ -5,23 +5,7 @@ import { useRouter } from "next/navigation";
 import { Image as ImageIcon, Trash2, Upload } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { deleteImage, uploadImage } from "@/lib/media";
-
-/** Resize to max 1600px on the long edge and re-encode as WebP before upload. */
-async function downscaleImage(file: File): Promise<File> {
-  if (file.type === "image/svg+xml" || file.type === "image/gif") return file;
-  const bitmap = await createImageBitmap(file);
-  const scale = Math.min(1, 1600 / Math.max(bitmap.width, bitmap.height));
-  if (scale === 1 && file.type === "image/webp") return file;
-  const canvas = document.createElement("canvas");
-  canvas.width = Math.round(bitmap.width * scale);
-  canvas.height = Math.round(bitmap.height * scale);
-  canvas.getContext("2d")!.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-  const blob = await new Promise<Blob | null>((resolve) =>
-    canvas.toBlob(resolve, "image/webp", 0.85),
-  );
-  if (!blob) return file;
-  return new File([blob], file.name.replace(/\.[^.]+$/, "") + ".webp", { type: "image/webp" });
-}
+import { downscaleImage } from "@/lib/image-downscale";
 import { Button } from "@/components/ui/button";
 
 /**

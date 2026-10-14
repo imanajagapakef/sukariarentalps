@@ -107,4 +107,14 @@ export const createPaymentSchema = z.object({
   method: paymentChannelSchema.optional(),
 });
 
+/**
+ * Bukti transfer. `nominal` floor 1000 because anything under that is a typo, not a
+ * transfer. The image itself is validated separately (mime + size) since it arrives
+ * as a file rather than a field.
+ */
+export const paymentProofSchema = z.object({
+  nominal: z.coerce.number().int().min(1000).max(100_000_000),
+  note: z.string().trim().max(200).optional(),
+});
+
 export type CreatePaymentInput = z.infer<typeof createPaymentSchema>;

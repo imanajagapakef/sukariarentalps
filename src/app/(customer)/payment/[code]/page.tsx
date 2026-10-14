@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getBookingByCode } from "@/services/booking.service";
 import { PaymentPicker } from "@/components/payment-picker";
+import { PaymentProofForm } from "@/components/payment-proof-form";
 import { BookingStatusPill } from "@/components/status-pill";
 import { Countdown } from "@/components/ticket-actions";
 import { LiveBooking } from "@/components/live-booking";
@@ -28,6 +29,16 @@ export default async function PaymentPage({ params }: { params: Promise<{ code: 
     .limit(1)
     .maybeSingle();
   const failed = latestPayment?.status === "FAILED" || booking.status === "CANCELLED";
+
+  // Only the count, and only when the form is about to render: the proof form needs
+  // to know how many of the three allowed attempts are used up so it can stop
+  // offering a fourth.
+  const { count: proofCount } = pay
+    ? await db
+        .from("payment_proofs")
+        .select("proof_id", { count: "exact", head: true })
+        .eq("booking_id", booking.booking_id)
+    : { count: 0 };
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-10 md:px-8">
@@ -89,11 +100,18 @@ export default async function PaymentPage({ params }: { params: Promise<{ code: 
         {/* LEFT */}
         <section className="flex flex-col gap-6 lg:col-span-8">
           {pay ? (
-            <PaymentPicker
-              code={booking.booking_code}
-              total={booking.total_amount}
-              deadline={booking.payment_deadline_at}
-            />
+            <>
+              <PaymentPicker
+                code={booking.booking_code}
+                total={booking.total_amount}
+                deadline={booking.payment_deadline_at}
+              />
+              <PaymentProofForm
+                code={booking.booking_code}
+                total={booking.total_amount}
+                used={proofCount ?? 0}
+              />
+            </>
           ) : expired ? (
             <div className="rounded-2xl border border-danger/40 bg-danger/10 p-6 text-center">
               <div className="mx-auto grid size-16 place-items-center rounded-full bg-danger/20 text-danger">
