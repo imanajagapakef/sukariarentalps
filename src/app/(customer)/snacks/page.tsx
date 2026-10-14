@@ -31,7 +31,7 @@ export default async function SnacksPage() {
         Object.entries(byCategory).map(([cat, items]) => (
           <section key={cat} className="mt-10">
             <h2 className="font-display text-xl uppercase text-primary">{cat}</h2>
-            <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <div className={`mt-4 grid gap-3 sm:grid-cols-2 ${items.length > 4 ? "lg:grid-cols-3" : ""}`}>
               {items.map((s) => (
                 <div key={s.snack_id} className="flex items-center gap-4 rounded-xl border border-border bg-card p-4">
                   <Cover seed={s.snack_id} src={s.image_url} label={s.name} className="size-14 shrink-0 rounded-lg" />

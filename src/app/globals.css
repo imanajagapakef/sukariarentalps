@@ -134,6 +134,7 @@
 @layer base {
   html {
     color-scheme: dark;
+    scroll-behavior: smooth;
     @apply font-sans;
   }
 

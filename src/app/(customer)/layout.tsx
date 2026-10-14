@@ -4,7 +4,7 @@ export default function CustomerLayout({ children }: Readonly<{ children: React.
   return (
     <div className="flex min-h-dvh flex-col">
       <SiteHeader />
-      <main className="flex-1">{children}</main>
+      <main id="konten" className="flex-1">{children}</main>
       <SiteFooter />
     </div>
   );

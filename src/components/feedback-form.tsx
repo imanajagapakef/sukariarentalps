@@ -61,7 +61,7 @@ export function FeedbackForm() {
     return (
       <Card className="mt-8">
         <CardContent className="p-8 text-center">
-          <p className="font-display text-2xl uppercase text-primary">Makasih!</p>
+          <p className="font-display text-2xl uppercase text-primary">Makasih</p>
           <p className="mt-2 text-sm text-muted-foreground">Masukan kamu bikin kami makin asik.</p>
         </CardContent>
       </Card>

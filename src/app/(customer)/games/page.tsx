@@ -115,13 +115,13 @@ export default async function GamesPage({
         </div>
       ) : (
         <div className="mt-8 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-          {shown.map((g) => (
+          {shown.map((g, i) => (
             <Link
               key={g.game_id}
               href={`/games/${g.slug}`}
-              className="group overflow-hidden rounded-xl border border-border bg-card transition-colors hover:border-primary"
+              className={`group overflow-hidden rounded-xl border border-border bg-card transition-colors hover:border-primary ${i === 0 ? "col-span-2 sm:col-span-2" : ""}`}
             >
-              <Cover seed={g.game_id} src={g.image_url} label={g.name} className="aspect-[3/4] w-full" />
+              <Cover seed={g.game_id} src={g.image_url} label={g.name} className={`w-full ${i === 0 ? "aspect-[16/10]" : "aspect-[3/4]"}`} />
               <div className="p-3">
                 <p className="font-display truncate text-sm uppercase group-hover:text-primary">{g.name}</p>
                 <p className="mt-1 flex gap-1 text-xs text-muted-foreground">

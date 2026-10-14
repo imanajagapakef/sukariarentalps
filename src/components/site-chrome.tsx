@@ -1,18 +1,8 @@
 import Link from "next/link";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
+import { SiteNav } from "@/components/site-nav";
 import { getBranches } from "@/lib/catalog";
-
-const NAV = [
-  { href: "/", label: "Home" },
-  { href: "/booking", label: "Booking" },
-  { href: "/games", label: "Games" },
-  { href: "/tempat-main", label: "Tempat Main" },
-  { href: "/snacks", label: "Snacks" },
-  { href: "/promo", label: "Promo" },
-  { href: "/cabang", label: "Cabang" },
-  { href: "/cek-booking", label: "Cek Booking" },
-];
 
 export function SiteHeader() {
   return (
@@ -38,20 +28,7 @@ export function SiteHeader() {
             className="hidden h-10 w-auto md:block"
           />
         </Link>
-        <nav
-          aria-label="Utama"
-          className="no-scrollbar flex flex-1 items-center gap-1 overflow-x-auto"
-        >
-          {NAV.map((n) => (
-            <Link
-              key={n.href}
-              href={n.href}
-              className="rounded-md px-2.5 py-1.5 text-sm font-medium text-on-surface-variant transition-colors hover:bg-muted hover:text-foreground"
-            >
-              {n.label}
-            </Link>
-          ))}
-        </nav>
+        <SiteNav />
         <Button asChild size="sm" className="hidden shrink-0 md:inline-flex">
           <Link href="/booking">Booking Sekarang</Link>
         </Button>
@@ -88,7 +65,7 @@ export async function SiteFooter() {
           <ul className="mt-3 space-y-3 text-sm text-on-surface-variant">
             {branches.map((b) => (
               <li key={b.branch_id}>
-                <Link href={`/cabang`} className="hover:text-primary">
+                <Link href={`/cabang/${b.branch_id}`} className="hover:text-primary">
                   <span className="block font-bold text-foreground">
                     {b.name}
                   </span>

@@ -248,7 +248,7 @@ export default async function Home() {
             }
           />
           <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {facilityTypes.map((f) => {
+            {facilityTypes.map((f, i) => {
               const copy = facilityCopy(f.code, {
                 tag: f.platform,
                 players: "Multi Player",
@@ -256,6 +256,44 @@ export default async function Home() {
                 cta: `Booking ${f.name}`,
               });
               const rate = rates[f.facility_type_id];
+              // Break the equal-card row: the first type is a full-width banner.
+              if (i === 0) {
+                return (
+                  <div
+                    key={f.facility_type_id}
+                    className="flex flex-col gap-4 rounded-xl border border-primary/30 bg-card p-5 transition-colors hover:border-primary sm:col-span-2 sm:flex-row sm:items-center sm:gap-6 sm:p-6 lg:col-span-3"
+                  >
+                    <div className="min-w-0 sm:max-w-xs">
+                      <StickerTag variant="outline" rotate={-1}>
+                        {copy.tag}
+                      </StickerTag>
+                      <p className="font-display mt-3 text-3xl uppercase leading-tight">
+                        {f.name}
+                      </p>
+                      <p className="mt-0.5 flex items-center gap-1 text-xs font-bold uppercase tracking-wide text-on-surface-variant">
+                        <Users aria-hidden className="size-3.5" /> {copy.players}
+                      </p>
+                    </div>
+                    <p className="text-sm text-on-surface-variant sm:flex-1">{copy.desc}</p>
+                    <div className="flex items-center justify-between gap-3 sm:flex-col sm:items-end">
+                      {rate !== undefined ? (
+                        <PriceBadge>
+                          Mulai <span className="font-display text-base">{rp(Math.round(rate))}</span>
+                          /Jam
+                        </PriceBadge>
+                      ) : (
+                        <PlatformPill platform={f.platform} />
+                      )}
+                      <Link
+                        href={`/booking?branch=${branches[0]?.branch_id ?? ""}&type=${f.facility_type_id}`}
+                        className="text-sm font-bold text-primary hover:underline"
+                      >
+                        {copy.cta} →
+                      </Link>
+                    </div>
+                  </div>
+                );
+              }
               return (
                 <div
                   key={f.facility_type_id}
