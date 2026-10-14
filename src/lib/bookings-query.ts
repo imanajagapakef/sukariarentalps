@@ -14,7 +14,7 @@ export const STATUSES = [
 ] as const satisfies readonly BookingStatus[];
 
 export const BOOKING_FILTERS =
-  "booking_id, booking_code, status, scheduled_start_at, scheduled_end_at, duration_minutes, total_amount, source, units(name), customers(name, phone)";
+  "booking_id, booking_code, status, scheduled_start_at, scheduled_end_at, payment_deadline_at, duration_minutes, total_amount, source, units(name), customers(name, phone)";
 
 export type BookingRow = {
   booking_id: string;
@@ -22,6 +22,7 @@ export type BookingRow = {
   status: BookingStatus;
   scheduled_start_at: string;
   scheduled_end_at: string;
+  payment_deadline_at: string | null;
   duration_minutes: number;
   total_amount: number;
   source: string | null;
@@ -42,6 +43,22 @@ function searchTerm(q: string) {
 }
 
 /**
+ * How many bookings are sitting in the payment queue.
+ *
+ * Reads the partial index `bookings_deadline_idx (payment_deadline_at) where status
+ * = 'WAITING_PAYMENT'`, so this stays cheap as the table grows.
+ */
+export async function countWaitingPayment(): Promise<number> {
+  const db = createAdminClient();
+  const { count, error } = await db
+    .from("bookings")
+    .select("booking_id", { count: "exact", head: true })
+    .eq("status", "WAITING_PAYMENT");
+  if (error) throw new Error(error.message);
+  return count ?? 0;
+}
+
+/**
  * One builder for the table and the CSV export. They were written separately at
  * first, which is how "Export" and "what you are looking at" drift apart: the
  * export silently kept its own, older idea of the filters.
@@ -50,11 +67,18 @@ export async function listBookings(filters: BookingFilters) {
   const { status, q, date } = filters;
   const db = createAdminClient();
 
-  let query = db
-    .from("bookings")
-    .select(BOOKING_FILTERS)
-    .order("scheduled_start_at", { ascending: false })
-    .limit(60);
+  // Nobody settled a booking automatically any more, so the payment queue became the
+  // cashier's main job. While that filter is on, order by the deadline instead of the
+  // session start: the row about to lose its slot belongs on top, and the default
+  // (start time desc) buries it under sessions that are already booked.
+  const isPaymentQueue = status === "WAITING_PAYMENT";
+
+  let query = db.from("bookings").select(BOOKING_FILTERS).limit(60);
+  if (isPaymentQueue) {
+    query = query.order("payment_deadline_at", { ascending: true, nullsFirst: false });
+  } else {
+    query = query.order("scheduled_start_at", { ascending: false });
+  }
 
   if (status && (STATUSES as readonly string[]).includes(status)) {
     query = query.eq("status", status as BookingStatus);

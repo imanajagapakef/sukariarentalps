@@ -73,8 +73,18 @@ function useAdminNav(hidden: string[]) {
 }
 
 /** Desktop sidebar list. */
-export function AdminNav({ hidden = [] }: { hidden?: string[] }) {
+export function AdminNav({ hidden = [], pendingCount = 0 }: { hidden?: string[]; pendingCount?: number }) {
   const { groups, pathname } = useAdminNav(hidden);
+
+  const badgeFor = (href: string) =>
+    href === "/admin/bookings" && pendingCount > 0 ? (
+      <span
+        className="ml-auto rounded-full bg-warning px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-background"
+        title={`${pendingCount} booking menunggu konfirmasi pembayaran`}
+      >
+        {pendingCount}
+      </span>
+    ) : null;
 
   return (
     // min-h-0: without it a flex child refuses to shrink below its content, the
@@ -106,6 +116,7 @@ export function AdminNav({ hidden = [] }: { hidden?: string[] }) {
                   >
                     <Icon aria-hidden className="size-4 shrink-0" />
                     {label}
+                    {badgeFor(href)}
                   </Link>
                 </li>
               );
@@ -118,7 +129,13 @@ export function AdminNav({ hidden = [] }: { hidden?: string[] }) {
 }
 
 /** Narrow-viewport pill row. */
-export function AdminNavMobile({ hidden = [] }: { hidden?: string[] }) {
+export function AdminNavMobile({
+  hidden = [],
+  pendingCount = 0,
+}: {
+  hidden?: string[];
+  pendingCount?: number;
+}) {
   const { groups, pathname } = useAdminNav(hidden);
 
   return (
@@ -136,9 +153,14 @@ export function AdminNavMobile({ hidden = [] }: { hidden?: string[] }) {
                 ? "border-primary bg-primary font-bold text-on-primary"
                 : "border-border text-muted-foreground",
             )}
-          >
-            {label}
-          </Link>
+>
+              {label}
+              {href === "/admin/bookings" && pendingCount > 0 && (
+                <span className="ml-1.5 rounded-full bg-warning px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-background">
+                  {pendingCount}
+                </span>
+              )}
+            </Link>
         );
       })}
     </nav>

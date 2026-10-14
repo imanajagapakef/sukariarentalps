@@ -4,6 +4,7 @@ import { getStaffUser } from "@/lib/authz";
 import { LogoutButton } from "@/components/logout-button";
 import { AdminNav, AdminNavMobile } from "@/components/admin/admin-nav";
 import { LiveRefresh } from "@/components/admin/live-refresh";
+import { countWaitingPayment } from "@/lib/bookings-query";
 import { fmtDate } from "@/lib/format";
 
 export const metadata = { title: "Admin — Klub Sukaria" };
@@ -52,6 +53,10 @@ export default async function AdminLayout({ children }: Readonly<{ children: Rea
   const name = me.full_name ?? me.user_id.slice(0, 8);
   const role = ROLE_LABEL[me.role] ?? me.role;
 
+  // Payment queue depth for the nav badge. Nothing settles automatically any more, so
+  // a cashier needs to know there is work waiting without opening the Bookings page.
+  const pendingCount = await countWaitingPayment().catch(() => 0);
+
   return (
     <div className="flex min-h-dvh bg-background">
       <aside className="hidden w-64 shrink-0 flex-col border-r border-border bg-surface-lowest md:flex">
@@ -71,7 +76,7 @@ export default async function AdminLayout({ children }: Readonly<{ children: Rea
           Portal Operasional Staff
         </p>
 
-        <AdminNav hidden={hidden} />
+        <AdminNav hidden={hidden} pendingCount={pendingCount} />
 
         <div className="space-y-3 border-t border-border p-4">
           <p className="flex items-center justify-between gap-2 rounded-lg border border-border bg-surface-container px-3 py-2 text-xs">
@@ -112,7 +117,7 @@ export default async function AdminLayout({ children }: Readonly<{ children: Rea
         </header>
 
         <div className="flex items-center gap-2 overflow-x-auto border-b border-border bg-surface px-3 py-2 md:hidden">
-          <AdminNavMobile hidden={hidden} />
+          <AdminNavMobile hidden={hidden} pendingCount={pendingCount} />
         </div>
 
         <main id="konten" className="min-w-0 flex-1 p-4 md:p-8">{children}</main>

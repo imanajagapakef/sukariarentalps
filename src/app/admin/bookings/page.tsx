@@ -6,7 +6,7 @@ import { fmtDateTime, fmtDuration, fmtTime, rp } from "@/lib/format";
 import { SelectField } from "@/components/ui/select-field";
 import { StatCards } from "@/components/admin/stat-cards";
 import { EmptyState } from "@/components/empty-state";
-import { STATUSES, listBookings } from "@/lib/bookings-query";
+import { STATUSES, countWaitingPayment, listBookings } from "@/lib/bookings-query";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +18,7 @@ export default async function AdminBookingsPage({
   const filters = await searchParams;
   const { status, q, date } = filters;
   const rows = await listBookings(filters);
+  const pendingCount = status ? 0 : await countWaitingPayment().catch(() => 0);
 
   // The page already holds up to 60 bookings (whatever the filters selected), so the
   // strip reads off those rows. When a filter is active these describe the filtered
@@ -33,6 +34,26 @@ export default async function AdminBookingsPage({
     Object.entries(filters).filter((entry): entry is [string, string] => typeof entry[1] === "string"),
   ).toString();
   const exportHref = `/api/admin/bookings/export${exportParams ? `?${exportParams}` : ""}`;
+
+  // Only worth a column while something is actually waiting. Rendered on the server,
+  // no per-row timer: LiveRefresh already re-renders the page every 60s, so these stay
+  // close to current without N setInterval loops competing on the main thread.
+  const showDeadlineColumn = rows.some((b) => b.status === "WAITING_PAYMENT");
+  const now = Date.now();
+
+/**
+ * Relative time left on the payment window. The absolute time is rendered beside it
+ * because this text is server-rendered and can be up to a refresh cycle stale - the
+ * absolute one never lies, and "kurang dari 1 menit" would be the worst thing to
+ * show a cashier who is about to release a paid slot.
+ */
+function deadlineHint(deadlineIso: string, nowMs: number) {
+  const minutes = Math.round((Date.parse(deadlineIso) - nowMs) / 60_000);
+  if (minutes <= 0) return "lewat — akan dilepas";
+  if (minutes < 60) return `sisa ${minutes} menit`;
+  const hours = Math.floor(minutes / 60);
+  return `sisa ${hours} jam ${minutes % 60} menit`;
+}
 
   return (
     <div>
@@ -99,6 +120,25 @@ export default async function AdminBookingsPage({
         </button>
       </form>
 
+      {/* Nothing settles on its own any more, so the cashier has to come looking for
+          the queue. This puts it one click away instead of behind the status dropdown. */}
+      {!status && pendingCount > 0 && (
+        <Link
+          href="/admin/bookings?status=WAITING_PAYMENT"
+          className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-warning/50 bg-warning/10 px-4 py-3 text-sm transition-colors hover:bg-warning/20"
+        >
+          <span>
+            <span className="font-bold text-foreground">
+              {pendingCount} booking menunggu konfirmasi pembayaran
+            </span>
+            <span className="block text-xs text-muted-foreground">
+              Urutan paling mendesak lebih dulu. Cek mutasi, lalu tekan Konfirmasi.
+            </span>
+          </span>
+          <span className="shrink-0 font-bold uppercase text-warning">Buka antrean</span>
+        </Link>
+      )}
+
       {rows.length === 0 ? (
         <div className="mt-6">
           <EmptyState title="Tidak ada booking" description="Coba longgarkan filter pencarian." />
@@ -113,6 +153,9 @@ export default async function AdminBookingsPage({
                 <th scope="col" className="px-4 py-3 font-semibold">Customer</th>
                 <th scope="col" className="px-4 py-3 font-semibold">Unit</th>
                 <th scope="col" className="px-4 py-3 font-semibold">Jadwal</th>
+                {showDeadlineColumn && (
+                  <th scope="col" className="px-4 py-3 font-semibold">Batas Bayar</th>
+                )}
                 <th scope="col" className="px-4 py-3 text-right font-semibold">Durasi</th>
                 <th scope="col" className="px-4 py-3 text-right font-semibold">Total</th>
                 <th scope="col" className="px-4 py-3 font-semibold">Sumber</th>
@@ -144,6 +187,22 @@ export default async function AdminBookingsPage({
                       s/d {fmtTime(b.scheduled_end_at)}
                     </span>
                   </td>
+                  {showDeadlineColumn && (
+                    <td className="whitespace-nowrap px-4 py-3">
+                      {b.payment_deadline_at ? (
+                        <>
+                          <span className="block text-xs">
+                            {fmtDateTime(b.payment_deadline_at)}
+                          </span>
+                          <span className="block text-xs text-muted-foreground">
+                            {deadlineHint(b.payment_deadline_at, now)}
+                          </span>
+                        </>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </td>
+                  )}
                   <td className="whitespace-nowrap px-4 py-3 text-right">{fmtDuration(b.duration_minutes)}</td>
                   <td className="whitespace-nowrap px-4 py-3 text-right font-medium">{rp(b.total_amount)}</td>
                   <td className="px-4 py-3 text-xs uppercase text-muted-foreground">{b.source ?? "—"}</td>

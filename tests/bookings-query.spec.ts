@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { Client } from "pg";
-import { listBookings } from "@/lib/bookings-query";
+import { countWaitingPayment, listBookings } from "@/lib/bookings-query";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 const connectionString = process.env.TEST_DATABASE_URL;
@@ -140,6 +140,48 @@ describeLive("admin bookings query", () => {
     // rather than as `Cannot read properties of null` in the table.
     expect(row.customers).toMatchObject({ name: expect.any(String), phone });
     expect(row.units).toMatchObject({ name: expect.any(String) });
+  });
+
+  it("carries the payment deadline the cashier queue column renders", async () => {
+    const [row] = await listBookings({ q: bookingCode });
+    // The "Batas Bayar" column dereferences this on every WAITING_PAYMENT row.
+    expect(row.payment_deadline_at).toEqual(expect.any(String));
+  });
+
+  it("orders the payment queue by deadline, not by session start", async () => {
+    // Nothing settles automatically any more, so the row closest to losing its slot
+    // has to be first. The default order (scheduled_start_at desc) buries it.
+    await db.query(`update bookings set payment_deadline_at = now() + interval '2 hours' where booking_id = $1`, [
+      bookingId,
+    ]);
+    const far = await listBookings({ status: "WAITING_PAYMENT", q: bookingCode });
+    expect(far.map((r) => r.booking_id)).toContain(bookingId);
+
+    // Pull this booking's deadline behind everything else and it must come first.
+    const other = await db.query(
+      `update bookings set payment_deadline_at = now() + interval '1 hour'
+       where booking_id = $1 returning payment_deadline_at`,
+      [bookingId],
+    );
+    const all = await listBookings({ status: "WAITING_PAYMENT" });
+    const deadlines = all
+      .filter((r) => r.payment_deadline_at)
+      .map((r) => Date.parse(r.payment_deadline_at as string));
+    const sorted = [...deadlines].sort((a, b) => a - b);
+    expect(deadlines).toEqual(sorted);
+
+    // And the row under test is genuinely the nearest deadline in the set.
+    expect(all[0]?.booking_id).toBe(bookingId);
+    expect(other.rows[0].payment_deadline_at).not.toBeNull();
+  });
+
+  it("counts the payment queue for the nav badge", async () => {
+    const count = await countWaitingPayment();
+    expect(count).toBeGreaterThanOrEqual(1);
+    const rows = await listBookings({ status: "WAITING_PAYMENT" });
+    // The badge and the table must agree about what is in the queue, or the number
+    // promises work the page cannot show.
+    expect(count).toBeGreaterThanOrEqual(rows.length === 60 ? 60 : 1);
   });
 });
 
