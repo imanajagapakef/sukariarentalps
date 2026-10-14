@@ -2,7 +2,7 @@ import Link from "next/link";
 import { BookingStatusPill } from "@/components/status-pill";
 import { ActionButtons } from "@/components/admin/action-buttons";
 import { hasBookingActions } from "@/lib/booking-actions";
-import { fmtDateTime, fmtTime, rp } from "@/lib/format";
+import { fmtDateTime, fmtDuration, fmtTime, rp } from "@/lib/format";
 import { SelectField } from "@/components/ui/select-field";
 import { StatCards } from "@/components/admin/stat-cards";
 import { EmptyState } from "@/components/empty-state";
@@ -144,12 +144,12 @@ export default async function AdminBookingsPage({
                       s/d {fmtTime(b.scheduled_end_at)}
                     </span>
                   </td>
-                  <td className="whitespace-nowrap px-4 py-3 text-right">{b.duration_minutes} mnt</td>
+                  <td className="whitespace-nowrap px-4 py-3 text-right">{fmtDuration(b.duration_minutes)}</td>
                   <td className="whitespace-nowrap px-4 py-3 text-right font-medium">{rp(b.total_amount)}</td>
                   <td className="px-4 py-3 text-xs uppercase text-muted-foreground">{b.source ?? "—"}</td>
                   <td className="px-4 py-3">
                     {hasBookingActions(b.status) ? (
-                      <ActionButtons code={b.booking_code} status={b.status} source={b.source ?? undefined} />
+                      <ActionButtons code={b.booking_code} status={b.status} />
                     ) : (
                       <span className="text-muted-foreground">—</span>
                     )}

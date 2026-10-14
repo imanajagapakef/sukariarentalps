@@ -71,6 +71,11 @@ export function PaymentPicker({
             );
           })}
         </div>
+
+        <p className="text-xs text-muted-foreground">
+          Pembayaran diverifikasi manual oleh kasir. Halaman ini otomatis berubah begitu
+          konfirmasi masuk, jadi tidak perlu me-refresh.
+        </p>
       </fieldset>
 
       <StartPaymentButton

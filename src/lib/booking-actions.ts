@@ -20,3 +20,10 @@ export const BOOKING_ACTIONS: Record<string, { label: string; action: string; da
 
 /** Terminal statuses have nothing to do, so the table renders a dash instead. */
 export const hasBookingActions = (status: string) => (BOOKING_ACTIONS[status] ?? []).length > 0;
+
+/**
+ * Realtime channel a staff action pings and the customer's booking page listens
+ * on. One function so the two sides cannot spell the channel differently and
+ * silently stop hearing each other.
+ */
+export const bookingChannel = (code: string) => `booking:${code}`;
