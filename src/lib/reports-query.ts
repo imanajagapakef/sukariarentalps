@@ -259,10 +259,11 @@ function sortBySessionDesc(rows: ReportBooking[]) {
 const COLLECTED = new Set<string>(["PAID", "PARTIALLY_REFUNDED", "REFUNDED"]);
 
 export const CHANNEL_LABEL: Record<string, string> = {
-  CASAKU_QRIS: "QRIS (all bank)",
-  CASAKU_E_WALLET: "E-Wallet",
-  CASAKU_QR_DYNAMIC: "QRIS Dinamis",
-  CASAKU_QR_STATIC: "QRIS Statis",
+  MIDTRANS_QRIS: "QRIS (Midtrans)",
+  MIDTRANS_GOPAY: "GoPay",
+  MIDTRANS_SHOPEEPAY: "ShopeePay",
+  MIDTRANS_BANK_TRANSFER: "Transfer bank",
+  MIDTRANS_CREDIT_CARD: "Kartu kredit",
   QRIS_MANUAL: "QRIS manual",
   TRANSFER_MANUAL: "Transfer manual",
   CASH: "Tunai kasir",

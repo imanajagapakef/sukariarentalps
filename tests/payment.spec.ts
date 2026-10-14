@@ -1,21 +1,24 @@
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { createHmac } from "node:crypto";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { Client } from "pg";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createPaymentForBooking, handleCasakuNotification } from "@/services/payment.service";
+import { createPaymentForBooking } from "@/services/payment.service";
+import { POST as bookingActions } from "@/app/api/admin/bookings/[code]/actions/route";
+import { callRoute, canAuthenticate, signInAsOwner, signOut } from "./admin-harness";
 
-const TEST_WEBHOOK_SECRET = "test-webhook-secret";
-process.env.CASAKU_WEBHOOK_SECRET = TEST_WEBHOOK_SECRET;
-process.env.CASAKU_LICENSE_KEY = "test-license-key";
-process.env.CASAKU_QR_ID = "test-qr-id";
-process.env.CASAKU_PACKAGE_IDS = "id.dana,com.shopee.id";
 process.env.QRIS_STATIC_STRING = "00020101021126650013ID.CO.BTN.WWW011893600200117210000202154051101721000020303UMI51440014ID.CO.QRIS.WWW0215ID10265958817190303UMI5204721053033605802ID5911Dedi Kaisar6014TANJUNG PINANG61052912562070703A016304CA3B";
-
-const sig = (rawBody: string) => createHmac("sha256", TEST_WEBHOOK_SECRET).update(rawBody).digest("hex");
 
 const connectionString = process.env.TEST_DATABASE_URL;
 const describeDb = connectionString ? describe : describe.skip;
 
+/**
+ * Payment lifecycle with no gateway.
+ *
+ * Casaku is gone, so there is no webhook and nothing auto-confirms. The only path
+ * that settles a payment is a cashier pressing "Konfirmasi" in /admin/bookings,
+ * and that is what the settlement test drives - through the real route handler,
+ * signed in as the bootstrapped owner, so the staff guard, the zod parse, the
+ * guarded confirm_booking RPC and the audit write are all exercised.
+ */
 describeDb("payment service", () => {
   const suffix = Date.now().toString(36).toUpperCase();
   const unitId = `P-UNIT-${suffix}`;
@@ -56,7 +59,6 @@ describeDb("payment service", () => {
       `delete from payments where booking_id in (select booking_id from bookings where unit_id = $1)`,
       [unitId],
     );
-    await db.query(`delete from payment_events where provider_event_id like $1`, [`%${suffix}%`]);
     await db.query(`delete from booking_items where booking_id in (select booking_id from bookings where unit_id = $1)`, [unitId]);
     await db.query(`delete from bookings where unit_id = $1`, [unitId]);
     await db.query(`delete from unit_status_history where unit_id = $1`, [unitId]);
@@ -65,6 +67,7 @@ describeDb("payment service", () => {
     await db.query(`delete from units where unit_id = $1`, [unitId]);
     await db.query(`delete from facility_types where facility_type_id = $1`, [facilityId]);
     await db.end();
+    signOut();
   });
 
   beforeEach(async () => {
@@ -73,15 +76,10 @@ describeDb("payment service", () => {
       `delete from payments where booking_id in (select booking_id from bookings where unit_id = $1)`,
       [unitId],
     );
-    await db.query(`delete from payment_events where provider_event_id like $1`, [`%${suffix}%`]);
     await db.query(`delete from booking_items where booking_id in (select booking_id from bookings where unit_id = $1)`, [unitId]);
     await db.query(`delete from bookings where unit_id = $1`, [unitId]);
     await db.query(`delete from unit_status_history where unit_id = $1`, [unitId]);
     await db.query(`update units set status = 'AVAILABLE', condition = 'GOOD' where unit_id = $1`, [unitId]);
-  });
-
-  afterEach(() => {
-    vi.unstubAllGlobals();
   });
 
   async function newBooking(start: string, duration = 120) {
@@ -100,7 +98,12 @@ describeDb("payment service", () => {
     return rows[0];
   }
 
-  it("createPaymentForBooking stores the payment and returns the Casaku transaction id", async () => {
+  async function bookingStatus(bookingId: string) {
+    const { rows } = await db.query(`select status from bookings where booking_id = $1`, [bookingId]);
+    return rows[0].status as string;
+  }
+
+  it("createPaymentForBooking stores the payment and returns the QRIS page", async () => {
     const booking = await newBooking("09:00");
     const result = await createPaymentForBooking(admin, booking.booking_code);
     expect(result.redirect_url).toBe(`/payment/${booking.booking_code}/qris`);
@@ -121,72 +124,92 @@ describeDb("payment service", () => {
     await db.query(`select public.cancel_booking($1)`, [booking.booking_id]);
   });
 
-  it("ignores a notification with an invalid signature", async () => {
-    const booking = await newBooking("11:00");
-    const payload = { transactionId: `TX-BAD-${suffix}`, amount: 35000, packageName: "id.dana", status: "paid" };
-    const rawBody = JSON.stringify(payload);
+  it("rejects an unknown payment method before writing anything", async () => {
+    const booking = await newBooking("10:00");
 
-    const result = await handleCasakuNotification(admin, payload, rawBody, "deadbeef");
-    expect(result).toEqual({ processed: false, reason: "signature invalid" });
-    const { rows: ev } = await db.query(
-      `select signature_valid from payment_events where provider_event_id = $1`,
-      [payload.transactionId],
+    await expect(
+      createPaymentForBooking(admin, booking.booking_code, "NOT_A_CHANNEL"),
+    ).rejects.toThrow(/tidak dikenal/);
+
+    const { rows: payCount } = await db.query(
+      `select count(*)::int as n from payments where booking_id = $1`,
+      [booking.booking_id],
     );
-    expect(ev[0].signature_valid).toBe(false);
+    expect(payCount[0].n).toBe(0);
 
     await db.query(`select public.cancel_booking($1)`, [booking.booking_id]);
   });
 
-  it("settles: payment PAID, booking CONFIRMED, duplicate ignored", async () => {
-    const booking = await newBooking("13:00");
-    await createPaymentForBooking(admin, booking.booking_code);
+  const describeSettlement = canAuthenticate ? describe : describe.skip;
 
-    const paymentRecord = await paymentFor(booking.booking_id);
-    const transactionId = paymentRecord.payment_id;
-    const payload = { transactionId, amount: 35000, packageName: "id.dana", status: "paid", paidAt: new Date().toISOString() };
-    const rawBody = JSON.stringify(payload);
-    const signature = sig(rawBody);
+  describeSettlement("staff confirmation settles the payment", () => {
+    beforeAll(async () => {
+      await signInAsOwner();
+    });
 
-    const first = await handleCasakuNotification(admin, payload, rawBody, signature);
-    expect(first.processed).toBe(true);
+    it("confirm marks the payment PAID and the booking CONFIRMED", async () => {
+      const booking = await newBooking("13:00");
+      await createPaymentForBooking(admin, booking.booking_code);
+      expect((await paymentFor(booking.booking_id)).status).toBe("PENDING");
 
-    const payment = await paymentFor(booking.booking_id);
-    expect(payment.status).toBe("PAID");
-    // Not QRIS_MANUAL any more: the webhook knows which app actually paid
-    // (packageName "id.dana") and records that, which is what the revenue report
-    // groups by. Before this test was written the webhook left method untouched.
-    expect(payment.method).toBe("CASAKU_QRIS");
-    expect(payment.paid_at).not.toBeNull();
+      const result = await callRoute(
+        bookingActions,
+        { params: Promise.resolve({ code: booking.booking_code }) },
+        { body: { action: "confirm" } },
+      );
+      expect(result.status).toBe(200);
+      expect((result.body as { status: string }).status).toBe("CONFIRMED");
 
-    const { rows: bk } = await db.query(`select status from bookings where booking_id = $1`, [booking.booking_id]);
-    expect(bk[0].status).toBe("CONFIRMED");
+      const payment = await paymentFor(booking.booking_id);
+      expect(payment.status).toBe("PAID");
+      expect(payment.paid_at).not.toBeNull();
+      expect(await bookingStatus(booking.booking_id)).toBe("CONFIRMED");
 
-    const second = await handleCasakuNotification(admin, payload, rawBody, signature);
-    expect(second).toEqual({ processed: false, reason: "already processed" });
-    const { rows: count } = await db.query(
-      `select count(*)::int as n from payment_events where provider_event_id = $1`,
-      [transactionId],
-    );
-    expect(count[0].n).toBe(1);
+      await db.query(`select public.cancel_booking($1)`, [booking.booking_id]);
+    });
 
-    await db.query(`select public.cancel_booking($1)`, [booking.booking_id]);
+    it("confirming twice is rejected by the guarded RPC, not applied twice", async () => {
+      const booking = await newBooking("14:00");
+      await createPaymentForBooking(admin, booking.booking_code);
+
+      const first = await callRoute(
+        bookingActions,
+        { params: Promise.resolve({ code: booking.booking_code }) },
+        { body: { action: "confirm" } },
+      );
+      expect(first.status).toBe(200);
+
+      // The route swallows "already confirmed" only for the payment write; the second
+      // call must not report success for a transition the RPC refuses.
+      const second = await callRoute(
+        bookingActions,
+        { params: Promise.resolve({ code: booking.booking_code }) },
+        { body: { action: "confirm" } },
+      );
+      expect(second.status).not.toBe(200);
+
+      const { rows: n } = await db.query(
+        `select count(*)::int as n from payments where booking_id = $1 and status = 'PAID'`,
+        [booking.booking_id],
+      );
+      expect(n[0].n).toBe(1);
+
+      await db.query(`select public.cancel_booking($1)`, [booking.booking_id]);
+    });
   });
 
-  it("expiry marks the payment EXPIRED but leaves the booking to the cron", async () => {
+  it("expiry expires the payment too, and leaves the booking to the cron", async () => {
     const booking = await newBooking("15:00");
     await createPaymentForBooking(admin, booking.booking_code);
 
-    const paymentRecord = await paymentFor(booking.booking_id);
-    const transactionId = paymentRecord.payment_id;
-    const payload = { transactionId, amount: 35000, packageName: "id.dana", status: "expired" };
-    const rawBody = JSON.stringify(payload);
-    const result = await handleCasakuNotification(admin, payload, rawBody, sig(rawBody));
-    expect(result.processed).toBe(true);
+    // Pull the deadline into the past rather than sleeping: the cron only fires on a
+    // schedule, so this is the only way to exercise its body.
+    await db.query(`update bookings set payment_deadline_at = now() - interval '1 minute' where booking_id = $1`, [
+      booking.booking_id,
+    ]);
+    await db.query(`select public.expire_bookings()`);
 
     expect((await paymentFor(booking.booking_id)).status).toBe("EXPIRED");
-    const { rows: bk } = await db.query(`select status from bookings where booking_id = $1`, [booking.booking_id]);
-    expect(bk[0].status).toBe("WAITING_PAYMENT");
-
-    await db.query(`select public.cancel_booking($1)`, [booking.booking_id]);
+    expect(await bookingStatus(booking.booking_id)).toBe("EXPIRED");
   });
 });
