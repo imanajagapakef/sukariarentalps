@@ -59,9 +59,9 @@ export const pricingSchema = z.object({
 });
 
 export const bookingConfigSchema = z.object({
-  minimum_duration_minutes: z.number().int().min(15).max(180),
-  maximum_duration_minutes: z.number().int().min(30).max(1440),
-  booking_interval_minutes: z.number().int().min(5).max(120),
+  minimum_duration_minutes: z.number().int().min(60).max(180),
+  maximum_duration_minutes: z.number().int().min(60).max(1440),
+  booking_interval_minutes: z.number().int().min(60).max(120),
   cleaning_duration_minutes: z.number().int().min(0).max(60),
   payment_deadline_minutes: z.number().int().min(5).max(120),
   advance_booking_days: z.number().int().min(1).max(365),

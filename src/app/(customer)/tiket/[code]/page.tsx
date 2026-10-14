@@ -7,7 +7,8 @@ import { getBookingByCode } from "@/services/booking.service";
 import { BookingStatusPill } from "@/components/status-pill";
 import { Cover } from "@/components/cover";
 import { PayButton, CancelButton, Countdown, CopyCodeButton } from "@/components/ticket-actions";
-import { fmtDateTime, rp } from "@/lib/format";
+import { LiveBooking } from "@/components/live-booking";
+import { fmtDateTime, fmtDuration, rp } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -50,6 +51,7 @@ export default async function TicketPage({ params }: { params: Promise<{ code: s
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-10 md:px-8">
+      <LiveBooking code={booking.booking_code} status={booking.status} />
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-sm text-muted-foreground">Tiket</p>
@@ -144,13 +146,13 @@ export default async function TicketPage({ params }: { params: Promise<{ code: s
       <div className="mt-6 grid gap-4 sm:grid-cols-2">
         <div className="rounded-xl border border-border bg-card p-5">
           <h2 className="text-xs uppercase text-muted-foreground">Waktu</h2>
-          <p className="font-display mt-1 text-lg uppercase">{fmtDateTime(booking.scheduled_start_at)}</p>
+          <p className="font-display mt-1 text-lg">{fmtDateTime(booking.scheduled_start_at)}</p>
           <p className="text-sm text-muted-foreground">sampai {fmtDateTime(booking.scheduled_end_at)}</p>
-          <p className="mt-1 text-sm text-primary">{booking.duration_minutes} menit</p>
+          <p className="mt-1 text-sm text-primary">{fmtDuration(booking.duration_minutes)}</p>
         </div>
         <div className="rounded-xl border border-border bg-card p-5">
           <h2 className="text-xs uppercase text-muted-foreground">Tempat</h2>
-          <p className="font-display mt-1 text-lg uppercase">{unit.data?.name}</p>
+          <p className="font-display mt-1 text-lg">{unit.data?.name}</p>
           <p className="text-sm text-muted-foreground">
             {unit.data?.branches?.short_name ?? unit.data?.branches?.name}
           </p>

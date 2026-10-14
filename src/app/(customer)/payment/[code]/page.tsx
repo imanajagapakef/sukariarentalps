@@ -1,12 +1,14 @@
 import Link from "next/link";
+import { TriangleAlert } from "lucide-react";
 import { notFound } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getBookingByCode } from "@/services/booking.service";
 import { PaymentPicker } from "@/components/payment-picker";
 import { BookingStatusPill } from "@/components/status-pill";
 import { Countdown } from "@/components/ticket-actions";
+import { LiveBooking } from "@/components/live-booking";
 import { Button } from "@/components/ui/button";
-import { fmtDateTime, rp } from "@/lib/format";
+import { fmtDateTime, fmtDuration, rp } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -29,6 +31,7 @@ export default async function PaymentPage({ params }: { params: Promise<{ code: 
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-10 md:px-8">
+      <LiveBooking code={booking.booking_code} status={booking.status} />
       {/* STEP PROGRESS */}
       <nav aria-label="Alur Reservasi" className="rounded-xl bg-card p-4 shadow-sm">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -116,7 +119,7 @@ export default async function PaymentPage({ params }: { params: Promise<{ code: 
             <div className="rounded-2xl border border-danger/40 bg-danger/10 p-6">
               <div className="flex items-start gap-4">
                 <div className="grid size-14 place-items-center rounded-2xl bg-danger/20 text-danger">
-                  <span aria-hidden className="text-3xl">⚠️</span>
+                  <TriangleAlert aria-hidden className="size-7" />
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="text-xs font-bold uppercase tracking-widest text-danger">Status: Pembayaran Belum Berhasil</p>
@@ -161,7 +164,7 @@ export default async function PaymentPage({ params }: { params: Promise<{ code: 
 
             <div className="mb-4 rounded-xl bg-card p-4">
               <p className="font-medium">Unit & Lokasi</p>
-              <p className="mt-1 text-sm text-muted-foreground">Sesi {fmtDateTime(booking.scheduled_start_at)} ({booking.duration_minutes} menit)</p>
+              <p className="mt-1 text-sm text-muted-foreground">Sesi {fmtDateTime(booking.scheduled_start_at)} ({fmtDuration(booking.duration_minutes)})</p>
             </div>
 
             <dl className="space-y-2 text-sm">

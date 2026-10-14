@@ -38,7 +38,7 @@ export const slotQuerySchema = z.object({
   branch_id: z.string().min(1),
   unit_id: z.string().min(1),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Tanggal harus format YYYY-MM-DD"),
-  duration_minutes: z.coerce.number().int().min(30).max(360).default(60),
+  duration_minutes: z.coerce.number().int().min(60).max(360).default(60),
 });
 
 /** Slot states mirroring public.slot_availability(). */

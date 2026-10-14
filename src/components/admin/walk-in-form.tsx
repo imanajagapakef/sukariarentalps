@@ -92,10 +92,10 @@ export function WalkInForm({ branches, units }: { branches: Branch[]; units: Uni
               <Input id="wi-phone" inputMode="tel" value={phone} onChange={(e) => setPhone(e.target.value)} required />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="wi-duration">Durasi (menit)</Label>
+              <Label htmlFor="wi-duration">Durasi</Label>
               <SelectField id="wi-duration" value={duration} onChange={(e) => setDuration(Number(e.target.value))}>
-                {[30, 60, 90, 120, 180, 240, 300, 360].map((d) => (
-                  <option key={d} value={d}>{d} menit</option>
+                {[60, 120, 180, 240, 300, 360].map((d) => (
+                  <option key={d} value={d}>{d / 60} Jam</option>
                 ))}
               </SelectField>
             </div>

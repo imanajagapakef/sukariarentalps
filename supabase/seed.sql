@@ -428,7 +428,7 @@ data_status = EXCLUDED.data_status;
 
 INSERT INTO booking_config (config_id, minimum_duration_minutes, maximum_duration_minutes, booking_interval_minutes, cleaning_duration_minutes, payment_deadline_minutes, extension_interval_minutes, minimum_extension_minutes, advance_booking_days, late_tolerance_minutes, data_status)
 VALUES
-('CFG-DEFAULT', 60, 360, 30, 10, 15, 30, 30, 30, 10, 'DRAFT')
+('CFG-DEFAULT', 60, 360, 60, 10, 15, 60, 60, 30, 10, 'DRAFT')
 ON CONFLICT (config_id) DO UPDATE SET
 minimum_duration_minutes = EXCLUDED.minimum_duration_minutes,
 maximum_duration_minutes = EXCLUDED.maximum_duration_minutes,

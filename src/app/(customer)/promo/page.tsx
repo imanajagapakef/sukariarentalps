@@ -1,5 +1,5 @@
 import { getPromotions } from "@/lib/catalog";
-import { rp } from "@/lib/format";
+import { fmtDuration, rp } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/empty-state";
 import { PromoHeroAnimation } from "@/components/promo-hero-animation";
@@ -38,7 +38,7 @@ export default async function PromoPage() {
                 {p.promotion_items.map((it, i) => (
                   <li key={i} className="flex justify-between gap-2">
                     <span>
-                      {it.facility_types?.name ?? "Unit"} · {it.duration_minutes} menit
+                      {it.facility_types?.name ?? "Unit"} · {fmtDuration(it.duration_minutes)}
                     </span>
                     <span className="font-medium text-primary">{rp(it.price)}</span>
                   </li>

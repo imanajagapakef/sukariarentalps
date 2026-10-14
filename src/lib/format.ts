@@ -35,6 +35,14 @@ const isoDayFormatter = new Intl.DateTimeFormat("en-CA", {
  */
 export const fmtISODay = (d: Date) => isoDayFormatter.format(d);
 
+/**
+ * Durasi sewa dalam jam, karena itu satu-satunya satuan yang bisa dipilih sejak
+ * opsi 30 menit dihapus (migrasi 0021). Booking lama yang berdurasi ganjil tetap
+ * tampil apa adanya supaya riwayat tidak berubah artinya.
+ */
+export const fmtDuration = (minutes: number) =>
+  minutes % 60 === 0 ? `${minutes / 60} Jam` : `${minutes} mnt`;
+
 export const BOOKING_LABEL: Record<string, string> = {
   DRAFT: "Draft",
   WAITING_PAYMENT: "Menunggu Pembayaran",

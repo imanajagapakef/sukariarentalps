@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/empty-state";
 import { createClient } from "@/lib/supabase/client";
-import { fmtISODay, fmtTime, rp } from "@/lib/format";
+import { fmtDuration, fmtISODay, fmtTime, rp } from "@/lib/format";
 import { SLOT_COPY, type Slot, type SlotState } from "@/lib/validations/booking";
 import { isSlotPreset, pickSlotStart, presetDay } from "@/lib/slot-preset";
 
@@ -41,7 +41,9 @@ type BookingConfig = {
 function durationOptions(cfg: BookingConfig | null) {
   const min = cfg?.minimum_duration_minutes ?? 60;
   const max = cfg?.maximum_duration_minutes ?? 360;
-  const step = cfg?.booking_interval_minutes ?? 30;
+  // Fallback 60, bukan 30: satu jam adalah satu-satunya durasi yang bisa dipilih
+  // sejak opsi 30 menit dihapus (migrasi 0021).
+  const step = cfg?.booking_interval_minutes ?? 60;
   const out: number[] = [];
   for (let d = min; d <= max; d += step) out.push(d);
   return out;
@@ -337,7 +339,7 @@ export function BookingForm({
                     }`}
                   >
                     <span>
-                      <span className="font-display block uppercase">{u.name}</span>
+                      <span className="font-display block">{u.name}</span>
                       <span className="text-muted-foreground">{u.facility_types?.name}</span>
                     </span>
                     {u.status !== "AVAILABLE" && (
@@ -372,7 +374,7 @@ export function BookingForm({
                 >
                   {durationOptions(cfg).map((d) => (
                     <option key={d} value={d}>
-                      {d} menit
+                      {d / 60} Jam
                     </option>
                   ))}
                 </SelectField>
@@ -546,7 +548,7 @@ export function BookingForm({
             <div className="rounded-lg bg-surface-low p-4 text-sm">
               <p className="flex justify-between">
                 <span>
-                  Sewa {date} {startIso ? fmtTime(startIso) : "—"} · {duration} menit
+                  Sewa {date} {startIso ? fmtTime(startIso) : "—"} · {fmtDuration(duration)}
                 </span>
                 <span>{price === null ? "—" : rp(price)}</span>
               </p>
@@ -554,7 +556,7 @@ export function BookingForm({
                 <span>Snacks</span>
                 <span>{rp(snackTotal)}</span>
               </p>
-              <p className="font-display mt-2 flex justify-between border-t border-border pt-2 text-base uppercase">
+              <p className="font-display mt-2 flex justify-between border-t border-border pt-2 text-base">
                 <span>Total</span>
                 <span>{price === null ? "—" : rp(price + snackTotal)}</span>
               </p>
