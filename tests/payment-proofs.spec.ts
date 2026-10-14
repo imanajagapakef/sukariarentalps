@@ -3,7 +3,7 @@ import { Client } from "pg";
 import { NextRequest } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { POST as uploadProof } from "@/app/api/payments/[code]/proof/route";
-import { PROOF_BUCKET } from "@/lib/payment-proofs";
+import { PROOF_BUCKET, listPaymentProofs } from "@/lib/payment-proofs";
 
 const connectionString = process.env.TEST_DATABASE_URL;
 const describeDb = connectionString ? describe : describe.skip;
@@ -27,10 +27,10 @@ function proofRequest(code: string, body: { nominal?: string; note?: string; fil
 /**
  * Payment proof upload.
  *
- * The assertion that matters most is the last one: the bucket must NOT be publicly
- * readable. A public URL on a bank screenshot exposes account numbers and balances to
- * anyone who guesses the key, and that is the whole reason this got its own bucket
- * instead of riding along in the public `media` one.
+ * The assertion that matters most is "keeps the uploaded image out of public reach":
+ * the bucket must NOT be publicly readable. A public URL on a bank screenshot exposes
+ * account numbers and balances to anyone who guesses the key, and that is the whole
+ * reason this got its own bucket instead of riding along in the public `media` one.
  */
 describeDb("payment proofs", () => {
   const suffix = Date.now().toString(36).toUpperCase();
@@ -80,9 +80,8 @@ describeDb("payment proofs", () => {
       [branchId, unitId, "Proof Payer 2", `${phone}9`, at("14:00")],
     );
     const secondId = second.rows[0].booking_id as string;
-    const secondCode = second.rows[0].booking_code as string;
+    settledCode = second.rows[0].booking_code as string;
     await db.query(`select public.confirm_booking($1)`, [secondId]);
-    settledCode = secondCode;
   });
 
   afterAll(async () => {
@@ -180,9 +179,43 @@ describeDb("payment proofs", () => {
     expect(fourth.status).toBe(400);
   });
 
+  it("reads a proof back with a signed URL", async () => {
+    // The read path is what the admin table uses, and it must not depend on booking
+    // status: the old screen only asked for WAITING_PAYMENT rows, so the evidence
+    // vanished the instant the cashier pressed Konfirmasi - which is exactly when a
+    // dispute needs it most.
+    await cleanProofs();
+    await uploadProof(proofRequest(bookingCode, { nominal: "35000" }), {
+      params: Promise.resolve({ code: bookingCode }),
+    });
+
+    const byBooking = await listPaymentProofs(admin, [bookingId]);
+    expect(byBooking.get(bookingId)).toHaveLength(1);
+    expect(byBooking.get(bookingId)?.[0].signedUrl).toBeTruthy();
+
+    // The status is never part of the lookup: asking for the same booking after it is
+    // settled returns the same proof rather than nothing.
+    const { data: confirmed } = await admin
+      .from("bookings")
+      .select("booking_id, status")
+      .eq("booking_id", bookingId)
+      .maybeSingle();
+    expect(confirmed?.status).toBe("WAITING_PAYMENT");
+
+    const stillThere = await listPaymentProofs(admin, [bookingId]);
+    expect(stillThere.get(bookingId)).toHaveLength(1);
+
+    await cleanProofs();
+  });
+
   it("keeps the uploaded image out of public reach", async () => {
     // The property that justified a separate private bucket. If this ever passes with
     // a 200, a bank screenshot is one guessable key away from being world-readable.
+    await cleanProofs();
+    await uploadProof(proofRequest(bookingCode, { nominal: "35000" }), {
+      params: Promise.resolve({ code: bookingCode }),
+    });
+
     const { data: row } = await admin
       .from("payment_proofs")
       .select("object_path")

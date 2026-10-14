@@ -4,6 +4,7 @@ import QRCode from "qrcode";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getBookingByCode } from "@/services/booking.service";
 import { rp } from "@/lib/format";
+import { LiveBooking } from "@/components/live-booking";
 import { Button } from "@/components/ui/button";
 
 export const dynamic = "force-dynamic";
@@ -23,12 +24,27 @@ export default async function PaymentQrisPage({ params }: { params: Promise<{ co
     .maybeSingle();
 
   if (!payment || payment.status !== "PENDING") {
+    // The cashier settling the booking while this page is open is the normal end of
+    // this flow, not a failure. It used to land in the "tagihan tidak ditemukan"
+    // branch below, which told a customer who had just paid successfully that their
+    // invoice was missing.
+    const settled = ["CONFIRMED", "CHECKED_IN", "IN_USE", "COMPLETED"].includes(booking.status);
     return (
       <div className="mx-auto max-w-xl px-4 py-16 text-center md:px-8">
-        <div className="rounded-2xl border border-border bg-card p-8">
-          <h1 className="font-display text-2xl uppercase">Pembayaran Tidak Ditemukan</h1>
-          <p className="mt-2 text-muted-foreground">Tagihan kasaku tidak ditemukan. Coba ulangi dari halaman payment.</p>
-          <Button asChild className="mt-4"><Link href={`/payment/${booking.booking_code}`}>Kembali ke Payment</Link></Button>
+        <div className="rounded-2xl border border-primary/40 bg-primary/10 p-8">
+          <h1 className="font-display text-2xl uppercase text-primary">
+            {settled ? "Pembayaran Diterima" : "Tagihan tidak tersedia"}
+          </h1>
+          <p className="mt-2 text-muted-foreground">
+            {settled
+              ? "Kasir sudah mengonfirmasi. Booking kamu aktif dan unit sudah diamankan."
+              : "Buka lagi halaman payment untuk melihat status tagihan."}
+          </p>
+          <Button asChild className="mt-4">
+            <Link href={settled ? `/tiket/${booking.booking_code}` : `/payment/${booking.booking_code}`}>
+              {settled ? "Lihat Tiket" : "Kembali ke Payment"}
+            </Link>
+          </Button>
         </div>
       </div>
     );
@@ -51,6 +67,11 @@ export default async function PaymentQrisPage({ params }: { params: Promise<{ co
 
   return (
     <div className="mx-auto max-w-xl px-4 py-16 md:px-8">
+      {/* This is where the customer actually sits after pressing "Bayar Sekarang", so
+          it is the page that has to notice the cashier's confirmation. Without it the
+          broadcast fired into an empty room and the QR sat there until a manual
+          refresh. */}
+      <LiveBooking code={booking.booking_code} status={booking.status} />
       <div className="rounded-2xl border border-border bg-card p-6 shadow-xl">
         <div className="flex items-center justify-between">
           <h1 className="font-display text-2xl uppercase">Scan QRIS</h1>

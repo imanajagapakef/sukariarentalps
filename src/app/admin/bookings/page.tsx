@@ -43,11 +43,17 @@ export default async function AdminBookingsPage({
   const showDeadlineColumn = rows.some((b) => b.status === "WAITING_PAYMENT");
   const now = Date.now();
 
-  // Proofs only matter while something is waiting, and only for those rows. Fetching
-  // them for all 60 would mint 60 signed URLs to show nothing.
-  const queueIds = rows.filter((b) => b.status === "WAITING_PAYMENT").map((b) => b.booking_id);
-  const proofs = await listPaymentProofs(createAdminClient(), queueIds).catch(() => new Map());
-  const proofCountFor = (bookingId: string) => proofs.get(bookingId) ?? [];
+// Proofs for every row on screen, not just the queue. Restricting this to
+// WAITING_PAYMENT meant the evidence vanished the moment the cashier confirmed the
+// booking - which is exactly when a dispute ("I did not send that") needs it.
+// The query is one round trip; only the handful of rows that actually have a proof
+// get a signed URL minted for them.
+const proofs = await listPaymentProofs(createAdminClient(), rows.map((b) => b.booking_id)).catch((e) => {
+  console.error("gagal memuat bukti bayar:", e);
+  return new Map<string, PaymentProofWithUrl[]>();
+});
+const proofCountFor = (bookingId: string) => proofs.get(bookingId) ?? [];
+const hasAnyProof = rows.some((b) => (proofs.get(b.booking_id)?.length ?? 0) > 0);
 
 /**
  * What the customer claims they sent, next to what the club expects.
@@ -220,7 +226,7 @@ function deadlineHint(deadlineIso: string, nowMs: number) {
                 )}
                 <th scope="col" className="px-4 py-3 text-right font-semibold">Durasi</th>
                 <th scope="col" className="px-4 py-3 text-right font-semibold">Total</th>
-                {showDeadlineColumn && (
+                {(showDeadlineColumn || hasAnyProof) && (
                   <th scope="col" className="px-4 py-3 font-semibold">Bukti Bayar</th>
                 )}
                 <th scope="col" className="px-4 py-3 font-semibold">Sumber</th>
@@ -270,12 +276,17 @@ function deadlineHint(deadlineIso: string, nowMs: number) {
                   )}
                   <td className="whitespace-nowrap px-4 py-3 text-right">{fmtDuration(b.duration_minutes)}</td>
                   <td className="whitespace-nowrap px-4 py-3 text-right font-medium">{rp(b.total_amount)}</td>
-                  {showDeadlineColumn && (
+                  {(showDeadlineColumn || hasAnyProof) && (
                     <td className="px-4 py-3">
                       {b.status === "WAITING_PAYMENT" ? (
                         <ProofCell proofs={proofCountFor(b.booking_id)} expected={b.total_amount} />
                       ) : (
-                        <span className="text-muted-foreground">—</span>
+                        proofCountFor(b.booking_id).length > 0 && (
+                          <ProofCell
+                            proofs={proofCountFor(b.booking_id)}
+                            expected={b.total_amount}
+                          />
+                        )
                       )}
                     </td>
                   )}
