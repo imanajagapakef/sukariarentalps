@@ -152,7 +152,10 @@ describeDb("payment service", () => {
 
     const payment = await paymentFor(booking.booking_id);
     expect(payment.status).toBe("PAID");
-    expect(payment.method).toBe("QRIS_MANUAL");
+    // Not QRIS_MANUAL any more: the webhook knows which app actually paid
+    // (packageName "id.dana") and records that, which is what the revenue report
+    // groups by. Before this test was written the webhook left method untouched.
+    expect(payment.method).toBe("CASAKU_QRIS");
     expect(payment.paid_at).not.toBeNull();
 
     const { rows: bk } = await db.query(`select status from bookings where booking_id = $1`, [booking.booking_id]);
