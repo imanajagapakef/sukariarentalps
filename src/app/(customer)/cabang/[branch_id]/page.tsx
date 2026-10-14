@@ -353,9 +353,9 @@ export default async function BranchDetailPage({
               <h3 className="font-display text-2xl uppercase">Peta &amp; Rute</h3>
               <MapPin aria-hidden className="size-5 text-primary" />
             </div>
-            <div className="relative grid h-56 place-items-center rounded-xl bg-muted">
+            <div className="grid h-56 place-items-center rounded-xl bg-muted">
               <div className="text-center">
-                <MapPin aria-hidden className="mx-auto size-8 text-primary animate-bounce" />
+                <MapPin aria-hidden className="mx-auto size-8 text-primary animate-bounce motion-reduce:animate-none" />
                 <p className="mt-2 font-display text-lg uppercase">{branch.name}</p>
                 <p className="text-xs text-primary">Buka {branch.operating_hours}</p>
               </div>
