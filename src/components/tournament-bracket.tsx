@@ -137,7 +137,6 @@ export function TournamentBracket({
             >
               <h3 className="sr-only">{round.label}</h3>
               {round.matches.map((m, i) => {
-                const winner = winnerFromScore(m);
                 const isLast = roundIndex === rounds.length - 1;
                 const isFirst = roundIndex === 0;
                 // Elbow geometry, see the note above.

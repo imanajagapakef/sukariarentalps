@@ -7,7 +7,6 @@ import { Input } from "@/components/ui/input";
 import { TournamentBracket } from "@/components/tournament-bracket";
 import {
   MATCH_STATUS_LABEL,
-  bracketRounds,
   isChampion,
   isScorable,
   roundsFor,

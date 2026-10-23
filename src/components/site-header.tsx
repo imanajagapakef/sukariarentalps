@@ -35,9 +35,11 @@ export function SiteHeader() {
           className="shrink-0 transition-opacity duration-200 hover:opacity-80"
           aria-label="Klub Sukaria — home"
         >
+          {/* The link's aria-label names the logo; a redundant alt would be
+              announced twice by a screen reader. */}
           <Image
             src="/brand/logo-compact.svg"
-            alt="Klub Sukaria"
+            alt=""
             width={150}
             height={40}
             priority
@@ -46,7 +48,7 @@ export function SiteHeader() {
           />
           <Image
             src="/brand/logo-primary.svg"
-            alt="Klub Sukaria Gaming House"
+            alt=""
             width={210}
             height={42}
             priority

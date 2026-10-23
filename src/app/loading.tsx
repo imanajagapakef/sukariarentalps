@@ -154,12 +154,45 @@ export default function Loading() {
           className="ls-glow absolute left-1/2 top-1/2 h-40 w-72 -translate-x-1/2 -translate-y-1/2 rounded-full blur-2xl md:h-52 md:w-96"
           style={{ background: "radial-gradient(closest-side, rgba(97,224,106,.4), transparent)" }}
         />
-        <img
-          src="/brand/logo-primary.svg"
-          alt="Klub Sukaria"
-          className="ls-logo relative w-56 md:w-72"
+        {/* Inline copy of /brand/logo-primary.svg (2.6 KB). Inlining paints the
+            wordmark instantly and avoids a request racing the page data; the
+            file stays in /public for other pages. Decorative: the sr-only
+            "Memuat halaman…" above already announces the state. */}
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 420 84"
+          aria-hidden="true"
+          className="ls-logo relative h-auto w-56 md:w-72"
           style={{ filter: "drop-shadow(0 0 18px rgba(97,224,106,.45))" }}
-        />
+        >
+          <defs>
+            <linearGradient id="lsLogoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#2ee450" />
+              <stop offset="100%" stopColor="#20a83a" />
+            </linearGradient>
+            <filter id="lsLogoDrop" x="-20%" y="-20%" width="140%" height="140%">
+              <feDropShadow dx="0" dy="2" stdDeviation="4" floodColor="#20a83a" floodOpacity="0.4" />
+            </filter>
+          </defs>
+          <g transform="translate(10, 10)">
+            <rect x="0" y="0" width="64" height="64" rx="14" fill="#181818" stroke="#2a2a2a" strokeWidth="2" />
+            <rect x="4" y="4" width="56" height="56" rx="10" fill="#121212" />
+            <path d="M12 18 L12 12 L18 12" stroke="#20a83a" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M52 46 L52 52 L46 52" stroke="#20a83a" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+            <rect x="27" y="14" width="10" height="36" rx="3" fill="url(#lsLogoGrad)" filter="url(#lsLogoDrop)" />
+            <rect x="14" y="27" width="36" height="10" rx="3" fill="url(#lsLogoGrad)" filter="url(#lsLogoDrop)" />
+            <circle cx="32" cy="32" r="4.5" fill="#0e0e0e" />
+            <circle cx="19" cy="19" r="2" fill="#20a83a" opacity="0.8" />
+            <circle cx="45" cy="45" r="2" fill="#20a83a" opacity="0.8" />
+          </g>
+          <text x="88" y="44" fontFamily="'Anton','Impact',sans-serif" fontSize="34" fontWeight="900" fill="#FFFFFF" letterSpacing="1.5">KLUB</text>
+          <text x="178" y="44" fontFamily="'Anton','Impact',sans-serif" fontSize="34" fontWeight="900" fill="#20a83a" letterSpacing="1.5">SUKARIA</text>
+          <g transform="translate(88, 54)">
+            <rect x="0" y="0" width="112" height="18" rx="4" fill="#20a83a" />
+            <text x="56" y="13" fontFamily="'Plus Jakarta Sans',-apple-system,sans-serif" fontSize="10" fontWeight="800" fill="#0b0b0b" textAnchor="middle" letterSpacing="1.2">GAMING HOUSE</text>
+            <text x="122" y="13" fontFamily="'Plus Jakarta Sans',-apple-system,sans-serif" fontSize="10" fontWeight="700" fill="#888888" letterSpacing="1.5">• 24 JAM TANJUNGPINANG</text>
+          </g>
+        </svg>
       </div>
 
       {/* ---------- Bar HP / loading bersegmen ---------- */}
