@@ -43,6 +43,7 @@ const BOOKING_ICON: Record<string, LucideIcon> = {
   CHECKED_IN: CircleCheck,
   IN_USE: Hourglass,
   COMPLETED: CircleCheck,
+  READY: CircleCheck,
   CANCELLED: X,
   EXPIRED: CircleSlash,
   NO_SHOW: X,

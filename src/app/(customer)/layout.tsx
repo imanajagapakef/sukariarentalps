@@ -1,4 +1,5 @@
-import { SiteFooter, SiteHeader } from "@/components/site-chrome";
+import { SiteHeader } from "@/components/site-header";
+import { SiteFooter } from "@/components/site-chrome";
 
 export default function CustomerLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (

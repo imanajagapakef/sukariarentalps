@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   BarChart3,
+  BadgePercent,
   CalendarDays,
   Gamepad2,
   LayoutGrid,
@@ -13,6 +14,7 @@ import {
   Sandwich,
   ScrollText,
   Store,
+  Trophy,
   UserCog,
   Users,
 } from "lucide-react";
@@ -34,6 +36,9 @@ export const ADMIN_NAV: { label: string; items: AdminNavItem[] }[] = [
       { href: "/admin", label: "Dashboard", icon: LayoutGrid },
       { href: "/admin/bookings", label: "Booking", icon: CalendarDays },
       { href: "/admin/walk-in", label: "Walk-in", icon: Store },
+      // Tournament sits with the counter work: registrations are taken, fees collected
+      // and players checked in at the door.
+      { href: "/admin/turnamen", label: "Turnamen", icon: Trophy },
       { href: "/admin/units", label: "Unit", icon: Monitor },
     ],
   },
@@ -43,6 +48,10 @@ export const ADMIN_NAV: { label: string; items: AdminNavItem[] }[] = [
       { href: "/admin/snacks", label: "Snack", icon: Sandwich },
       { href: "/admin/games", label: "Game", icon: Gamepad2 },
       { href: "/admin/pricing", label: "Harga", icon: Receipt },
+      { href: "/admin/promos", label: "Promo", icon: BadgePercent },
+      // Master data: a branch is a location on the public site, not a counter staff
+      // work at, so it sits with the other OWNER/ADMIN surfaces.
+      { href: "/admin/branches", label: "Cabang", icon: Store },
     ],
   },
   {

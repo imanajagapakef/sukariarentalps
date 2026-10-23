@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { getStaffUser } from "@/lib/authz";
+import { AuthError, getStaffUser } from "@/lib/authz";
 import { listBookings, type BookingRow } from "@/lib/bookings-query";
 import { handleRouteError } from "@/lib/api/response";
 import { fmtDateTime } from "@/lib/format";
@@ -48,15 +48,29 @@ function row(b: BookingRow): string {
     .join(",");
 }
 
-/** Honours the same ?status= &q= &date= filters as the table it was clicked from. */
+/**
+ * Honours the same ?status= &q= &date= filters as the table it was clicked from.
+ *
+ * Paging deliberately does not travel: `listBookings` returns every matching row (up
+ * to its own cap), because a CSV cut off at the table's page size would look like the
+ * whole book and quietly be a page of it.
+ */
 export async function GET(request: NextRequest) {
   try {
-    await getStaffUser();
+    const profile = await getStaffUser();
+    // fail-closed tripwire: STAFF scoping rides on branch_id — a null branch on
+    // a STAFF row (DB-impossible after migration 0034) would export every
+    // branch's bookings through the CSV.
+    if (profile.role === "STAFF" && !profile.branch_id) {
+      throw new AuthError("Akun staff belum terikat cabang", 403);
+    }
     const params = request.nextUrl.searchParams;
+    // A STAFF profile exports only its own branch; null (OWNER/ADMIN) = every branch.
     const rows = await listBookings({
       status: params.get("status") ?? undefined,
       q: params.get("q") ?? undefined,
       date: params.get("date") ?? undefined,
+      branchId: profile.branch_id,
     });
 
     const csv = [COLUMNS.join(","), ...rows.map(row)].join("\r\n");

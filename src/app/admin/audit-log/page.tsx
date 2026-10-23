@@ -1,4 +1,6 @@
+import { NoPermission } from "@/components/admin/no-permission";
 import { createClient } from "@/lib/supabase/server";
+import { getStaffUser } from "@/lib/authz";
 import { fmtDateTime, rp } from "@/lib/format";
 import { EmptyState } from "@/components/empty-state";
 import { SelectField } from "@/components/ui/select-field";
@@ -17,6 +19,13 @@ export default async function AuditLogPage({
   searchParams: Promise<{ q?: string; entity?: string }>;
 }) {
   const { q, entity } = await searchParams;
+
+  // RLS already hides every audit row from STAFF — without this gate that
+  // just renders as an empty-looking log, which reads as "nothing ever
+  // happened here". Say no instead.
+  const me = await getStaffUser(["OWNER", "ADMIN"]).catch(() => null);
+  if (!me) return <NoPermission />;
+
   const db = await createClient();
 
   const { data, error } = await db

@@ -6,34 +6,61 @@ import { fmtDateTime, fmtDuration, fmtTime, rp } from "@/lib/format";
 import { SelectField } from "@/components/ui/select-field";
 import { StatCards } from "@/components/admin/stat-cards";
 import { EmptyState } from "@/components/empty-state";
-import { STATUSES, countWaitingPayment, listBookings } from "@/lib/bookings-query";
+import { STATUSES, countByStatus, listBookingsPage } from "@/lib/bookings-query";
+import { TablePagination } from "@/components/admin/table-pagination";
 import { listPaymentProofs, type PaymentProofWithUrl } from "@/lib/payment-proofs";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { AuthError, getStaffUser } from "@/lib/authz";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminBookingsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; q?: string; date?: string }>;
+  searchParams: Promise<{ status?: string; q?: string; date?: string; page?: string }>;
 }) {
   const filters = await searchParams;
   const { status, q, date } = filters;
-  const rows = await listBookings(filters);
-  const pendingCount = status ? 0 : await countWaitingPayment().catch(() => 0);
+  // STAFF only ever see their own branch here; OWNER/ADMIN (unbound) see all.
+  const me = await getStaffUser().catch(() => null);
+  if (me?.role === "STAFF" && !me.branch_id) {
+    // fail-closed tripwire: a branchless STAFF would fall through to the OWNER
+    // view below (branchId: null reads every outlet). Migration 0034 makes the
+    // state impossible for new rows; a corrupt or historical row must not
+    // quietly grant cross-branch visibility, so the read bounces with a 403.
+    throw new AuthError("Akun staff belum terikat cabang", 403);
+  }
+  // Only the three real filters reach the query and the export link. `page` belongs to
+  // this view alone — letting it through would export one page as if it were the book.
+  const filterParams = { status, q, date };
 
-  // The page already holds up to 60 bookings (whatever the filters selected), so the
-  // strip reads off those rows. When a filter is active these describe the filtered
-  // set, not the whole book — which is the more useful thing to show anyway.
-  const byStatus = (s: string) => rows.filter((b) => b.status === s).length;
-  const revenue = rows
+  const { rows, total, page, pageCount, from, to } = await listBookingsPage(
+    { ...filterParams, branchId: me?.branch_id },
+    Number(filters.page ?? "1"),
+  );
+
+  // Exact counts rather than arithmetic over the rows on screen. That version made
+  // every card describe one page instead of the book — "Menunggu bayar: 2" sitting on
+  // top of a queue of thirty, with no way to tell the difference. Four head-count
+  // queries, no rows over the wire.
+  const [waitingCount, activeCount, inUseCount, cancelledCount] = await Promise.all([
+    countByStatus("WAITING_PAYMENT", me?.branch_id),
+    countByStatus("CONFIRMED", me?.branch_id),
+    countByStatus("IN_USE", me?.branch_id),
+    countByStatus("CANCELLED", me?.branch_id),
+  ]).catch(() => [0, 0, 0, 0] as [number, number, number, number]);
+
+  // Money for the rows on screen only. Summing the whole filtered set would mean
+  // fetching every booking just to add it up, which is exactly what the 60-row cap
+  // used to do for free and then quietly got wrong. Reports is where revenue counts.
+  const pageRevenue = rows
     .filter((b) => !["DRAFT", "CANCELLED", "EXPIRED"].includes(b.status))
     .reduce((sum, b) => sum + b.total_amount, 0);
 
   // Export reads the same params straight off the request, so the file always
   // matches the table it was clicked from.
   const exportParams = new URLSearchParams(
-    Object.entries(filters).filter((entry): entry is [string, string] => typeof entry[1] === "string"),
+    Object.entries(filterParams).filter((entry): entry is [string, string] => typeof entry[1] === "string"),
   ).toString();
   const exportHref = `/api/admin/bookings/export${exportParams ? `?${exportParams}` : ""}`;
 
@@ -129,7 +156,9 @@ function deadlineHint(deadlineIso: string, nowMs: number) {
         <div>
           <h1 className="font-display text-2xl uppercase">Bookings</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            {rows.length} booking terbaru{Math.min(rows.length, 60) === 60 ? ", dibatasi 60 baris" : ""}.
+            Total {total} booking
+            {status || q || date ? " sesuai filter" : ""}, terbaru dulu
+            {pageCount > 1 ? `. Halaman ${page} dari ${pageCount}` : ""}.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -150,14 +179,24 @@ function deadlineHint(deadlineIso: string, nowMs: number) {
       </div>
 
       <StatCards
-        cards={[
-          { label: "Ditampilkan", value: rows.length },
-          { label: "Aktif", value: byStatus("CONFIRMED"), tone: "primary" },
-          { label: "Dipakai", value: byStatus("IN_USE") },
-          { label: "Menunggu bayar", value: byStatus("WAITING_PAYMENT"), tone: "warning" },
-          { label: "Dibatalkan", value: byStatus("CANCELLED"), tone: "danger" },
-          { label: "Nilai terfilter", value: rp(revenue), tone: "primary" },
-        ]}
+        cards={
+          status
+            ? // A status filter answers "what is in this set", so the strip reports that
+              // instead of four book-wide numbers the filter is not looking at.
+              [
+                { label: "Cocok filter", value: total },
+                { label: "Antrean bayar", value: waitingCount, tone: "warning" },
+                { label: "Nilai halaman ini", value: rp(pageRevenue), tone: "primary" },
+              ]
+            : [
+                { label: "Total booking", value: total },
+                { label: "Aktif", value: activeCount, tone: "primary" },
+                { label: "Dipakai", value: inUseCount },
+                { label: "Menunggu bayar", value: waitingCount, tone: "warning" },
+                { label: "Dibatalkan", value: cancelledCount, tone: "danger" },
+                { label: "Nilai halaman ini", value: rp(pageRevenue), tone: "primary" },
+              ]
+        }
       />
 
       <form className="mt-4 flex flex-wrap gap-2" method="get">
@@ -190,14 +229,14 @@ function deadlineHint(deadlineIso: string, nowMs: number) {
 
       {/* Nothing settles on its own any more, so the cashier has to come looking for
           the queue. This puts it one click away instead of behind the status dropdown. */}
-      {!status && pendingCount > 0 && (
+      {!status && waitingCount > 0 && (
         <Link
           href="/admin/bookings?status=WAITING_PAYMENT"
           className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-warning/50 bg-warning/10 px-4 py-3 text-sm transition-colors hover:bg-warning/20"
         >
           <span>
             <span className="font-bold text-foreground">
-              {pendingCount} booking menunggu konfirmasi pembayaran
+              {waitingCount} booking menunggu konfirmasi pembayaran
             </span>
             <span className="block text-xs text-muted-foreground">
               Urutan paling mendesak lebih dulu. Cek mutasi, lalu tekan Konfirmasi.
@@ -215,21 +254,34 @@ function deadlineHint(deadlineIso: string, nowMs: number) {
         <div className="mt-4 overflow-x-auto rounded-xl border border-border">
           <table className="w-full min-w-[60rem] text-sm">
             <thead className="bg-surface-container text-left text-xs uppercase tracking-wide text-muted-foreground">
-              <tr>
+              <tr className="[&>th]:sticky [&>th]:top-0 [&>th]:z-10">
                 <th scope="col" className="px-4 py-3 font-semibold">Kode</th>
                 <th scope="col" className="px-4 py-3 font-semibold">Status</th>
                 <th scope="col" className="px-4 py-3 font-semibold">Customer</th>
                 <th scope="col" className="px-4 py-3 font-semibold">Unit</th>
                 <th scope="col" className="px-4 py-3 font-semibold">Jadwal</th>
                 {showDeadlineColumn && (
-                  <th scope="col" className="px-4 py-3 font-semibold">Batas Bayar</th>
+                  <th scope="col" className="px-4 py-3 font-semibold hidden md:table-cell">
+                    Batas Bayar
+                  </th>
                 )}
-                <th scope="col" className="px-4 py-3 text-right font-semibold">Durasi</th>
-                <th scope="col" className="px-4 py-3 text-right font-semibold">Total</th>
+                <th scope="col" className="px-4 py-3 text-right font-semibold hidden md:table-cell">
+                  Durasi
+                </th>
+                <th scope="col" className="px-4 py-3 text-right font-semibold hidden md:table-cell">
+                  Total
+                </th>
                 {(showDeadlineColumn || hasAnyProof) && (
-                  <th scope="col" className="px-4 py-3 font-semibold">Bukti Bayar</th>
+                  <th
+                    scope="col"
+                    className="px-4 py-3 font-semibold hidden md:table-cell"
+                  >
+                    Bukti Bayar
+                  </th>
                 )}
-                <th scope="col" className="px-4 py-3 font-semibold">Sumber</th>
+                <th scope="col" className="px-4 py-3 font-semibold hidden md:table-cell">
+                  Sumber
+                </th>
                 <th scope="col" className="px-4 py-3 font-semibold">Aksi</th>
               </tr>
             </thead>
@@ -259,7 +311,7 @@ function deadlineHint(deadlineIso: string, nowMs: number) {
                     </span>
                   </td>
                   {showDeadlineColumn && (
-                    <td className="whitespace-nowrap px-4 py-3">
+                    <td className="whitespace-nowrap px-4 py-3 hidden md:table-cell">
                       {b.payment_deadline_at ? (
                         <>
                           <span className="block text-xs">
@@ -274,10 +326,14 @@ function deadlineHint(deadlineIso: string, nowMs: number) {
                       )}
                     </td>
                   )}
-                  <td className="whitespace-nowrap px-4 py-3 text-right">{fmtDuration(b.duration_minutes)}</td>
-                  <td className="whitespace-nowrap px-4 py-3 text-right font-medium">{rp(b.total_amount)}</td>
+                  <td className="whitespace-nowrap px-4 py-3 text-right hidden md:table-cell">
+                    {fmtDuration(b.duration_minutes)}
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-3 text-right font-medium hidden md:table-cell">
+                    {rp(b.total_amount)}
+                  </td>
                   {(showDeadlineColumn || hasAnyProof) && (
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3 hidden md:table-cell">
                       {b.status === "WAITING_PAYMENT" ? (
                         <ProofCell proofs={proofCountFor(b.booking_id)} expected={b.total_amount} />
                       ) : (
@@ -290,13 +346,17 @@ function deadlineHint(deadlineIso: string, nowMs: number) {
                       )}
                     </td>
                   )}
-                  <td className="px-4 py-3 text-xs uppercase text-muted-foreground">{b.source ?? "—"}</td>
+                  <td className="px-4 py-3 text-xs uppercase text-muted-foreground hidden md:table-cell">
+                    {b.source ?? "—"}
+                  </td>
                   <td className="px-4 py-3">
-                    {hasBookingActions(b.status) ? (
-                      <ActionButtons code={b.booking_code} status={b.status} />
-                    ) : (
-                      <span className="text-muted-foreground">—</span>
-                    )}
+                    <div className="flex justify-end">
+                      {hasBookingActions(b.status) ? (
+                        <ActionButtons code={b.booking_code} status={b.status} />
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -304,6 +364,16 @@ function deadlineHint(deadlineIso: string, nowMs: number) {
           </table>
         </div>
       )}
+
+      <TablePagination
+        basePath="/admin/bookings"
+        params={filterParams}
+        page={page}
+        pageCount={pageCount}
+        total={total}
+        from={from}
+        to={to}
+      />
     </div>
   );
 }

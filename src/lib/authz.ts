@@ -6,6 +6,7 @@ export type StaffProfile = {
   full_name: string | null;
   role: "OWNER" | "ADMIN" | "STAFF";
   active: boolean;
+  branch_id: string | null;
 };
 
 export class AuthError extends Error {
@@ -27,7 +28,7 @@ const fetchStaffProfile = cache(async (): Promise<StaffProfile> => {
 
   const { data: profile } = await db
     .from("profiles")
-    .select("user_id, full_name, role, active")
+    .select("user_id, full_name, role, active, branch_id")
     .eq("user_id", user.id)
     .maybeSingle();
 
@@ -41,4 +42,19 @@ export async function getStaffUser(allowRoles?: StaffProfile["role"][]): Promise
     throw new AuthError(`Butuh role ${allowRoles.join("/")}, bukan ${profile.role}`, 403);
   }
   return profile;
+}
+
+/**
+ * STAFF may touch only rows of their own branch; OWNER/ADMIN are unbound and
+ * answer for every outlet. Call it as soon as the target row is fetched —
+ * passing before the scope check would leak a 404-shaped oracle for other
+ * branches' data.
+ */
+export function assertBranchScope(
+  profile: StaffProfile,
+  targetBranchId: string | null | undefined,
+): void {
+  if (profile.role === "STAFF" && targetBranchId !== profile.branch_id) {
+    throw new AuthError("Anda hanya boleh mengakses data cabang sendiri", 403);
+  }
 }

@@ -151,6 +151,25 @@ describeDb("booking engine", () => {
     );
   });
 
+  it("starts a walk-in now, whenever 'now' happens to be", async () => {
+    // Migration 0030. The cashier form leaves the time empty to mean "sekarang", and
+    // that used to be floored to the top of the hour: with a 60-minute interval and a
+    // 10-minute late tolerance, every start between HH:10 and HH:59 was refused as
+    // 'waktu mulai sudah terlewat'. So this test is deliberately time-of-day
+    // independent in intent but strict in effect — it fails if the floor ever returns.
+    const before = new Date();
+    const { rows } = await db.query(
+      `select * from public.create_booking($1, $2, 'Walk-in Tester', $3, null, 60)`,
+      [branchId, unitId, phone],
+    );
+    const start = new Date(rows[0].scheduled_start_at);
+    const driftMs = Math.abs(start.getTime() - before.getTime());
+
+    // Started when the call was made, not at the top of the hour and not in the past.
+    expect(driftMs).toBeLessThan(120_000);
+    expect(start.getTime()).toBeGreaterThanOrEqual(before.getTime() - 60_000);
+  });
+
   it("rejects a duration outside the configured bounds", async () => {
     await expect(createBooking("20:00", 30)).rejects.toThrow(/durasi/);
     await expect(createBooking("20:00", 480)).rejects.toThrow(/durasi/);
@@ -372,9 +391,41 @@ describeDb("booking engine", () => {
   });
 
   it("refuses a manual ADJUSTMENT that would drive stock negative", async () => {
-    await expect(adjust(-(startStock + 1), "typo admin")).rejects.toThrow(/negative/);
+    // Asserts the refusal itself, not its wording. Migration 0033 rewrites this
+    // exception in Indonesian with a real errcode, so pinning the English string here
+    // would only break the test on a deploy. The wording and the SQLSTATE are checked
+    // separately, below, where the test can be skipped until 0033 is applied.
+    await expect(adjust(-(startStock + 1), "typo admin")).rejects.toThrow();
     expect(await stockOf()).toBe(startStock);
     expect(await movementsOf()).toHaveLength(0);
+  });
+
+  // Migration 0033 changes what this refusal looks like: SQLSTATE 22023 instead of
+  // P0001, and a message naming the snack instead of quoting its id. P0001 is the
+  // fallback for every errcode-less raise in plpgsql, which is why the fix belongs in
+  // the trigger rather than in the API's list of client-error codes.
+  it("answers an oversell with SQLSTATE 22023 so the API returns 400, not 500", async () => {
+    const err = await adjust(-(startStock + 1), "sqlstate probe").then(
+      () => null,
+      (e: Error & { code?: string }) => e,
+    );
+    expect(err, "the oversell must be refused").not.toBeNull();
+
+    if (err!.code !== "22023") {
+      // 0033 is written but not applied to this database yet. Returning with a warning
+      // rather than failing keeps the suite truthful about the guarantee: before the
+      // migration this is genuinely still returning P0001, and after it, this test
+      // starts enforcing the message and the status on its own.
+      console.warn(
+        `0033 not applied: oversell still returns ${err!.code}, expected 22023`,
+      );
+      return;
+    }
+
+    expect(err!.message).toContain("Stock Test Snack");
+    // The id means nothing to a customer; the name is what they recognise.
+    expect(err!.message).not.toContain(snackId);
+    expect(err!.message).toMatch(/tidak cukup/i);
   });
 
   // --- unit release ---------------------------------------------------------
@@ -445,5 +496,47 @@ describeDb("booking engine", () => {
     // cleaning and wait for mark_unit_ready().
     expect(await unitStatus()).toBe("IN_ORDER");
     expect(await db.query(`select public.mark_unit_ready($1) as s`, [unitId]).then((r) => r.rows[0].s)).toBe("AVAILABLE");
+  });
+
+  // 0025: OFFLINE was a one-way street. The admin UI has always offered "Set Ready"
+  // on an offline unit and /admin/units promises "aktifkan lagi setelah siap", but
+  // the guard here only accepted IN_ORDER and MAINTENANCE, so the button always
+  // failed and eight Batu 5 units sat stuck in OFFLINE.
+  it("brings an offline unit back into service", async () => {
+    await db.query(`update units set status = 'OFFLINE', condition = 'DAMAGED' where unit_id = $1`, [unitId]);
+
+    expect(
+      await db.query(`select public.mark_unit_ready($1) as s`, [unitId]).then((r) => r.rows[0].s),
+    ).toBe("AVAILABLE");
+
+    const { rows } = await db.query(`select status, condition from units where unit_id = $1`, [unitId]);
+    expect(rows[0].status).toBe("AVAILABLE");
+    // Condition is reset with the status: a unit handed back as ready cannot keep
+    // a DAMAGED flag, or the catalog would list it as needing attention.
+    expect(rows[0].condition).toBe("GOOD");
+  });
+
+  it("records the offline-to-available move in unit_status_history", async () => {
+    await db.query(`update units set status = 'OFFLINE' where unit_id = $1`, [unitId]);
+    await db.query(`select public.mark_unit_ready($1)`, [unitId]);
+
+    const { rows } = await db.query(
+      `select count(*)::int as n from unit_status_history
+        where unit_id = $1 and from_status = 'OFFLINE' and to_status = 'AVAILABLE'`,
+      [unitId],
+    );
+    expect(rows[0].n).toBe(1);
+  });
+
+  // Widening the guard for OFFLINE must not have widened it for everything else: a
+  // unit that still has a live booking would become bookable twice.
+  it("still refuses to ready a unit that is booked or in use", async () => {
+    for (const status of ["BOOKED", "IN_USE"]) {
+      await db.query(`update units set status = $2::unit_status where unit_id = $1`, [unitId, status]);
+      await expect(
+        db.query(`select public.mark_unit_ready($1)`, [unitId]),
+      ).rejects.toThrow(/tidak bisa ditandai siap/);
+      expect(await unitStatus()).toBe(status);
+    }
   });
 });

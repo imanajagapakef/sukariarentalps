@@ -66,7 +66,28 @@ export async function createPaymentForBooking(
     })
     .select()
     .single();
-  if (insertError || !payment) throw new PaymentError(`Gagal membuat pembayaran: ${insertError?.message}`, false);
+
+  if (insertError) {
+    // Race: two tabs hitting POST /api/payments for the same booking both pass
+    // the live-row check above; the partial unique index (one PENDING/PAID
+    // payment per booking) makes exactly one insert win. The loser recovers
+    // the winner's QR instead of surfacing a database error.
+    if ((insertError as { code?: string }).code === "23505") {
+      const { data: winner } = await db
+        .from("payments")
+        .select("payment_id, raw_response")
+        .eq("booking_id", booking.booking_id)
+        .in("status", ["PENDING", "PAID"])
+        .maybeSingle();
+      const raw = winner?.raw_response as unknown as { qr_string?: string } | null;
+      if (winner && raw?.qr_string) {
+        return { payment_id: winner.payment_id, token: "", redirect_url: `/payment/${bookingCode}/qris` };
+      }
+      if (winner) throw new PaymentError("Pembayaran sudah dibuat untuk booking ini");
+    }
+    throw new PaymentError(`Gagal membuat pembayaran: ${insertError?.message}`, false);
+  }
+  if (!payment) throw new PaymentError("Gagal membuat pembayaran", false);
 
   const { data: saved, error: saveError } = await db
     .from("payments")

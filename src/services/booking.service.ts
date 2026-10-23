@@ -54,6 +54,7 @@ export async function createBooking(
       p_source: opts?.source ?? "ONLINE",
       p_created_by: opts?.createdBy,
       p_notes: input.notes,
+      ...(input.promotion_id ? { p_promotion_id: input.promotion_id } : {}),
     })
     .single();
 
@@ -139,6 +140,8 @@ export async function markUnitReady(
 export type BookingDetail = Database["public"]["Tables"]["bookings"]["Row"] & {
   booking_items: Database["public"]["Tables"]["booking_items"]["Row"][];
   customers: { name: string | null; phone: string | null } | null;
+  /** R5: named so the ticket can say which promo paid, not only how much came off. */
+  promotions: { name: string } | null;
 };
 
 /** Customer-facing lookup by booking code. No login required. */
@@ -148,10 +151,39 @@ export async function getBookingByCode(
 ): Promise<BookingDetail | null> {
   const { data, error } = await db
     .from("bookings")
-    .select("*, booking_items(*), customers(name, phone)")
+    // `promotions(name)` rather than a second query: the ticket already loads the
+    // booking, and a promo label read from a separate round trip could disagree with
+    // the discount printed next to it if the promo were renamed between the two.
+    .select("*, booking_items(*), customers(name, phone), promotions(name)")
     .eq("booking_code", code.trim().toUpperCase())
     .maybeSingle();
 
   if (error) throw wrap(error);
   return data as BookingDetail | null;
+}
+
+/**
+ * Verifies the caller knows the last 4 digits of the phone on the booking.
+ * Returns a discriminated union so the route can answer 404 vs 401 without
+ * accidentally leaking which one failed to anyone timing responses.
+ */
+export type BookingAccessResult =
+  | { ok: true; booking: BookingDetail }
+  | { ok: false; state: "not_found" | "wrong_last4" };
+
+export async function verifyBookingAccessByCode(
+  db: DB,
+  code: string,
+  last4: string,
+): Promise<BookingAccessResult> {
+  const booking = await getBookingByCode(db, code);
+  if (!booking) return { ok: false, state: "not_found" };
+
+  const digits = (value: string) => (value.match(/\d/g) ?? []).join("");
+  const given = digits(last4);
+  const onFile = digits(booking.customers?.phone ?? "").slice(-4);
+  if (given.length !== 4 || given !== onFile) {
+    return { ok: false, state: "wrong_last4" };
+  }
+  return { ok: true, booking };
 }

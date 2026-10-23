@@ -10,8 +10,10 @@ import {
   getSnacks,
   getUnitsWithFacility,
 } from "@/lib/catalog";
-import { createClient } from "@/lib/supabase/server";
-import { getNextFreeMap } from "@/lib/next-free";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { getNextFreeMapByBranch } from "@/lib/next-free";
+import { getBranchPhotosFor } from "@/lib/branch-photos";
+import { branchCover } from "@/lib/branch-photo-gallery";
 import { facilityCopy } from "@/lib/facility-copy";
 import { fmtTime, rp } from "@/lib/format";
 import { Cover } from "@/components/cover";
@@ -36,13 +38,18 @@ export default async function BranchDetailPage({
 }) {
   const [{ branch_id }, { type }] = await Promise.all([params, searchParams]);
 
-  const [branches, allUnits, facilityTypes, rates, games, snacks] = await Promise.all([
+  const db = createAdminClient({ revalidate: 20 });
+  const [branches, allUnits, facilityTypes, rates, games, snacks, branchPhotos, nextFree] = await Promise.all([
     getBranches(),
     getUnitsWithFacility(),
     getFacilityTypes(),
     getMinHourlyRates(),
     getGames(),
     getSnacks(),
+    getBranchPhotosFor(branch_id),
+    // Scoped to this branch and fired in the same wave — the branch id comes from the
+    // route, so there is nothing left to wait for.
+    getNextFreeMapByBranch(db, branch_id),
   ]);
 
   const branch = branches.find((b) => b.branch_id === branch_id);
@@ -50,9 +57,6 @@ export default async function BranchDetailPage({
 
   const units = allUnits.filter((u) => u.branch_id === branch_id);
   const shown = type ? units.filter((u) => u.facility_type_id === type) : units;
-
-  const db = await createClient();
-  const nextFree = await getNextFreeMap(db, shown);
 
   const readyCount = units.filter((u) => u.status === "AVAILABLE").length;
   const platformCount = new Set(units.map((u) => u.facility_types?.platform).filter(Boolean)).size;
@@ -63,7 +67,13 @@ export default async function BranchDetailPage({
   const mapsUrl = branch.address
     ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(branch.address)}`
     : null;
-  const heroImage = units.find((u) => u.image_url)?.image_url;
+  // The hero is the branch's own cover — the first photo in its admin gallery.
+  // The two fallbacks are there so the hero is never blank on a branch nobody has
+  // uploaded photos for yet: the legacy single image_url, then a unit photo. The
+  // last of those is what this used to use unconditionally, which meant the big
+  // image on a branch page was whichever console happened to have artwork.
+  const heroImage =
+    branchCover(branchPhotos)?.image_url ?? branch.image_url ?? units.find((u) => u.image_url)?.image_url;
   const minRate = Math.min(...Object.values(rates).filter((r): r is number => typeof r === "number"));
   const waNumber = branch.phone?.replace(/[^0-9]/g, "");
   const waUrl = waNumber ? `https://wa.me/${waNumber}?text=Halo%20Admin%20${encodeURIComponent(branch.name)}` : null;
@@ -89,7 +99,7 @@ export default async function BranchDetailPage({
 
       {/* HERO */}
       <section className="relative overflow-hidden rounded-2xl border border-border bg-card shadow-2xl">
-        <div className="relative h-80 sm:h-96 md:h-[460px]">
+        <div className="relative h-80 sm:h-96 md:h-115">
           {heroImage && (
             <Image src={heroImage} alt={branch.name} fill priority sizes="100vw" className="object-cover" />
           )}
@@ -166,6 +176,37 @@ export default async function BranchDetailPage({
       <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-12">
         {/* LEFT */}
         <div className="flex flex-col gap-6 lg:col-span-8">
+          {/* BRANCH PHOTOS */}
+          {branchPhotos.length > 0 && (
+            <section className="rounded-2xl bg-card p-6 shadow-md md:p-8">
+              <div className="mb-6">
+                <span className="mb-1 block text-xs font-bold uppercase tracking-wider text-primary">Galeri Lokasi</span>
+                <h2 className="font-display text-2xl uppercase">Suasana {branch.name}</h2>
+              </div>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                {branchPhotos.map((p, i) => (
+                  <figure
+                    key={p.photo_id}
+                    className="relative aspect-[4/3] overflow-hidden rounded-xl border border-border bg-muted"
+                  >
+                    <Image
+                      src={p.image_url}
+                      alt={p.caption ?? `${branch.name} — foto ${i + 1}`}
+                      fill
+                      sizes="(max-width: 640px) 50vw, 260px"
+                      className="object-cover transition-transform duration-500 hover:scale-105"
+                    />
+                    {p.caption && (
+                      <figcaption className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-2 text-xs text-white">
+                        {p.caption}
+                      </figcaption>
+                    )}
+                  </figure>
+                ))}
+              </div>
+            </section>
+          )}
+
           {/* FACILITIES */}
           <section className="rounded-2xl bg-card p-6 shadow-md md:p-8">
             <div className="mb-6 flex items-center justify-between">

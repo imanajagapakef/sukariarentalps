@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getStaffUser } from "@/lib/authz";
+import { assertBranchScope, getStaffUser } from "@/lib/authz";
 import { markUnitReady } from "@/services/booking.service";
 import { audit } from "@/lib/audit";
 import { handleRouteError, jsonError } from "@/lib/api/response";
@@ -20,8 +20,13 @@ export async function POST(request: NextRequest) {
     const { unit_id, status, reason } = parsed.data;
     const db = createAdminClient();
 
-    const { data: unit } = await db.from("units").select("status").eq("unit_id", unit_id).maybeSingle();
+    const { data: unit } = await db
+      .from("units")
+      .select("status, branch_id")
+      .eq("unit_id", unit_id)
+      .maybeSingle();
     if (!unit) return jsonError("Unit tidak ditemukan", 404);
+    assertBranchScope(profile, unit.branch_id);
 
     if (status === "AVAILABLE") {
       await markUnitReady(db, unit_id);

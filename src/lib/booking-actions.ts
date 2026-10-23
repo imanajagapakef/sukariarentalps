@@ -16,6 +16,7 @@ export const BOOKING_ACTIONS: Record<string, { label: string; action: string; da
   ],
   IN_USE: [{ label: "Selesai (check-out)", action: "complete" }],
   COMPLETED: [{ label: "Unit Siap", action: "mark_ready" }],
+  READY: [],
 };
 
 /** Terminal statuses have nothing to do, so the table renders a dash instead. */

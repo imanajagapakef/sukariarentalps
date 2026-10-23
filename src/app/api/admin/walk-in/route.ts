@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getStaffUser } from "@/lib/authz";
+import { assertBranchScope, getStaffUser } from "@/lib/authz";
 import { createWalkInBooking } from "@/services/booking.service";
 import { audit } from "@/lib/audit";
 import { handleRouteError } from "@/lib/api/response";
@@ -16,6 +16,8 @@ export async function POST(request: NextRequest) {
         { status: 400 },
       );
     }
+
+    assertBranchScope(profile, parsed.data.branch_id);
 
     const db = createAdminClient();
     const { pay_method } = parsed.data;

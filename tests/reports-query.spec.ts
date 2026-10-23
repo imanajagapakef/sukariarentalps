@@ -32,6 +32,7 @@ describe("reports booking report", () => {
     created_at: "2026-10-20T12:00:00Z",
     duration_minutes: 120,
     total_amount: 50000,
+    discount_amount: 0,
     customers: { name: "Test", phone: "0800" },
     units: { name: "Regular 01", branches: { short_name: "Batu 5", name: "Sukaria Batu 5" } },
     ...over,
@@ -203,11 +204,15 @@ describeLive("reports query", () => {
 });
 
 describe("revenue arithmetic", () => {
-  it("declares discounts untracked rather than reporting zero", async () => {
-    // The page shows a "Diskon" line only when this is true, so the fact has to be a
-    // value it reads rather than something the markup assumes.
+  it("declares discounts tracked, since create_booking() writes them", async () => {
+    // The page shows the give-away figure when this is true, so the fact has to be a
+    // value it reads rather than something the markup assumes. Migration 0029 writes
+    // discount_amount on every booking that used a promo, so the old "untracked"
+    // disclaimer would have understated what promos cost.
     const report = await revenueReport([]);
-    expect(report.discountsTracked).toBe(false);
+    expect(report.discountsTracked).toBe(true);
+    expect(report.discount).toBe(0);
+    expect(report.discountedCount).toBe(0);
   });
 });
 
@@ -283,9 +288,12 @@ describeLive("occupancy report", () => {
       .filter((b) => ["CANCELLED", "EXPIRED", "NO_SHOW", "WAITING_PAYMENT"].includes(b.status))
       .reduce((s, b) => s + b.duration_minutes / 60, 0);
     const ran = rows
-      .filter((b) => ["CHECKED_IN", "IN_USE", "COMPLETED"].includes(b.status))
+      // READY is COMPLETED plus "unit is being prepared" — the report folds it into
+      // COMPLETED (reports-query RAN), so this pool has to fold it the same way or the
+      // two disagree by however many READY rows the window holds.
+      .filter((b) => ["CHECKED_IN", "IN_USE", "COMPLETED", "READY"].includes(b.status))
       .reduce((s, b) => s + b.duration_minutes / 60, 0);
-expect(occ.usedHours).toBeCloseTo(ran, 6);
+    expect(occ.usedHours).toBeCloseTo(ran, 6);
       // Only meaningful as a guard: it asserts the two pools are genuinely disjoint.
       expect(ran + notRan).toBeGreaterThanOrEqual(ran);
     });
@@ -394,7 +402,7 @@ describeLive("guest report", () => {
   it("averages session duration over sessions that ran, not over cancellations", async () => {
     const rows = await windowedRows(wide);
     const g = await guestReport(rows);
-    const ran = rows.filter((r) => ["CHECKED_IN", "IN_USE", "COMPLETED"].includes(r.status));
+    const ran = rows.filter((r) => ["CHECKED_IN", "IN_USE", "COMPLETED", "READY"].includes(r.status));
     if (ran.length === 0) {
       expect(g.averageSessionHours).toBe(0);
       return;
@@ -453,6 +461,33 @@ expect(g.arpu).toBeCloseTo(total / g.uniqueGuests, 6);
     const report = await revenueReport(rows);
     const channelTotal = report.byChannel.reduce((s, c) => s + c.amount, 0);
     expect(channelTotal).toBe(report.gross);
+  });
+
+  it("counts a promo give-away once per collected booking", async () => {
+    const rows = await windowedRows(wide);
+    const report = await revenueReport(rows);
+    const db = createAdminClient();
+
+    const discounted = rows.filter((r) => Number(r.discount_amount ?? 0) > 0);
+    if (discounted.length === 0) return; // no promo bookings in this window
+
+    // Recomputed independently: the saving is a booking-level column, so an extension's
+    // extra payment must not add it a second time.
+    const { data: paid } = await db
+      .from("payments")
+      .select("booking_id, status")
+      .in("booking_id", rows.map((r) => r.booking_id))
+      .in("status", ["PAID", "PARTIALLY_REFUNDED", "REFUNDED"]);
+    const paidIds = new Set((paid ?? []).map((p) => p.booking_id));
+
+    const expectedTotal = discounted
+      .filter((r) => paidIds.has(r.booking_id))
+      .reduce((s, r) => s + Number(r.discount_amount), 0);
+    expect(report.discount).toBe(expectedTotal);
+    expect(report.discountedCount).toBe(discounted.filter((r) => paidIds.has(r.booking_id)).length);
+    // The saving came out of the cash before it was counted, so gross already reflects
+    // it; adding it again to reach net would double-subtract.
+    expect(report.net).toBe(report.gross - report.refund);
   });
 
   it("produces a journal row per payment, newest first", async () => {

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { BookingStatusPill } from "@/components/status-pill";
+import { NoPermission } from "@/components/admin/no-permission";
 import { StatCards } from "@/components/admin/stat-cards";
 import { SelectField } from "@/components/ui/select-field";
 import { EmptyState } from "@/components/empty-state";
@@ -16,7 +17,6 @@ import {
   gameRequestReport,
   guestReport,
   occupancyReport,
-  recentTransactions,
   resolveRange,
   revenueReport,
   windowedRows,
@@ -61,14 +61,17 @@ export default async function AdminReportsPage({
   // performance are OWNER/ADMIN information, so the gate lives here. The design's fifth
   // QA state is exactly this: a plain refusal rather than a redirect that looks broken.
   const me = await getStaffUser(["OWNER", "ADMIN"]).catch(() => null);
-  if (!me) return <NoPermission />;
+  if (!me)
+    return <NoPermission description="Laporan pendapatan dan performa unit hanya untuk Owner dan Admin. Hubungi owner bila butuh akses." />;
 
   const [branches, rows] = await Promise.all([getBranchOptions(), windowedRows(filters)]);
 
   // One windowed query feeds every section. Loading each section's own data is how a
   // revenue total drifts away from the booking count printed beside it.
   const report = bookingReport(rows);
-  const transactions = recentTransactions.length === 0 ? [] : rows
+  // Recent-transactions preview = the 25 newest windowed rows, so the section's
+  // numbers always agree with the StatCards/Revenue rendered from the same rows.
+  const transactions = rows
     .slice()
     .sort((a, b) => b.scheduled_start_at.localeCompare(a.scheduled_start_at))
     .slice(0, 25);
@@ -461,18 +464,6 @@ async function OccupancySection({
   );
 }
 
-/** The design's "No Permission" QA state. */
-function NoPermission() {
-  return (
-    <div className="mt-6">
-      <EmptyState
-        title="Akses ditolak"
-        description="Laporan pendapatan dan performa unit hanya untuk Owner dan Admin. Hubungi owner bila butuh akses."
-      />
-    </div>
-  );
-}
-
 /** Section 1 — counting. Pure arithmetic over the rows the page already has. */
 function BookingSection({
   report,
@@ -625,9 +616,14 @@ async function RevenueSection({ rows }: { rows: ReportBooking[] }) {
             <p className="text-xs uppercase text-muted-foreground">Net realized</p>
             <p className="font-display mt-1 text-2xl text-primary">{rp(revenue.net)}</p>
             <p className="mt-1 text-xs text-muted-foreground">
-              Gross dikurangi refund. Diskon tidak ditampilkan karena belum ada ledger diskon di
-              sistem &mdash; angka nol akan terlihat seperti &ldquo;tidak ada diskon&rdquo;, bukan
-              &ldquo;tidak dilacak&rdquo;.
+              Gross dikurangi refund. Diskon sudah ikut terpotong dari gross karena yang
+              masuk ke kas adalah total akhir.
+            </p>
+            {/* Only bookings whose money was collected: a promo on an unpaid or cancelled
+                booking cost nothing, and listing it as a loss would overstate the give-away. */}
+            <p className="mt-2 text-xs text-muted-foreground">
+              Diskon promo: <strong className="text-foreground">{rp(revenue.discount)}</strong> dari{" "}
+              {revenue.discountedCount} booking terbayar
             </p>
           </div>
         </div>

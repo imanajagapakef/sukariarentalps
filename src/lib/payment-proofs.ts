@@ -37,12 +37,43 @@ export class ProofError extends Error {
   }
 }
 
-function checkProofFile(file: File): string | null {
+/**
+ * Pure content-type sniffing from the file header. `file.type` is client-forged;
+ * the magic bytes are the file itself. Returns the MIME kind or null when the
+ * header matches nothing we accept.
+ */
+export function detectImageKind(bytes: Uint8Array): typeof PROOF_MIME_TYPES[number] | null {
+  // Start offsets differ per format: a WebP hides its tag at 8-11 and an ISOBMFF
+  // box carries "ftyp" at 4-7, so each read names its own offset explicitly.
+  const starts = (offset: number, ...prefix: number[]) =>
+    prefix.every((b, i) => bytes[offset + i] === b);
+  // JPEG: FF D8 FF (SOI + marker)
+  if (starts(0, 0xff, 0xd8, 0xff)) return "image/jpeg";
+  // PNG: 89 50 4E 47
+  if (starts(0, 0x89, 0x50, 0x4e, 0x47)) return "image/png";
+  // WebP: "RIFF" at 0-3, size at 4-7, "WEBP" at 8-11
+  if (starts(0, 0x52, 0x49, 0x46, 0x46) && starts(8, 0x57, 0x45, 0x42, 0x50)) return "image/webp";
+  // AVIF: ISOBMFF box — size(0-3) + "ftyp"(4-7) + major brand (8-11)
+  if (bytes.length >= 12 && starts(4, 0x66, 0x74, 0x79, 0x70)) {
+    const brand = String.fromCharCode(bytes[8], bytes[9], bytes[10], bytes[11]);
+    if (brand === "avif" || brand === "avis") return "image/avif";
+  }
+  return null;
+}
+
+async function checkProofFile(file: File): Promise<string | null> {
   if (!(PROOF_MIME_TYPES as readonly string[]).includes(file.type)) {
     return "Bukti harus berupa gambar JPG, PNG, WebP, atau AVIF.";
   }
   if (file.size > MAX_PROOF_BYTES) {
     return `Ukuran ${(file.size / (1024 * 1024)).toFixed(1)} MB melebihi batas 3 MB.`;
+  }
+  // A claimed image whose header disagrees is something else entirely (a renamed
+  // script, a PDF, a payload). The first 16 bytes cover every sniffable format.
+  const header = new Uint8Array(await file.slice(0, 16).arrayBuffer());
+  const detected = detectImageKind(header);
+  if (!detected || detected !== file.type) {
+    return "Isi file bukan gambar yang valid.";
   }
   return null;
 }
@@ -61,7 +92,7 @@ export async function createPaymentProof(
   file: File,
   note?: string,
 ): Promise<PaymentProof> {
-  const problem = checkProofFile(file);
+  const problem = await checkProofFile(file);
   if (problem) throw new ProofError(problem);
 
   const { count } = await db
@@ -107,12 +138,13 @@ export async function listPaymentProofs(
 
   const { data, error } = await db
     .from("payment_proofs")
-    .select("proof_id, booking_id, nominal, note, object_path, created_at")
+    .select("proof_id, booking_id, nominal, note, object_path, created_at, tournament_registration_id")
     .in("booking_id", bookingIds)
     .order("created_at", { ascending: false });
   if (error) throw new Error(error.message);
 
   for (const row of data ?? []) {
+    if (!row.booking_id) continue; // .in("booking_id", …) makes this unreachable; the column is typed nullable
     const { data: signed } = await db.storage
       .from(PROOF_BUCKET)
       .createSignedUrl(row.object_path, PROOF_URL_TTL_SECONDS);

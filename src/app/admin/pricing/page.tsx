@@ -1,4 +1,6 @@
+import { NoPermission } from "@/components/admin/no-permission";
 import { createClient } from "@/lib/supabase/server";
+import { getStaffUser } from "@/lib/authz";
 import { getBranches } from "@/lib/catalog";
 import { TableEditor } from "@/components/admin/table-editor";
 import type { Column } from "@/components/admin/table-editor";
@@ -7,6 +9,11 @@ import { StatCards } from "@/components/admin/stat-cards";
 export const dynamic = "force-dynamic";
 
 export default async function AdminPricingPage() {
+  // Harga tiap cabang adalah data OWNER/ADMIN. Tanpa gerbang URL ini STAFF
+  // tetap bisa membaca tarif semua cabang walau form tulisnya sudah 403.
+  const me = await getStaffUser(["OWNER", "ADMIN"]).catch(() => null);
+  if (!me) return <NoPermission />;
+
   const db = await createClient();
   const [branches, { data: rules }, { data: facilities }] = await Promise.all([
     getBranches(),

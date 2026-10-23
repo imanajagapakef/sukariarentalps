@@ -72,6 +72,13 @@ export function adminCrud(
       const id = raw.id;
       delete raw.id;
       const body = schema.partial().parse(raw);
+      // The PK is the WHERE clause, never a writable column. The base schema keeps it
+      // required for POST (the insert needs it), so partial() must not let a stray
+      // "snack_id"/"game_id"/"pricing_id" in a PATCH payload rewrite the row's key.
+      // Mutate through a Record alias: the zod type has no index signature for the
+      // dynamic key, while .update() below keeps the exact parsed type.
+      const strip = body as unknown as Record<string, unknown>;
+      delete strip[pkOf(table)];
       const { data: before } = await db.from(table).select("*").eq(pkOf(table), id).maybeSingle();
       if (!before) return jsonError("Data tidak ditemukan", 404);
       // The hook may consume fields from the body (snacks.stock) and apply them

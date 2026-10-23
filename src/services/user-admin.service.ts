@@ -11,7 +11,7 @@ export type StaffRole = Database["public"]["Enums"]["user_role"];
  */
 export async function createStaffUser(
   db: DB,
-  input: { email: string; password: string; fullName: string; role: StaffRole },
+  input: { email: string; password: string; fullName: string; role: StaffRole; branchId: string | null },
 ) {
   const { data, error } = await db.auth.admin.createUser({
     email: input.email,
@@ -25,6 +25,7 @@ export async function createStaffUser(
     full_name: input.fullName,
     role: input.role,
     active: true,
+    branch_id: input.branchId,
   });
   if (profileError) {
     await db.auth.admin.deleteUser(data.user.id);
@@ -51,7 +52,7 @@ export async function createStaffUser(
 export async function setStaffStatus(
   db: DB,
   userId: string,
-  patch: { active?: boolean; role?: StaffRole },
+  patch: { active?: boolean; role?: StaffRole; branch_id?: string },
 ) {
   const { error } = await db.from("profiles").update(patch).eq("user_id", userId);
   if (error) throw new Error(error.message);

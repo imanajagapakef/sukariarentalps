@@ -50,20 +50,25 @@ export function ActionButtons({ code, status }: { code: string; status: string }
   async function run(action: string) {
     if (action === "cancel" && !confirm(`Batalkan ${code}?`)) return;
     setBusy(action);
-    const res = await fetch(`/api/admin/bookings/${code}/actions`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action }),
-    });
-    setBusy(null);
-    if (!res.ok) {
+    try {
+      const res = await fetch(`/api/admin/bookings/${code}/actions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        alert(body?.error?.message ?? "Aksi gagal");
+        return;
+      }
       const body = await res.json().catch(() => null);
-      alert(body?.error?.message ?? "Aksi gagal");
-      return;
+      await notify(body?.status ?? "UNKNOWN");
+      router.refresh();
+    } finally {
+      // A thrown fetch (network/TLS) would otherwise leave every button
+      // permanently disabled with no message at all.
+      setBusy(null);
     }
-    const body = await res.json().catch(() => null);
-    await notify(body?.status ?? "UNKNOWN");
-    router.refresh();
   }
 
   if (buttons.length === 0) return null;

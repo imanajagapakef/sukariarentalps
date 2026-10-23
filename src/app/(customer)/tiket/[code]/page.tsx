@@ -1,9 +1,10 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { headers } from "next/headers";
 import QRCode from "qrcode";
 import { MessageCircle } from "lucide-react";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getBookingByCode } from "@/services/booking.service";
+import { hasBookingAccess } from "@/lib/booking-access";
 import { BookingStatusPill } from "@/components/status-pill";
 import { Cover } from "@/components/cover";
 import { PayButton, CancelButton, Countdown, CopyCodeButton } from "@/components/ticket-actions";
@@ -25,8 +26,14 @@ async function siteOrigin() {
   return `${proto}://${host}`;
 }
 
+// The ticket exposes the customer's phone and totals, so the code alone must
+// not grant access. The gate is checked before any query: a visitor without
+// the cookie never reaches the database at all.
 export default async function TicketPage({ params }: { params: Promise<{ code: string }> }) {
   const { code } = await params;
+  if (!(await hasBookingAccess(code))) {
+    redirect(`/cek-booking?code=${code}`);
+  }
   const db = createAdminClient();
   const booking = await getBookingByCode(db, code);
   if (!booking) notFound();
@@ -178,7 +185,13 @@ export default async function TicketPage({ params }: { params: Promise<{ code: s
           ))}
           {booking.discount_amount > 0 && (
             <li className="flex justify-between text-primary">
-              <span>Diskon</span>
+              {/* Naming the promo matters as soon as there is a discount: a bare
+                  "−Rp 20.000" leaves the customer wondering what was taken off, and
+                  staff with the counter asking the same question. */}
+              <span>
+                Diskon
+                {booking.promotions?.name ? ` · Promo ${booking.promotions.name}` : ""}
+              </span>
               <span>−{rp(booking.discount_amount)}</span>
             </li>
           )}

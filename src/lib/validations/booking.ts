@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-const phoneRegex = /^[0-9+\-\s()]{6,20}$/;
+export const phoneRegex = /^[0-9+\-\s()]{6,20}$/;
 
 export const snackSelectionSchema = z.object({
   snack_id: z.string().min(1),
@@ -14,6 +14,13 @@ export const createBookingSchema = z
     customer_name: z.string().trim().min(2).max(80),
     customer_phone: z.string().trim().regex(phoneRegex, "Nomor WhatsApp tidak valid"),
     customer_email: z.string().email().optional().or(z.literal("")),
+    /**
+     * Promo package to charge at (migration 0029). Optional, and only ever a hint:
+     * create_booking() re-checks that it is ACTIVE, belongs to this branch, covers this
+     * unit's facility type at exactly this duration and is cheaper than the normal
+     * price — a client asking for a discount it is not entitled to gets a 22023.
+     */
+    promotion_id: z.string().trim().min(1).max(40).optional(),
     start_at: z.string().datetime({ offset: true }).optional(),
     duration_minutes: z.number().int().min(60).max(360),
     game_id: z.string().min(1).optional(),

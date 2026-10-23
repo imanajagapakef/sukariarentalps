@@ -1,8 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ImageUploader } from "@/components/admin/image-uploader";
+import { deleteImage, orphanedImageUrl } from "@/lib/media";
+import { createClient } from "@/lib/supabase/client";
 
 /**
  * Unit photo control for the admin units grid.
@@ -24,11 +26,13 @@ export function UnitPhoto({
   compact?: boolean;
 }) {
   const router = useRouter();
+  const client = useMemo(() => createClient(), []);
   const [value, setValue] = useState(imageUrl);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function persist(url: string) {
+  async function persist(url: string | null) {
+    const previous = imageUrl;
     setValue(url);
     setBusy(true);
     setError(null);
@@ -36,11 +40,17 @@ export function UnitPhoto({
       const res = await fetch("/api/admin/units", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: unitId, image_url: url || null }),
+        body: JSON.stringify({ id: unitId, image_url: url }),
       });
       const body = await res.json().catch(() => null);
       if (!res.ok) throw new Error(body?.error?.message ?? `Gagal (${res.status})`);
       router.refresh();
+
+      // The row no longer points at it, so the file can go. After the write, never
+      // before: a failed save would otherwise leave image_url aimed at a deleted
+      // object and every render of this unit shows a broken photo.
+      const stale = orphanedImageUrl({ image_url: url }, previous);
+      if (stale) await deleteImage(client, stale).catch(() => {});
     } catch (e) {
       setError(e instanceof Error ? e.message : "Gagal menyimpan");
       setValue(imageUrl); // roll the preview back, the row did not change

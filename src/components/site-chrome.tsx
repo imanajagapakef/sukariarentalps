@@ -1,41 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
-import { Button } from "@/components/ui/button";
-import { SiteNav } from "@/components/site-nav";
 import { getBranches } from "@/lib/catalog";
-
-export function SiteHeader() {
-  return (
-    <header className="sticky top-0 z-40 border-b border-white/8 bg-surface/90 backdrop-blur-xl">
-      <div className="mx-auto flex max-w-6xl items-center gap-4 px-4 py-3 md:px-8">
-        <Link href="/" className="shrink-0" aria-label="Klub Sukaria — home">
-          <Image
-            src="/brand/logo-compact.svg"
-            alt="Klub Sukaria"
-            width={150}
-            height={40}
-            priority
-            unoptimized
-            className="h-8 w-auto md:hidden"
-          />
-          <Image
-            src="/brand/logo-primary.svg"
-            alt="Klub Sukaria Gaming House"
-            width={210}
-            height={42}
-            priority
-            unoptimized
-            className="hidden h-10 w-auto md:block"
-          />
-        </Link>
-        <SiteNav />
-        <Button asChild size="sm" className="hidden shrink-0 md:inline-flex">
-          <Link href="/booking">Booking Sekarang</Link>
-        </Button>
-      </div>
-    </header>
-  );
-}
 
 export async function SiteFooter() {
   const branches = await getBranches();
@@ -86,6 +51,8 @@ export async function SiteFooter() {
               { href: "/tempat-main", label: "Tempat Main" },
               { href: "/snacks", label: "Menu Cemilan & Kopi" },
               { href: "/promo", label: "Promo Paket Mantai" },
+              { href: "/turnamen", label: "Turnamen" },
+              { href: "/cek-turnamen", label: "Cek Tiket Turnamen" },
               { href: "/cek-booking", label: "Cek Status Booking" },
             ].map((l) => (
               <li key={l.href}>

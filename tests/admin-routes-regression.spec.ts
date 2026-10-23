@@ -269,4 +269,49 @@ describeLive("admin routes regression", () => {
     expect(result.status).toBe(200);
     expect((result.body as { row: { stock: number } }).row.stock).toBe(data!.stock + 1);
   });
+
+  it("saves an uploaded image on its own, without a stock edit and without a phantom movement", async () => {
+    // Staff pick a photo and press Simpan. Nothing else changed, so the payload is
+    // the image and nothing more. That has to be enough: the editor only marked a
+    // row dirty by comparing URLs, and uploading a same-named file left the URL
+    // untouched, so the button stayed dead until some unrelated column was edited.
+    const db = createAdminClient();
+    const url = `https://example.test/${snackId}-cover.webp`;
+    const { data: before } = await db.from("snacks").select("stock").eq("snack_id", snackId).single();
+    const { count: movementsBefore } = await db
+      .from("inventory_movements")
+      .select("id", { count: "exact", head: true })
+      .eq("snack_id", snackId);
+
+    const result = await callRoute(patchSnack, undefined as never, {
+      method: "PATCH",
+      body: { id: snackId, image_url: url },
+    });
+    expect(result.status).toBe(200);
+
+    const { data: after } = await db.from("snacks").select("image_url, stock").eq("snack_id", snackId).single();
+    expect(after!.image_url).toBe(url);
+    // A photo is not a stock event: the column must be untouched, and the ledger —
+    // the only record of who moved what — must not gain a row.
+    expect(after!.stock).toBe(before!.stock);
+    const { count: movementsAfter } = await db
+      .from("inventory_movements")
+      .select("id", { count: "exact", head: true })
+      .eq("snack_id", snackId);
+    expect(movementsAfter).toBe(movementsBefore);
+  });
+
+  it("clears an image to null rather than an empty string", async () => {
+    // The uploader signals a removed image with "", and an empty string in image_url
+    // renders downstream as <img src="">. The column means null.
+    const db = createAdminClient();
+    const result = await callRoute(patchSnack, undefined as never, {
+      method: "PATCH",
+      body: { id: snackId, image_url: null },
+    });
+    expect(result.status).toBe(200);
+
+    const { data } = await db.from("snacks").select("image_url").eq("snack_id", snackId).single();
+    expect(data!.image_url).toBeNull();
+  });
 });

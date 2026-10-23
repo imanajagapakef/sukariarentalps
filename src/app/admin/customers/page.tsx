@@ -11,6 +11,15 @@ import { StatCards } from "@/components/admin/stat-cards";
  */
 export const dynamic = "force-dynamic";
 
+/**
+ * wa.me wants the international form. Customers type the local spellings —
+ * "0812…" with a leading zero or "+6281…" — so digit-strip first, then lift a
+ * single leading "0" to the 62 country code. "+62" strips to "62" untouched.
+ */
+function waMePhone(phone: string) {
+  return phone.replace(/[^0-9]/g, "").replace(/^0/, "62");
+}
+
 export default async function CustomersPage({
   searchParams,
 }: {
@@ -19,10 +28,13 @@ export default async function CustomersPage({
   const { q } = await searchParams;
   const db = await createClient();
 
-  const { data, error } = await db
+  // count:"exact" returns the table's real total in the same round trip, so the
+  // "Total pelanggan" card no longer tops out at the 200-row directory cap.
+  const { data, error, count } = await db
     .from("customers")
     .select(
       "customer_id, name, phone, email, total_booking, total_spending, first_booking_at, last_booking_at, created_at",
+      { count: "exact" },
     )
     .order("last_booking_at", { ascending: false, nullsFirst: false })
     .limit(200);
@@ -46,11 +58,17 @@ export default async function CustomersPage({
 
         <StatCards
           cards={[
-            { label: "Total pelanggan", value: rows.length },
+            // count:"exact" is table-wide; rows.length tops out at the 200 cap.
+            { label: "Total pelanggan", value: count ?? rows.length },
             { label: "Pernah booking", value: `${active} dari ${rows.length}`, tone: "primary" },
             { label: "Total transaksi", value: rp(spend), tone: "primary" },
           ]}
         />
+        {count != null && count > 200 && (
+          <p className="mt-1 text-xs text-muted-foreground">
+            Statistik &quot;Pernah booking&quot; dan &quot;Total transaksi&quot; dihitung dari 200 pelanggan terbaru saja.
+          </p>
+        )}
 
       <form className="mt-5 flex flex-wrap items-center gap-2" method="get">
         <input
@@ -92,7 +110,7 @@ export default async function CustomersPage({
                   <td className="px-4 py-3">
                     {c.phone ? (
                       <a
-                        href={`https://wa.me/${c.phone.replace(/[^0-9]/g, "")}`}
+                        href={`https://wa.me/${waMePhone(c.phone)}`}
                         target="_blank"
                         rel="noreferrer noopener"
                         className="text-primary hover:underline"

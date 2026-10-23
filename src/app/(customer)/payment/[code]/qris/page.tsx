@@ -28,7 +28,9 @@ export default async function PaymentQrisPage({ params }: { params: Promise<{ co
     // this flow, not a failure. It used to land in the "tagihan tidak ditemukan"
     // branch below, which told a customer who had just paid successfully that their
     // invoice was missing.
-    const settled = ["CONFIRMED", "CHECKED_IN", "IN_USE", "COMPLETED"].includes(booking.status);
+    const settled = ["CONFIRMED", "CHECKED_IN", "IN_USE", "COMPLETED", "READY"].includes(
+      booking.status,
+    );
     return (
       <div className="mx-auto max-w-xl px-4 py-16 text-center md:px-8">
         <div className="rounded-2xl border border-primary/40 bg-primary/10 p-8">

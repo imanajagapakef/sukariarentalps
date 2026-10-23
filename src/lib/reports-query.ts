@@ -103,7 +103,7 @@ function wibDayBounds(day: string) {
 }
 
 const BOOKING_FIELDS =
-  "booking_id, booking_code, status, source, branch_id, unit_id, scheduled_start_at, scheduled_end_at, created_at, duration_minutes, total_amount, customers(name, phone), units(name, branches(short_name, name))";
+  "booking_id, booking_code, status, source, branch_id, unit_id, scheduled_start_at, scheduled_end_at, created_at, duration_minutes, total_amount, discount_amount, customers(name, phone), units(name, branches(short_name, name))";
 
 export type ReportBooking = {
   booking_id: string;
@@ -117,6 +117,8 @@ export type ReportBooking = {
   created_at: string;
   duration_minutes: number;
   total_amount: number;
+  /** Promo saving. Written by create_booking() only when a promo applied (0029). */
+  discount_amount: number;
   customers: { name: string; phone: string } | null;
   units: { name: string; branches: { short_name: string | null; name: string } | null } | null;
 };
@@ -199,7 +201,11 @@ export function bookingReport(rows: ReportBooking[]): BookingReport {
   let walkIn = 0;
 
   for (const b of rows) {
-    byStatus[b.status] = (byStatus[b.status] ?? 0) + 1;
+    // READY is COMPLETED plus "unit sudah disiapkan". For reporting it is still a
+    // completed session, so fold it into COMPLETED rather than letting it fall out
+    // of the ring and the total.
+    const status = b.status === "READY" ? "COMPLETED" : b.status;
+    byStatus[status] = (byStatus[status] ?? 0) + 1;
     if (b.source === "WALK_IN") walkIn++;
     else online++;
 
@@ -274,10 +280,14 @@ export type RevenueReport = {
   rental: number;
   snack: number;
   refund: number;
-  /** gross - refund. Discounts are not tracked, so this is not "after discount". */
+  /** gross - refund. Money actually kept. */
   net: number;
-  /** False because no discount ledger exists; the page says so rather than showing 0. */
-  discountsTracked: false;
+  /** Total given away through promos on bookings whose money was collected. */
+  discount: number;
+  /** How many of those bookings actually used a promo. */
+  discountedCount: number;
+  /** True now that create_booking() writes discount_amount for every applied promo. */
+  discountsTracked: true;
   byChannel: { key: string; label: string; amount: number; count: number }[];
   byStatus: { status: string; label: string; amount: number; count: number }[];
   collectedCount: number;
@@ -295,7 +305,8 @@ export const PAYMENT_STATUS_LABEL: Record<string, string> = {
 export async function revenueReport(bookings: ReportBooking[]): Promise<RevenueReport> {
   if (bookings.length === 0) {
     return {
-      gross: 0, rental: 0, snack: 0, refund: 0, net: 0, discountsTracked: false,
+      gross: 0, rental: 0, snack: 0, refund: 0, net: 0,
+      discount: 0, discountedCount: 0, discountsTracked: true,
       byChannel: [], byStatus: [], collectedCount: 0,
     };
   }
@@ -326,6 +337,20 @@ export async function revenueReport(bookings: ReportBooking[]): Promise<RevenueR
     else if (it.item_type === "SNACK") snack += it.subtotal;
   }
 
+  // What promos gave away, over the same collected bookings. Only counted once per
+  // booking even when it was paid in several payments: discount_amount sits on the
+  // booking, and an extension's payment must not re-report the original saving.
+  let discount = 0;
+  let discountedCount = 0;
+  for (const b of bookings) {
+    if (!paidBookingIds.has(b.booking_id)) continue;
+    const d = Number(b.discount_amount ?? 0);
+    if (d > 0) {
+      discount += d;
+      discountedCount += 1;
+    }
+  }
+
   const channels = new Map<string, { amount: number; count: number }>();
   for (const p of collected) {
     const key = p.method ?? "UNKNOWN";
@@ -349,7 +374,9 @@ export async function revenueReport(bookings: ReportBooking[]): Promise<RevenueR
     snack,
     refund,
     net: gross - refund,
-    discountsTracked: false,
+    discount,
+    discountedCount,
+    discountsTracked: true,
     collectedCount: collected.length,
     byChannel: [...channels]
       .map(([key, v]) => ({ key, label: CHANNEL_LABEL[key] ?? key, ...v }))
@@ -366,7 +393,7 @@ export async function revenueReport(bookings: ReportBooking[]): Promise<RevenueR
 // definition ("Kapasitas 24j x 28"). Everything else is measured against it.
 
 /** Statuses where the session actually ran, so the unit was genuinely occupied. */
-const RAN = new Set<string>(["CHECKED_IN", "IN_USE", "COMPLETED"]);
+const RAN = new Set<string>(["CHECKED_IN", "IN_USE", "COMPLETED", "READY"]);
 /** Statuses that occupy the unit without the guest playing. */
 const OUT_OF_SERVICE = new Set<string>(["MAINTENANCE", "OFFLINE"]);
 
@@ -784,7 +811,13 @@ export async function guestReport(bookings: ReportBooking[], limit = 10): Promis
     let lastVisit: string | null = null;
 
     for (const r of rowsForGuest) {
-      if (r.status === "COMPLETED" || r.status === "IN_USE" || r.status === "CHECKED_IN") completed++;
+      if (
+        r.status === "COMPLETED" ||
+        r.status === "READY" ||
+        r.status === "IN_USE" ||
+        r.status === "CHECKED_IN"
+      )
+        completed++;
       if (NOT_KEPT.has(r.status)) cancelled++;
       const s = splitByBooking.get(r.booking_id);
       rental += s?.rental ?? 0;

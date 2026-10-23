@@ -3,10 +3,12 @@ import { EmptyState } from "@/components/empty-state";
 import { LiveUnits } from "@/components/live-units";
 import { StationCard } from "@/components/kit/station-card";
 import { TempatMainHeroAnimation } from "@/components/tempat-main-hero-animation";
-import { createClient } from "@/lib/supabase/server";
-import { getNextFreeMap } from "@/lib/next-free";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { getNextFreeMapByBranch } from "@/lib/next-free";
 
-export const dynamic = "force-dynamic";
+// Data cache 20 detik. `?branch=` makes the route render per request, but the fetch
+// cache still covers every PostgREST call, which is the part that costs 40-70 ms.
+export const revalidate = 20;
 
 export default async function TempatMainPage({
   searchParams,
@@ -14,11 +16,15 @@ export default async function TempatMainPage({
   searchParams: Promise<{ branch?: string }>;
 }) {
   const { branch } = await searchParams;
-  const [branches, units] = await Promise.all([getBranches(), getUnitsWithFacility()]);
+  const db = createAdminClient({ revalidate: 20 });
+  // One wave. The RPC resolves the busy units itself, so nothing here has to wait for
+  // the catalogue; it used to be a second round trip on the slowest public route.
+  const [branches, units, nextFree] = await Promise.all([
+    getBranches(),
+    getUnitsWithFacility(),
+    getNextFreeMapByBranch(db, null),
+  ]);
   const shown = branch ? units.filter((u) => u.branch_id === branch) : units;
-
-  const db = await createClient();
-  const nextFree = await getNextFreeMap(db, shown);
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-10 md:px-8">
@@ -34,7 +40,7 @@ export default async function TempatMainPage({
             Status langsung per unit. Hijau = bisa langsung gas.
           </p>
         </div>
-        <TempatMainHeroAnimation className="h-24 w-full md:h-44 md:w-[480px] shrink-0" />
+        <TempatMainHeroAnimation className="h-24 w-full md:h-44 md:w-120 shrink-0" />
       </div>
 
       <div className="mt-6 flex flex-wrap gap-2">

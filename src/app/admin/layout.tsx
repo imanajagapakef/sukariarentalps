@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { CalendarDays, UserRound } from "lucide-react";
 import { getStaffUser } from "@/lib/authz";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { LogoutButton } from "@/components/logout-button";
 import { AdminNav, AdminNavMobile } from "@/components/admin/admin-nav";
 import { LiveRefresh } from "@/components/admin/live-refresh";
@@ -24,6 +25,26 @@ const ROLE_LABEL: Record<string, string> = { OWNER: "Owner", ADMIN: "Admin", STA
 export default async function AdminLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const me = await getStaffUser().catch(() => null);
 
+  if (me && me.role === "STAFF" && !me.branch_id) {
+    // fail-closed tripwire: every STAFF page scopes on branch_id — a null branch
+    // would read every outlet. Migration 0034 makes this state impossible for
+    // new rows; the wall below catches a corrupt or historical row instead of
+    // letting it browse unscoped.
+    return (
+      <div className="mx-auto grid min-h-dvh max-w-md place-items-center px-4 text-center">
+        <div>
+          <h1 className="font-display text-2xl uppercase">Akses ditolak</h1>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Akun staff ini belum terikat ke cabang mana pun. Hubungi owner untuk mengatur cabang akun.
+          </p>
+          <div className="mt-6">
+            <LogoutButton />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (!me) {
     // logged in via Supabase but no active staff profile — show a clean wall
     // instead of throwing (a redirect to /login would loop back here).
@@ -42,20 +63,41 @@ export default async function AdminLayout({ children }: Readonly<{ children: Rea
     );
   }
 
-  // Mirrors the RLS policies: audit_logs is readable by OWNER and ADMIN only,
-  // users is OWNER only, games/pricing are master data.
+  // Nav mirrors the server-side authz: master data (games/pricing/promos/branches)
+  // and user management stay out of STAFF's reach — scoping is enforced per
+  // request, this list is only visual. ADMIN may manage STAFF accounts (create
+  // + active toggle); role and branch edits there remain OWNER-only server-side.
   const hidden =
     me.role === "STAFF"
-      ? ["/admin/games", "/admin/pricing", "/admin/users", "/admin/audit-log"]
-      : me.role === "ADMIN"
-        ? ["/admin/users"]
-        : [];
+      ? [
+      "/admin/games",
+      "/admin/pricing",
+      "/admin/promos",
+      "/admin/branches",
+      "/admin/users",
+      "/admin/audit-log",
+    ]
+      : [];
   const name = me.full_name ?? me.user_id.slice(0, 8);
   const role = ROLE_LABEL[me.role] ?? me.role;
 
   // Payment queue depth for the nav badge. Nothing settles automatically any more, so
   // a cashier needs to know there is work waiting without opening the Bookings page.
-  const pendingCount = await countWaitingPayment().catch(() => 0);
+  // STAFF count only their branch's queue.
+  const pendingCount = await countWaitingPayment(me.branch_id).catch(() => 0);
+
+  // STAFF bertugas di satu cabang; menampilkan namanya di samping role
+  // membuat scoping itu terlihat alih-alih jadi 403 misterius saat mereka
+  // menyentuh data lain.
+  let branchLabel: string | null = null;
+  if (me.role === "STAFF" && me.branch_id) {
+    const { data: branch } = await createAdminClient()
+      .from("branches")
+      .select("short_name, name")
+      .eq("branch_id", me.branch_id)
+      .maybeSingle();
+    branchLabel = branch ? branch.short_name ?? branch.name : me.branch_id;
+  }
 
   return (
     <div className="flex min-h-dvh bg-background">
@@ -89,7 +131,10 @@ export default async function AdminLayout({ children }: Readonly<{ children: Rea
             </span>
             <span className="min-w-0 flex-1">
               <span className="block truncate text-sm font-semibold">{name}</span>
-              <span className="block truncate text-xs text-muted-foreground">{role}</span>
+              <span className="block truncate text-xs text-muted-foreground">
+                {role}
+                {branchLabel ? ` — ${branchLabel}` : ""}
+              </span>
             </span>
           </div>
           <LogoutButton compact />
@@ -109,7 +154,7 @@ export default async function AdminLayout({ children }: Readonly<{ children: Rea
           </p>
 
           <span
-            title={`${name} — ${role}`}
+            title={`${name} — ${role}${branchLabel ? ` — ${branchLabel}` : ""}`}
             className="hidden size-8 shrink-0 place-items-center rounded-full bg-primary text-on-primary sm:grid"
           >
             <UserRound aria-hidden className="size-4" />

@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.5"
+    PostgrestVersion: "14.17"
   }
   public: {
     Tables: {
@@ -233,6 +233,7 @@ export type Database = {
           latest_extendable_at: string | null
           notes: string | null
           payment_deadline_at: string | null
+          promotion_id: string | null
           rental_amount: number
           scheduled_end_at: string
           scheduled_start_at: string
@@ -259,6 +260,7 @@ export type Database = {
           latest_extendable_at?: string | null
           notes?: string | null
           payment_deadline_at?: string | null
+          promotion_id?: string | null
           rental_amount?: number
           scheduled_end_at: string
           scheduled_start_at: string
@@ -285,6 +287,7 @@ export type Database = {
           latest_extendable_at?: string | null
           notes?: string | null
           payment_deadline_at?: string | null
+          promotion_id?: string | null
           rental_amount?: number
           scheduled_end_at?: string
           scheduled_start_at?: string
@@ -318,11 +321,53 @@ export type Database = {
             referencedColumns: ["game_id"]
           },
           {
+            foreignKeyName: "bookings_promotion_id_fkey"
+            columns: ["promotion_id"]
+            isOneToOne: false
+            referencedRelation: "promotions"
+            referencedColumns: ["promotion_id"]
+          },
+          {
             foreignKeyName: "bookings_unit_id_fkey"
             columns: ["unit_id"]
             isOneToOne: false
             referencedRelation: "units"
             referencedColumns: ["unit_id"]
+          },
+        ]
+      }
+      branch_photos: {
+        Row: {
+          branch_id: string
+          caption: string | null
+          created_at: string
+          image_url: string
+          photo_id: number
+          position: number
+        }
+        Insert: {
+          branch_id: string
+          caption?: string | null
+          created_at?: string
+          image_url: string
+          photo_id?: number
+          position?: number
+        }
+        Update: {
+          branch_id?: string
+          caption?: string | null
+          created_at?: string
+          image_url?: string
+          photo_id?: number
+          position?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "branch_photos_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["branch_id"]
           },
         ]
       }
@@ -978,33 +1023,6 @@ export type Database = {
         }
         Relationships: []
       }
-      web_vitals: {
-        Row: {
-          created_at: string
-          id: number
-          metric: string
-          path: string | null
-          rating: string | null
-          value: number
-        }
-        Insert: {
-          created_at?: string
-          id?: number
-          metric: string
-          path?: string | null
-          rating?: string | null
-          value: number
-        }
-        Update: {
-          created_at?: string
-          id?: number
-          metric?: string
-          path?: string | null
-          rating?: string | null
-          value?: number
-        }
-        Relationships: []
-      }
       payment_events: {
         Row: {
           created_at: string
@@ -1048,28 +1066,31 @@ export type Database = {
       }
       payment_proofs: {
         Row: {
-          booking_id: string
+          booking_id: string | null
           created_at: string
           nominal: number
           note: string | null
           object_path: string
           proof_id: number
+          tournament_registration_id: string | null
         }
         Insert: {
-          booking_id: string
+          booking_id?: string | null
           created_at?: string
           nominal: number
           note?: string | null
           object_path: string
           proof_id?: number
+          tournament_registration_id?: string | null
         }
         Update: {
-          booking_id?: string
+          booking_id?: string | null
           created_at?: string
           nominal?: number
           note?: string | null
           object_path?: string
           proof_id?: number
+          tournament_registration_id?: string | null
         }
         Relationships: [
           {
@@ -1078,7 +1099,14 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "bookings"
             referencedColumns: ["booking_id"]
-          }
+          },
+          {
+            foreignKeyName: "payment_proofs_tournament_registration_id_fkey"
+            columns: ["tournament_registration_id"]
+            isOneToOne: false
+            referencedRelation: "tournament_registrations"
+            referencedColumns: ["registration_id"]
+          },
         ]
       }
       payments: {
@@ -1096,6 +1124,7 @@ export type Database = {
           provider_txn_id: string | null
           raw_response: Json | null
           status: Database["public"]["Enums"]["payment_status"]
+          tournament_registration_id: string | null
           updated_at: string
         }
         Insert: {
@@ -1112,6 +1141,7 @@ export type Database = {
           provider_txn_id?: string | null
           raw_response?: Json | null
           status?: Database["public"]["Enums"]["payment_status"]
+          tournament_registration_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -1128,6 +1158,7 @@ export type Database = {
           provider_txn_id?: string | null
           raw_response?: Json | null
           status?: Database["public"]["Enums"]["payment_status"]
+          tournament_registration_id?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -1144,6 +1175,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "booking_extensions"
             referencedColumns: ["extension_id"]
+          },
+          {
+            foreignKeyName: "payments_tournament_registration_id_fkey"
+            columns: ["tournament_registration_id"]
+            isOneToOne: false
+            referencedRelation: "tournament_registrations"
+            referencedColumns: ["registration_id"]
           },
         ]
       }
@@ -1231,6 +1269,7 @@ export type Database = {
       profiles: {
         Row: {
           active: boolean
+          branch_id: string | null
           created_at: string
           full_name: string | null
           phone: string | null
@@ -1240,6 +1279,7 @@ export type Database = {
         }
         Insert: {
           active?: boolean
+          branch_id?: string | null
           created_at?: string
           full_name?: string | null
           phone?: string | null
@@ -1249,6 +1289,7 @@ export type Database = {
         }
         Update: {
           active?: boolean
+          branch_id?: string | null
           created_at?: string
           full_name?: string | null
           phone?: string | null
@@ -1256,28 +1297,49 @@ export type Database = {
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "profiles_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["branch_id"]
+          },
+        ]
       }
       promotion_items: {
         Row: {
+          bonus_quantity: number
+          bonus_snack_id: string | null
           duration_minutes: number
           facility_type_id: string
           price: number
           promotion_id: string
         }
         Insert: {
+          bonus_quantity?: number
+          bonus_snack_id?: string | null
           duration_minutes: number
           facility_type_id: string
           price: number
           promotion_id: string
         }
         Update: {
+          bonus_quantity?: number
+          bonus_snack_id?: string | null
           duration_minutes?: number
           facility_type_id?: string
           price?: number
           promotion_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "promotion_items_bonus_snack_id_fkey"
+            columns: ["bonus_snack_id"]
+            isOneToOne: false
+            referencedRelation: "snacks"
+            referencedColumns: ["snack_id"]
+          },
           {
             foreignKeyName: "promotion_items_facility_type_id_fkey"
             columns: ["facility_type_id"]
@@ -1376,6 +1438,264 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      tournament_matches: {
+        Row: {
+          created_at: string
+          finished_at: string | null
+          match_id: string
+          match_no: number
+          next_match_id: string | null
+          next_slot: string | null
+          player_a_name: string | null
+          player_a_seed: number | null
+          player_b_name: string | null
+          player_b_seed: number | null
+          round_no: number
+          score_a: number | null
+          score_b: number | null
+          slot_a_registration_id: string | null
+          slot_b_registration_id: string | null
+          started_at: string | null
+          status: Database["public"]["Enums"]["tournament_match_status"]
+          tournament_id: string
+          updated_at: string
+          winner_registration_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          finished_at?: string | null
+          match_id?: string
+          match_no: number
+          next_match_id?: string | null
+          next_slot?: string | null
+          player_a_name?: string | null
+          player_a_seed?: number | null
+          player_b_name?: string | null
+          player_b_seed?: number | null
+          round_no: number
+          score_a?: number | null
+          score_b?: number | null
+          slot_a_registration_id?: string | null
+          slot_b_registration_id?: string | null
+          started_at?: string | null
+          status?: Database["public"]["Enums"]["tournament_match_status"]
+          tournament_id: string
+          updated_at?: string
+          winner_registration_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          finished_at?: string | null
+          match_id?: string
+          match_no?: number
+          next_match_id?: string | null
+          next_slot?: string | null
+          player_a_name?: string | null
+          player_a_seed?: number | null
+          player_b_name?: string | null
+          player_b_seed?: number | null
+          round_no?: number
+          score_a?: number | null
+          score_b?: number | null
+          slot_a_registration_id?: string | null
+          slot_b_registration_id?: string | null
+          started_at?: string | null
+          status?: Database["public"]["Enums"]["tournament_match_status"]
+          tournament_id?: string
+          updated_at?: string
+          winner_registration_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tournament_matches_next_match_id_fkey"
+            columns: ["next_match_id"]
+            isOneToOne: false
+            referencedRelation: "tournament_matches"
+            referencedColumns: ["match_id"]
+          },
+          {
+            foreignKeyName: "tournament_matches_slot_a_registration_id_fkey"
+            columns: ["slot_a_registration_id"]
+            isOneToOne: false
+            referencedRelation: "tournament_registrations"
+            referencedColumns: ["registration_id"]
+          },
+          {
+            foreignKeyName: "tournament_matches_slot_b_registration_id_fkey"
+            columns: ["slot_b_registration_id"]
+            isOneToOne: false
+            referencedRelation: "tournament_registrations"
+            referencedColumns: ["registration_id"]
+          },
+          {
+            foreignKeyName: "tournament_matches_tournament_id_fkey"
+            columns: ["tournament_id"]
+            isOneToOne: false
+            referencedRelation: "tournaments"
+            referencedColumns: ["tournament_id"]
+          },
+          {
+            foreignKeyName: "tournament_matches_winner_registration_id_fkey"
+            columns: ["winner_registration_id"]
+            isOneToOne: false
+            referencedRelation: "tournament_registrations"
+            referencedColumns: ["registration_id"]
+          },
+        ]
+      }
+      tournament_registrations: {
+        Row: {
+          cancel_reason: string | null
+          checked_in_at: string | null
+          created_at: string
+          customer_id: string
+          fee_amount: number
+          name: string
+          notes: string | null
+          paid_at: string | null
+          payment_deadline_at: string | null
+          phone: string
+          registration_code: string
+          registration_id: string
+          seed_number: number | null
+          status: Database["public"]["Enums"]["tournament_registration_status"]
+          tournament_id: string
+          updated_at: string
+        }
+        Insert: {
+          cancel_reason?: string | null
+          checked_in_at?: string | null
+          created_at?: string
+          customer_id: string
+          fee_amount: number
+          name: string
+          notes?: string | null
+          paid_at?: string | null
+          payment_deadline_at?: string | null
+          phone: string
+          registration_code: string
+          registration_id?: string
+          seed_number?: number | null
+          status: Database["public"]["Enums"]["tournament_registration_status"]
+          tournament_id: string
+          updated_at?: string
+        }
+        Update: {
+          cancel_reason?: string | null
+          checked_in_at?: string | null
+          created_at?: string
+          customer_id?: string
+          fee_amount?: number
+          name?: string
+          notes?: string | null
+          paid_at?: string | null
+          payment_deadline_at?: string | null
+          phone?: string
+          registration_code?: string
+          registration_id?: string
+          seed_number?: number | null
+          status?: Database["public"]["Enums"]["tournament_registration_status"]
+          tournament_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tournament_registrations_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["customer_id"]
+          },
+          {
+            foreignKeyName: "tournament_registrations_tournament_id_fkey"
+            columns: ["tournament_id"]
+            isOneToOne: false
+            referencedRelation: "tournaments"
+            referencedColumns: ["tournament_id"]
+          },
+        ]
+      }
+      tournaments: {
+        Row: {
+          bracket_size: number | null
+          branch_id: string
+          created_at: string
+          description: string | null
+          game_id: string | null
+          list_price: number | null
+          payment_window_minutes: number
+          poster_url: string | null
+          prize: string | null
+          quota: number
+          registration_closes_at: string | null
+          registration_fee: number
+          rules: string | null
+          slug: string
+          starts_at: string
+          status: Database["public"]["Enums"]["tournament_status"]
+          title: string
+          tournament_id: string
+          updated_at: string
+        }
+        Insert: {
+          bracket_size?: number | null
+          branch_id: string
+          created_at?: string
+          description?: string | null
+          game_id?: string | null
+          list_price?: number | null
+          payment_window_minutes?: number
+          poster_url?: string | null
+          prize?: string | null
+          quota: number
+          registration_closes_at?: string | null
+          registration_fee?: number
+          rules?: string | null
+          slug: string
+          starts_at: string
+          status?: Database["public"]["Enums"]["tournament_status"]
+          title: string
+          tournament_id?: string
+          updated_at?: string
+        }
+        Update: {
+          bracket_size?: number | null
+          branch_id?: string
+          created_at?: string
+          description?: string | null
+          game_id?: string | null
+          list_price?: number | null
+          payment_window_minutes?: number
+          poster_url?: string | null
+          prize?: string | null
+          quota?: number
+          registration_closes_at?: string | null
+          registration_fee?: number
+          rules?: string | null
+          slug?: string
+          starts_at?: string
+          status?: Database["public"]["Enums"]["tournament_status"]
+          title?: string
+          tournament_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tournaments_branch_id_fkey"
+            columns: ["branch_id"]
+            isOneToOne: false
+            referencedRelation: "branches"
+            referencedColumns: ["branch_id"]
+          },
+          {
+            foreignKeyName: "tournaments_game_id_fkey"
+            columns: ["game_id"]
+            isOneToOne: false
+            referencedRelation: "games"
+            referencedColumns: ["game_id"]
+          },
+        ]
       }
       unit_reservations: {
         Row: {
@@ -1521,11 +1841,46 @@ export type Database = {
           },
         ]
       }
+      web_vitals: {
+        Row: {
+          created_at: string
+          id: number
+          metric: string
+          path: string | null
+          rating: string | null
+          value: number
+        }
+        Insert: {
+          created_at?: string
+          id?: number
+          metric: string
+          path?: string | null
+          rating?: string | null
+          value: number
+        }
+        Update: {
+          created_at?: string
+          id?: number
+          metric?: string
+          path?: string | null
+          rating?: string | null
+          value?: number
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
+      assign_tournament_seeds: {
+        Args: { p_tournament_id: string }
+        Returns: number
+      }
+      build_tournament_bracket: {
+        Args: { p_tournament_id: string }
+        Returns: number
+      }
       calculate_price: {
         Args: {
           p_branch_id: string
@@ -1538,9 +1893,17 @@ export type Database = {
         Args: { p_booking_id: string; p_reason?: string }
         Returns: Database["public"]["Enums"]["booking_status"]
       }
+      cancel_tournament_registration: {
+        Args: { p_reason?: string; p_registration_id: string }
+        Returns: boolean
+      }
       check_in: {
         Args: { p_booking_id: string }
         Returns: Database["public"]["Enums"]["booking_status"]
+      }
+      check_in_tournament_registration: {
+        Args: { p_registration_id: string }
+        Returns: boolean
       }
       complete_booking: {
         Args: { p_booking_id: string }
@@ -1560,6 +1923,7 @@ export type Database = {
           p_duration_minutes?: number
           p_game_id?: string
           p_notes?: string
+          p_promotion_id?: string
           p_snacks?: Json
           p_source?: Database["public"]["Enums"]["booking_source"]
           p_start_at?: string
@@ -1574,12 +1938,18 @@ export type Database = {
           total_amount: number
         }[]
       }
+      create_tournament_payment: {
+        Args: { p_registration_id: string }
+        Returns: string
+      }
       expire_bookings: { Args: never; Returns: number }
+      expire_tournament_registrations: { Args: never; Returns: number }
       find_or_create_customer: {
         Args: { p_email?: string; p_name: string; p_phone: string }
         Returns: string
       }
       generate_booking_code: { Args: never; Returns: string }
+      generate_registration_code: { Args: never; Returns: string }
       get_available_units: {
         Args: { p_branch_id: string; p_end: string; p_start: string }
         Returns: {
@@ -1629,11 +1999,108 @@ export type Database = {
       }
       next_available_batch: {
         Args: { p_from?: string; p_unit_ids: string[] }
-        Returns: { unit_id: string; next_free: string }[]
+        Returns: {
+          next_free: string
+          unit_id: string
+        }[]
+      }
+      next_available_by_branch: {
+        Args: { p_branch_id?: string; p_from?: string }
+        Returns: {
+          next_free: string
+          unit_id: string
+        }[]
+      }
+      promo_offerings: {
+        Args: never
+        Returns: {
+          bonus_quantity: number
+          bonus_snack_id: string
+          bonus_snack_name: string
+          branch_id: string
+          description: string
+          duration_minutes: number
+          facility_name: string
+          facility_type_id: string
+          name: string
+          normal_price: number
+          promo_price: number
+          promotion_id: string
+        }[]
+      }
+      public_tournament_overview: {
+        Args: { p_slug?: string }
+        Returns: {
+          branch_id: string
+          branch_name: string
+          branch_short_name: string
+          description: string
+          game_name: string
+          held: number
+          list_price: number
+          poster_url: string
+          prize: string
+          quota: number
+          registration_closes_at: string
+          registration_fee: number
+          rules: string
+          slug: string
+          starts_at: string
+          status: Database["public"]["Enums"]["tournament_status"]
+          title: string
+          tournament_id: string
+        }[]
+      }
+      queue_tournament_notification: {
+        Args: { p_payload: Json; p_registration_id: string; p_template: string }
+        Returns: undefined
+      }
+      register_tournament: {
+        Args: {
+          p_name: string
+          p_notes?: string
+          p_phone: string
+          p_tournament_id: string
+        }
+        Returns: {
+          branch_name: string
+          fee_amount: number
+          payment_deadline_at: string
+          registration_code: string
+          registration_id: string
+          starts_at: string
+          status: Database["public"]["Enums"]["tournament_registration_status"]
+          tournament_title: string
+        }[]
+      }
+      report_tournament_match_result: {
+        Args: { p_match_id: string; p_score_a: number; p_score_b: number }
+        Returns: Database["public"]["Enums"]["tournament_match_status"]
+      }
+      reset_tournament_bracket: {
+        Args: { p_tournament_id: string }
+        Returns: number
+      }
+      resolve_tournament_match: {
+        Args: { p_depth?: number; p_match_id: string }
+        Returns: boolean
       }
       round_to_interval: {
         Args: { p_at: string; p_interval: number }
         Returns: string
+      }
+      settle_tournament_payment: {
+        Args: { p_payment_id: string }
+        Returns: boolean
+      }
+      settle_tournament_registration: {
+        Args: {
+          p_created_by?: string
+          p_method: Database["public"]["Enums"]["payment_method"]
+          p_notes?: string
+          p_registration_id: string
+        }
+        Returns: number
       }
       slot_availability: {
         Args: {
@@ -1649,6 +2116,11 @@ export type Database = {
           state: string
         }[]
       }
+      sync_tournament_quota: {
+        Args: { p_tournament_id: string }
+        Returns: string
+      }
+      tournament_seed_order: { Args: { p_size: number }; Returns: number[] }
     }
     Enums: {
       booking_item_type: "RENTAL" | "SNACK"
@@ -1660,6 +2132,7 @@ export type Database = {
         | "CHECKED_IN"
         | "IN_USE"
         | "COMPLETED"
+        | "READY"
         | "CANCELLED"
         | "EXPIRED"
         | "NO_SHOW"
@@ -1707,6 +2180,21 @@ export type Database = {
         | "ADDED"
       reservation_kind: "BOOKING" | "CLEANING" | "BLOCK"
       snack_category: "SNACK" | "DRINK" | "INSTANT_FOOD" | "COMBO"
+      tournament_match_status: "WAITING" | "READY" | "FINISHED"
+      tournament_registration_status:
+        | "WAITING_PAYMENT"
+        | "PAID"
+        | "CHECKED_IN"
+        | "CANCELLED"
+        | "EXPIRED"
+        | "DISQUALIFIED"
+      tournament_status:
+        | "DRAFT"
+        | "OPEN"
+        | "FULL"
+        | "ONGOING"
+        | "DONE"
+        | "CANCELLED"
       unit_condition: "GOOD" | "NEEDS_CLEANING" | "NEEDS_CHECK" | "DAMAGED"
       unit_status:
         | "AVAILABLE"
@@ -1852,6 +2340,7 @@ export const Constants = {
         "CHECKED_IN",
         "IN_USE",
         "COMPLETED",
+        "READY",
         "CANCELLED",
         "EXPIRED",
         "NO_SHOW",
@@ -1904,6 +2393,23 @@ export const Constants = {
       ],
       reservation_kind: ["BOOKING", "CLEANING", "BLOCK"],
       snack_category: ["SNACK", "DRINK", "INSTANT_FOOD", "COMBO"],
+      tournament_match_status: ["WAITING", "READY", "FINISHED"],
+      tournament_registration_status: [
+        "WAITING_PAYMENT",
+        "PAID",
+        "CHECKED_IN",
+        "CANCELLED",
+        "EXPIRED",
+        "DISQUALIFIED",
+      ],
+      tournament_status: [
+        "DRAFT",
+        "OPEN",
+        "FULL",
+        "ONGOING",
+        "DONE",
+        "CANCELLED",
+      ],
       unit_condition: ["GOOD", "NEEDS_CLEANING", "NEEDS_CHECK", "DAMAGED"],
       unit_status: [
         "AVAILABLE",

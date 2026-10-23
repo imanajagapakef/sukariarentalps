@@ -1,7 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getStaffUser } from "@/lib/authz";
+import { assertBranchScope, getStaffUser } from "@/lib/authz";
 import {
+  BookingError,
   cancelBooking,
   checkIn,
   completeBooking,
@@ -31,10 +32,36 @@ export async function POST(
     if (action === "mark_ready") {
       const booking = await getBookingByCode(db, code);
       if (!booking) return jsonError("Booking tidak ditemukan", 404);
-      await markUnitReady(db, booking.unit_id);
+      assertBranchScope(profile, booking.branch_id);
+
+      // Cek status unit sekarang. Tandai siap hanya jika belum AVAILABLE,
+      // sehingga tombol tetap bekerja meski unit sudah tersedia (idempotent).
+      const { data: unit, error: unitError } = await db
+        .from("units")
+        .select("status")
+        .eq("unit_id", booking.unit_id)
+        .maybeSingle();
+      // supabase-js melaporkan error lewat result, bukan throw. Dulu hasilnya
+      // diabaikan sehingga tulisan yang ditolak terlihat sukses.
+      if (unitError) throw new BookingError(unitError.message, unitError.code ?? "UNKNOWN");
+
+      if (unit?.status && unit.status !== "AVAILABLE") {
+        await markUnitReady(db, booking.unit_id);
+      }
+
+      // Selesaikan booking itu sendiri agar tidak kembali ke COMPLETED permanen
+      // setelah unit dikembalikan ke AVAILABLE.
+      if (booking.status === "COMPLETED") {
+        const { error } = await db
+          .from("bookings")
+          .update({ status: "READY" })
+          .eq("booking_id", booking.booking_id);
+        if (error) throw new BookingError(error.message, error.code ?? "UNKNOWN");
+      }
     } else {
       const booking = await getBookingByCode(db, code);
       if (!booking) return jsonError("Booking tidak ditemukan", 404);
+      assertBranchScope(profile, booking.branch_id);
 
       switch (action) {
         case "confirm":

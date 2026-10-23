@@ -1,9 +1,23 @@
 import { cache } from "react";
 import { createPublicClient as createClient } from "@/lib/supabase/public";
+import type { PromoOffering } from "@/lib/promo-rules";
+import { isWorthwhile } from "@/lib/promo-rules";
 
 /**
- * Server-side catalog reads. RLS allows anon SELECT on every catalog table,
- * so these run through the plain server client — no service_role needed.
+ * Server-side catalog reads. RLS allows anon SELECT on every catalog table
+ * (`create policy "public read" ... for select to anon`), so these run through the
+ * cookieless anon client — no session, no cookies(), no service_role.
+ *
+ * Caching, precisely: the client in `lib/supabase/public` is the one that decides, by
+ * passing `next.revalidate` to every fetch. There is no `unstable_cache` here and there
+ * does not need to be — the data cache already lives one layer down. `cache()` from React
+ * is *not* that cache: it only dedupes repeated calls inside a single render.
+ *
+ * Only branches keep the 300 s default. Everything a booking depends on — unit status,
+ * snack stock, promo eligibility — is read live, because a stale row there means the
+ * customer is offered something that cannot be booked. Games are the one middle case:
+ * `getGames` defaults to the 300 s cache for browsing pages, while /booking asks for
+ * `revalidate: 0` because `game_availability` decides which games a branch can offer.
  */
 
 export type BranchRow = {
@@ -134,7 +148,8 @@ export function gameGenre(g: Pick<GameRow, "game_features">): string | null {
   return Array.isArray(f) ? (f[0]?.genre ?? null) : (f.genre ?? null);
 }
 
-export async function getGames(): Promise<GameRow[]> {  const db = createClient();
+export async function getGames(options?: { revalidate?: number }): Promise<GameRow[]> {
+  const db = createClient(options);
   const { data, error } = await db
     .from("games")
     .select(
@@ -280,6 +295,26 @@ export async function getPromotions(): Promise<PromoRow[]> {
   if (error) throw new Error(error.message);
   return (data ?? []) as PromoRow[];
 }
+
+/**
+ * Bookable promo packages, each carrying the normal price it is measured against.
+ *
+ * `promo_offerings()` is the only source of the promo price on the customer side, and
+ * it computes `normal_price` through `calculate_price()` — the same function
+ * create_booking() charges with. Recomputing the saving in the browser from a rate
+ * table is how a promo ends up advertised as "hemat 40rb" and then billed at the
+ * full price, so the number comes from Postgres and is never derived here.
+ */
+export const getPromoOfferings = cache(async (): Promise<PromoOffering[]> => {
+  const db = createClient();
+  const { data, error } = await db.rpc("promo_offerings");
+  if (error) throw new Error(error.message);
+  // Drop packages that are not actually cheaper. calculate_price returns 0 when the
+  // branch has no price rule for that facility type — an ACTIVE promo can name a
+  // combination nobody has priced yet, and create_booking would refuse it anyway.
+  // Advertising it would show "hemat Rp 0" behind a button that cannot complete.
+  return ((data ?? []) as PromoOffering[]).filter(isWorthwhile);
+});
 
 export type FacilityTypeRow = {
   facility_type_id: string;

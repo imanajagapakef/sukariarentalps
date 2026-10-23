@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { getExtensionInfo } from "@/services/extension.service";
 import { BookingStatusPill } from "@/components/status-pill";
 import { Button } from "@/components/ui/button";
@@ -26,7 +26,7 @@ export default async function ExtensionPage({
     );
   }
 
-  const db = await createClient();
+  const db = createAdminClient();
   const info = await getExtensionInfo(db, code);
   if (!info) notFound();
 

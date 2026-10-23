@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowRight, MapPin, Users } from "lucide-react";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { getBranches, getMinHourlyRates } from "@/lib/catalog";
 import { facilityCopy } from "@/lib/facility-copy";
 import { fmtTime, rp } from "@/lib/format";
@@ -11,7 +11,7 @@ import { CountdownBadge } from "@/components/kit/countdown-badge";
 import { PlatformPill } from "@/components/kit/platform-pill";
 import { Cover } from "@/components/cover";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 20;
 
 /**
  * Unit detail.
@@ -23,7 +23,7 @@ export const dynamic = "force-dynamic";
  */
 export default async function UnitDetailPage({ params }: { params: Promise<{ unit_id: string }> }) {
   const { unit_id } = await params;
-  const db = await createClient();
+  const db = createAdminClient({ revalidate: 20 });
 
   const { data: unit, error } = await db
     .from("units")

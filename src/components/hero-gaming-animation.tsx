@@ -45,7 +45,7 @@ const COINS = [150, 210, 270, 330, 390];
 
 export function HeroGamingAnimation() {
   return (
-    <div className="relative h-64 w-full md:absolute md:right-8 md:top-1/2 md:h-[420px] md:w-[480px] md:-translate-y-1/2">
+    <div className="relative h-64 w-full md:absolute md:right-8 md:top-1/2 md:h-105 md:w-120 md:-translate-y-1/2">
       <svg
         viewBox="0 0 480 420"
         className="hg h-full w-full"

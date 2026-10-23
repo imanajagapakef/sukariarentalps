@@ -44,5 +44,5 @@ async function stockThroughLedger({
   return rest;
 }
 
-const crud = adminCrud("snacks", snackSchema, undefined, stockThroughLedger);
+const crud = adminCrud("snacks", snackSchema, ["ADMIN", "OWNER"], stockThroughLedger);
 export const { POST, PATCH, DELETE } = crud;

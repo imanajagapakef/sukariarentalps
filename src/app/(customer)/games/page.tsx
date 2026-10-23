@@ -54,7 +54,7 @@ export default async function GamesPage({
           <h1 className="font-display text-3xl uppercase md:text-5xl">Games</h1>
           <p className="mt-2 text-muted-foreground">{games.length} game di katalog kami.</p>
         </div>
-        <GamesHeroAnimation className="h-24 w-full md:h-44 md:w-[480px] shrink-0" />
+        <GamesHeroAnimation className="h-24 w-full md:h-44 md:w-120 shrink-0" />
       </div>
 
       <form className="mt-6 flex flex-wrap items-center gap-2" method="get">

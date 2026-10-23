@@ -9,21 +9,30 @@ export function UnitActions({ unitId, status }: { unitId: string; status: string
   const [busy, setBusy] = useState(false);
 
   async function set(next: "AVAILABLE" | "MAINTENANCE" | "OFFLINE") {
-    const reason =
-      next === "AVAILABLE" ? undefined : prompt(`Alasan ${next.toLowerCase()} (mis. stik rusak)?`) ?? undefined;
-    setBusy(true);
-    const res = await fetch("/api/admin/units/status", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ unit_id: unitId, status: next, ...(reason ? { reason } : {}) }),
-    });
-    setBusy(false);
-    if (!res.ok) {
-      const body = await res.json().catch(() => null);
-      alert(body?.error?.message ?? "Gagal mengubah status");
-      return;
+    let reason: string | undefined;
+    if (next !== "AVAILABLE") {
+      const raw = prompt(`Alasan ${next.toLowerCase()} (mis. stik rusak)?`);
+      // Cancel means "don't move the unit" — the old code read null as "no
+      // reason" and proceeded with the move anyway.
+      if (raw === null) return;
+      reason = raw || undefined;
     }
-    router.refresh();
+    setBusy(true);
+    try {
+      const res = await fetch("/api/admin/units/status", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ unit_id: unitId, status: next, ...(reason ? { reason } : {}) }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        alert(body?.error?.message ?? "Gagal mengubah status");
+        return;
+      }
+      router.refresh();
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (

@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { Client } from "pg";
-import { countWaitingPayment, listBookings } from "@/lib/bookings-query";
+import { BOOKING_PAGE_SIZE, countWaitingPayment, listBookings, listBookingsPage } from "@/lib/bookings-query";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 const connectionString = process.env.TEST_DATABASE_URL;
@@ -176,12 +176,64 @@ describeLive("admin bookings query", () => {
   });
 
   it("counts the payment queue for the nav badge", async () => {
-    const count = await countWaitingPayment();
-    expect(count).toBeGreaterThanOrEqual(1);
+    // Read the count on both sides of the list. vitest runs files in parallel and
+    // booking.spec.ts inserts rows mid-run, so a single count can disagree with the
+    // list by one row for reasons that have nothing to do with this page.
+    const before = await countWaitingPayment();
     const rows = await listBookings({ status: "WAITING_PAYMENT" });
+    const after = await countWaitingPayment();
+    expect(before).toBeGreaterThanOrEqual(1);
+    expect(rows.length).toBeGreaterThanOrEqual(1);
     // The badge and the table must agree about what is in the queue, or the number
     // promises work the page cannot show.
-    expect(count).toBeGreaterThanOrEqual(rows.length === 60 ? 60 : 1);
+    expect(before).toBeGreaterThanOrEqual(Math.min(rows.length, after));
+  });
+
+  it("returns one capped page plus the exact size of the filtered set", async () => {
+    // The old page capped at 60 rows with no way past them, so a longer book silently
+    // hid its older bookings. `total` is what makes them reachable.
+    const page = await listBookingsPage({}, 1);
+    expect(page.rows.length).toBeLessThanOrEqual(BOOKING_PAGE_SIZE);
+    expect(page.total).toBeGreaterThanOrEqual(page.rows.length);
+    expect(page.page).toBe(1);
+    expect(page.pageCount).toBe(Math.max(1, Math.ceil(page.total / BOOKING_PAGE_SIZE)));
+    expect(page.from).toBe(page.rows.length ? 1 : 0);
+    expect(page.to).toBe(page.rows.length);
+  });
+
+  it("clamps a stale ?page= instead of rendering an empty table", async () => {
+    // A filter that narrows the set, or a deleted booking, leaves ?page=9 pointing past
+    // the end. The old shape had no pages at all; this is the regression that shape
+    // invites — "halaman 9 dari 4" above zero rows.
+    const far = await listBookingsPage({}, 9999);
+    expect(far.page).toBe(far.pageCount);
+    if (far.total > 0) {
+      expect(far.rows.length).toBeGreaterThan(0);
+      expect(far.to).toBeLessThanOrEqual(far.total);
+    }
+  });
+
+  it("keeps the search filter inside the page", async () => {
+    const page = await listBookingsPage({ q: bookingCode }, 1);
+    expect(page.rows.map((r) => r.booking_id)).toContain(bookingId);
+    expect(page.total).toBeGreaterThanOrEqual(1);
+    expect(page.rows.length).toBeLessThanOrEqual(BOOKING_PAGE_SIZE);
+  });
+
+  it("exports the whole filtered set, not just the first page", async () => {
+    // The CSV and the table read the same filters, so paging the table must not quietly
+    // become the export's ceiling as well.
+    const page = await listBookingsPage({}, 1);
+    const all = await listBookings({});
+    expect(all.length).toBeGreaterThanOrEqual(page.rows.length);
+    if (page.total > BOOKING_PAGE_SIZE) {
+      expect(all.length).toBeGreaterThan(BOOKING_PAGE_SIZE);
+    }
+    // Everything on the page has to be in the export. Safe under parallel inserts: a
+    // row added between the two reads can only make the export longer.
+    for (const row of page.rows) {
+      expect(all.some((r) => r.booking_id === row.booking_id)).toBe(true);
+    }
   });
 });
 

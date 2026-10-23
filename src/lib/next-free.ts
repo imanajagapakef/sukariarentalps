@@ -21,3 +21,27 @@ export async function getNextFreeMap(
   for (const row of data ?? []) map.set(row.unit_id, row.next_free);
   return map;
 }
+
+/**
+ * Next-free for every busy unit, optionally scoped to one branch.
+ *
+ * The RPC resolves the unit list itself, so a page can fire it in the same wave as
+ * its catalogue reads. With the unit list supplied by the caller — which is what this
+ * module's other function forces — the RPC could only run *after* the units came back,
+ * and every public page paid a second network round trip to learn four timestamps.
+ */
+export async function getNextFreeMapByBranch(
+  db: SupabaseClient<Database>,
+  branchId: string | null,
+  now = new Date(),
+): Promise<Map<string, string | null>> {
+  const { data, error } = await db.rpc("next_available_by_branch", {
+    p_branch_id: branchId ?? undefined,
+    p_from: now.toISOString(),
+  });
+  if (error) throw new Error(error.message);
+
+  const map = new Map<string, string | null>();
+  for (const row of data ?? []) map.set(row.unit_id, row.next_free);
+  return map;
+}

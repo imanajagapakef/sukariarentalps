@@ -11,7 +11,7 @@ export function PriceBadge({
   return (
     <span
       className={cn(
-        "inline-flex w-fit items-baseline gap-1 rounded-md border border-primary/35 bg-primary/10 px-2.5 py-1 text-xs font-bold text-primary",
+        "inline-flex w-fit items-baseline gap-1 rounded-md border border-white/10 bg-white/5 px-2.5 py-1 text-xs font-bold text-on-surface-variant",
         className,
       )}
     >

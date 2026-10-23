@@ -1,6 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { jsonRateLimited } from "@/lib/api/response";
+import { rateLimit } from "@/lib/rate-limit";
 
 const vitalsSchema = z
   .object({
@@ -17,6 +19,9 @@ const vitalsSchema = z
  * real traffic (same note as /api/feedback).
  */
 export async function POST(request: NextRequest) {
+  const limit = rateLimit("vitals", request);
+  if (!limit.allowed) return jsonRateLimited(limit.retryAfterSeconds);
+
   const parsed = vitalsSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ ok: false }, { status: 400 });
 

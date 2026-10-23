@@ -2,6 +2,8 @@ import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getBookingByCode } from "@/services/booking.service";
+import { jsonRateLimited } from "@/lib/api/response";
+import { rateLimit } from "@/lib/rate-limit";
 
 const feedbackSchema = z
   .object({
@@ -16,6 +18,9 @@ const feedbackSchema = z
 
 /** ponytail: anonymous writes — auth comes with Fase E; rate-limit at the edge before launch. */
 export async function POST(request: NextRequest) {
+  const limit = rateLimit("feedback", request);
+  if (!limit.allowed) return jsonRateLimited(limit.retryAfterSeconds);
+
   const parsed = feedbackSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: { message: "Data feedback tidak valid" } }, { status: 400 });
 

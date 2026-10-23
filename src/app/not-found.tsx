@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { SiteFooter, SiteHeader } from "@/components/site-chrome";
+import { SiteHeader } from "@/components/site-header";
+import { SiteFooter } from "@/components/site-chrome";
 import { Button } from "@/components/ui/button";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 

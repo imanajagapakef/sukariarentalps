@@ -1,10 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import { Image as ImageIcon, Trash2, Upload } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { deleteImage, uploadImage } from "@/lib/media";
+import { uploadImage } from "@/lib/media";
 import { downscaleImage } from "@/lib/image-downscale";
 import { Button } from "@/components/ui/button";
 
@@ -15,6 +14,12 @@ import { Button } from "@/components/ui/button";
  * column when the caller saves it, so this is the same shape as any other
  * edited column. Object paths are namespaced `{entity}/{id}/{file}` so a row's
  * assets are easy to list and replacing a file overwrites in place.
+ *
+ * Clearing an image only reports `null` — it never deletes the object itself.
+ * The caller owns the save, so the caller owns the delete, and it can run it
+ * after the row is written. Doing it here was a genuine data-integrity bug: the
+ * file went away immediately, so any save that did not land left image_url
+ * pointing at a missing object. See `orphanedImageUrl`.
  */
 export function ImageUploader({
   entity,
@@ -26,10 +31,9 @@ export function ImageUploader({
   entity: string;
   rowId: string;
   value: string | null | undefined;
-  onChange: (url: string) => void;
+  onChange: (url: string | null) => void;
   label?: string;
 }) {
-  const router = useRouter();
   const db = useMemo(() => createClient(), []);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -41,8 +45,11 @@ export function ImageUploader({
     try {
       const optimized = await downscaleImage(file);
       const { publicUrl } = await uploadImage(db, entity, rowId, optimized);
+      // No router.refresh() here: this component never writes the row, so there is
+      // nothing new to re-read. Refreshing anyway re-rendered the whole page mid-edit
+      // and made it look like the change had already been saved. The caller persists
+      // the URL and refreshes when it is actually written.
       onChange(publicUrl);
-      router.refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Upload gagal");
     } finally {
@@ -50,18 +57,8 @@ export function ImageUploader({
     }
   }
 
-  async function remove() {
-    setError(null);
-    setBusy(true);
-    try {
-      if (value) await deleteImage(db, value);
-      onChange("");
-      router.refresh();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Hapus gagal");
-    } finally {
-      setBusy(false);
-    }
+  function remove() {
+    onChange(null);
   }
 
   return (
@@ -92,7 +89,7 @@ export function ImageUploader({
       </label>
 
       {value && (
-        <Button type="button" size="icon-xs" variant="ghost" disabled={busy} onClick={() => void remove()} aria-label="Hapus gambar">
+        <Button type="button" size="icon-xs" variant="ghost" disabled={busy} onClick={remove} aria-label="Hapus gambar">
           <Trash2 aria-hidden className="size-3.5" />
         </Button>
       )}

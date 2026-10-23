@@ -1,5 +1,7 @@
 import Link from "next/link";
+import Image from "next/image";
 import { getBranches, getUnitsWithFacility } from "@/lib/catalog";
+import { getBranchPhotos } from "@/lib/branch-photos";
 import { groupByBranch } from "@/lib/branch-availability";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -8,7 +10,11 @@ import { CabangHeroAnimation } from "@/components/cabang-hero-animation";
 export const revalidate = 300;
 
 export default async function CabangPage() {
-  const [branches, units] = await Promise.all([getBranches(), getUnitsWithFacility()]);
+  const [branches, units, photosByBranch] = await Promise.all([
+    getBranches(),
+    getUnitsWithFacility(),
+    getBranchPhotos(),
+  ]);
   const availability = groupByBranch(units);
 
   return (
@@ -17,19 +23,35 @@ export default async function CabangPage() {
         <div className="max-w-2xl">
           <h1 className="font-display text-3xl uppercase md:text-5xl">Cabang</h1>
         </div>
-        <CabangHeroAnimation className="h-24 w-full md:h-44 md:w-[480px] shrink-0" />
+        <CabangHeroAnimation className="h-24 w-full md:h-44 md:w-120 shrink-0" />
       </div>
       <div className="mt-8 grid gap-4 sm:grid-cols-2">
         {branches.map((b) => {
           const stats = availability.get(b.branch_id);
           const total = stats?.total ?? 0;
           const free = stats?.available ?? 0;
+          const cover =
+            photosByBranch.get(b.branch_id)?.[0]?.image_url ?? b.image_url ?? undefined;
 
           return (
             <div
               key={b.branch_id}
-              className="flex flex-col gap-2 rounded-xl border border-border bg-card p-6"
+              className="flex flex-col overflow-hidden rounded-xl border border-border bg-card"
             >
+              {/* First gallery photo is the cover; falls back to the legacy single
+                  image_url so a branch that only has the old one still looks right. */}
+              {cover && (
+                <Link href={`/cabang/${b.branch_id}`} className="relative block aspect-[16/9] bg-muted">
+                  <Image
+                    src={cover}
+                    alt={b.name}
+                    fill
+                    sizes="(max-width: 640px) 100vw, 380px"
+                    className="object-cover transition-transform duration-500 hover:scale-105"
+                  />
+                </Link>
+              )}
+              <div className="flex flex-1 flex-col gap-2 p-6">
               <div className="flex items-start justify-between gap-2">
                 <h2 className="font-display text-xl uppercase">{b.name}</h2>
                 <Badge variant={free > 0 ? "default" : "secondary"}>
@@ -87,6 +109,7 @@ export default async function CabangPage() {
                 <Button asChild size="sm">
                   <Link href={`/booking?branch=${b.branch_id}`}>Booking</Link>
                 </Button>
+              </div>
               </div>
             </div>
           );

@@ -21,6 +21,7 @@ import { SectionBanner } from "@/components/kit/section-banner";
 import { StationCard } from "@/components/kit/station-card";
 import { InstantBookingWidget } from "@/components/kit/instant-booking-widget";
 import { HeroGamingAnimation } from "@/components/hero-gaming-animation";
+import { TournamentSpotlight } from "@/components/tournament-spotlight";
 import {
   getBranches,
   getFacilityTypes,
@@ -30,12 +31,22 @@ import {
   getSnacks,
   getUnitsWithFacility,
 } from "@/lib/catalog";
-import { createClient } from "@/lib/supabase/server";
-import { getNextFreeMap } from "@/lib/next-free";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { getNextFreeMapByBranch } from "@/lib/next-free";
 import { rp } from "@/lib/format";
 import { facilityCopy } from "@/lib/facility-copy";
 
+// Halaman publik: pakai admin client. Client sesi bisa terbawa JWT login staff
+// yang sudah expired → crash "JWT expired", dan RPC next_available membaca
+// unit_reservations yang RLS-nya service-only (hanya kena saat service role).
+//
+// 20 detik, bukan force-dynamic: catalogue + status unit cukup basi segitu, dan
+// meng-cache fetch-nya membuat kunjungan berikutnya tidak menunggu 40-70 ms per
+// query ke PostgREST. Status live tetap Glycolong lewat polling LiveUnits.
+export const revalidate = 20;
+
 export default async function Home() {
+  const db = createAdminClient({ revalidate: 20 });
   const [
     branches,
     units,
@@ -44,6 +55,10 @@ export default async function Home() {
     games,
     snacks,
     promos,
+    // The RPC now works out which units are busy on its own, so it joins the first
+    // wave instead of waiting for the unit list. Whole book on purpose: the preview
+    // shows four units and the extra rows are cheaper than a second round trip.
+    nextFree,
   ] = await Promise.all([
     getBranches(),
     getUnitsWithFacility(),
@@ -52,6 +67,7 @@ export default async function Home() {
     getGames(),
     getSnacks(),
     getPromotions(),
+    getNextFreeMapByBranch(db, null),
   ]);
 
   // Live monitor preview: first branch, up to 4 units, occupied ones get their
@@ -60,8 +76,6 @@ export default async function Home() {
   const monitorUnits = monitorBranch
     ? units.filter((u) => u.branch_id === monitorBranch.branch_id).slice(0, 4)
     : [];
-  const db = await createClient();
-  const nextFree = await getNextFreeMap(db, monitorUnits);
 
   const availableTotal = units.filter((u) => u.status === "AVAILABLE").length;
 
@@ -77,7 +91,14 @@ export default async function Home() {
               "radial-gradient(60% 70% at 85% 15%, rgba(32,168,58,0.35), transparent 70%)",
           }}
         />
-        <div className="relative mx-auto max-w-6xl px-4 py-16 md:px-8 md:py-24">
+        {/* The hero is the one place with dead space on the left: HeroGamingAnimation is
+            pinned to the section's right edge, so this column never needs all 1152px
+            and centring it just floats the text in the middle of a wide screen.
+            From xl up the column is left-locked to the page padding instead.
+            `max-xl:mx-auto` and `xl:mx-0` live in mutually exclusive media queries,
+            so neither has to win a specificity fight against the other, and narrow
+            screens keep the centred layout they always had. */}
+        <div className="relative max-w-6xl px-4 py-16 md:px-8 md:py-24 max-xl:mx-auto xl:mx-0 xl:pl-10">
           <div className="flex items-center gap-2">
             <StickerTag variant="green" rotate={-1.5}>
               <Bolt aria-hidden className="size-3" /> Buka 24 Jam
@@ -275,11 +296,11 @@ export default async function Home() {
                       </p>
                     </div>
                     <p className="text-sm text-on-surface-variant sm:flex-1">{copy.desc}</p>
-                    <div className="flex items-center justify-between gap-3 sm:flex-col sm:items-end">
+                    <div className="flex flex-wrap items-center justify-between gap-3 sm:flex-col sm:items-end">
                       {rate !== undefined ? (
                         <PriceBadge>
-                          Mulai <span className="font-display text-base">{rp(Math.round(rate))}</span>
-                          /Jam
+                          Mulai <span className="font-display text-2xl leading-none text-on-surface">{rp(Math.round(rate))}</span>
+                          <span className="text-primary">/Jam</span>
                         </PriceBadge>
                       ) : (
                         <PlatformPill platform={f.platform} />
@@ -311,11 +332,11 @@ export default async function Home() {
                     </p>
                   </div>
                   <p className="text-sm text-on-surface-variant">{copy.desc}</p>
-                  <div className="mt-auto flex items-center justify-between gap-2 pt-2">
+                  <div className="mt-auto flex flex-wrap items-center justify-between gap-2 pt-2">
                     {rate !== undefined ? (
                       <PriceBadge>
-                        Mulai <span className="font-display text-base">{rp(Math.round(rate))}</span>
-                        /Jam
+                        Mulai <span className="font-display text-2xl leading-none text-on-surface">{rp(Math.round(rate))}</span>
+                        <span className="text-primary">/Jam</span>
                       </PriceBadge>
                     ) : (
                       <PlatformPill platform={f.platform} />
@@ -385,6 +406,13 @@ export default async function Home() {
           </Button>
         </div>
       </section>
+
+      {/* ---------- TOURNAMENT SPOTLIGHT ----------
+          Below the catalogue, not above the fold. A visitor who has just been browsing
+          games is primed for "who is playing what, when" — putting it there reads as part
+          of the offer, whereas at the very top it interrupts someone who only came to see
+          whether a console is free tonight. */}
+      <TournamentSpotlight />
 
       {/* ---------- SNACK BAR ---------- */}
       <section className="border-y border-white/8 bg-surface-lowest">

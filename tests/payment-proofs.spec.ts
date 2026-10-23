@@ -3,7 +3,8 @@ import { Client } from "pg";
 import { NextRequest } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { POST as uploadProof } from "@/app/api/payments/[code]/proof/route";
-import { PROOF_BUCKET, listPaymentProofs } from "@/lib/payment-proofs";
+import { PROOF_BUCKET, detectImageKind, listPaymentProofs } from "@/lib/payment-proofs";
+import { _resetForTests as resetRateLimits } from "@/lib/rate-limit";
 
 const connectionString = process.env.TEST_DATABASE_URL;
 const describeDb = connectionString ? describe : describe.skip;
@@ -23,6 +24,75 @@ function proofRequest(code: string, body: { nominal?: string; note?: string; fil
   form.set("proof", body.file ?? new File([PNG_BYTES], "bukti.png", { type: "image/png" }));
   return new NextRequest(new Request(`http://localhost/api/payments/${code}/proof`, { method: "POST", body: form }));
 }
+
+/**
+ * Pure content sniffing — no database, no network, no secrets. `checkProofFile`
+ * rejects a claimed-but-forged `file.type` based on these bytes, so the matrix
+ * below is the whole of what "is this actually a picture" means here.
+ */
+describe("detectImageKind (magic bytes)", () => {
+  it("recognises every accepted image kind from its real header", () => {
+    // JPEG: SOI + APP0 marker ("JFIF\0" follows at 6-10).
+    const jpeg = Uint8Array.from([
+      0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00, 0x01,
+    ]);
+    expect(detectImageKind(jpeg)).toBe("image/jpeg");
+
+    // The 1x1 PNG used for the storage tests above.
+    expect(detectImageKind(PNG_BYTES)).toBe("image/png");
+
+    // WebP: "RIFF" + byte size + "WEBP".
+    const webp = Uint8Array.from([
+      0x52, 0x49, 0x46, 0x46, 0x24, 0x00, 0x00, 0x00, 0x57, 0x45, 0x42, 0x50,
+    ]);
+    expect(detectImageKind(webp)).toBe("image/webp");
+
+    // AVIF: ftyp box with major brand "avif", and the HEIF aerial variant "avis".
+    const avif = Uint8Array.from([
+      0x00, 0x00, 0x00, 0x18, 0x66, 0x74, 0x79, 0x70, 0x61, 0x76, 0x69, 0x66, 0x00, 0x00, 0x00, 0x00,
+    ]);
+    expect(detectImageKind(avif)).toBe("image/avif");
+    const avis = Uint8Array.from([
+      0x00, 0x00, 0x00, 0x18, 0x66, 0x74, 0x79, 0x70, 0x61, 0x76, 0x69, 0x73, 0x00, 0x00, 0x00, 0x00,
+    ]);
+    expect(detectImageKind(avis)).toBe("image/avif");
+  });
+
+  it("rejects formats we do not accept", () => {
+    const gif = Uint8Array.from([0x47, 0x49, 0x46, 0x38, 0x39, 0x61, 0x01, 0x00]);
+    expect(detectImageKind(gif)).toBeNull();
+
+    // Text renamed to .png — the exact rename-a-script payload the check exists for.
+    const text = Uint8Array.from("console.log('hi')", (c) => c.charCodeAt(0));
+    expect(detectImageKind(text)).toBeNull();
+
+    expect(detectImageKind(new Uint8Array())).toBeNull();
+  });
+
+  it("is strict about IMG containers and truncated headers", () => {
+    // RIFF box that is a WAV file, not a WebP.
+    const wave = Uint8Array.from([
+      0x52, 0x49, 0x46, 0x46, 0x24, 0x00, 0x00, 0x00, 0x57, 0x41, 0x56, 0x45,
+    ]);
+    expect(detectImageKind(wave)).toBeNull();
+
+    // ftyp box with a non-image major brand.
+    const mif1 = Uint8Array.from([
+      0x00, 0x00, 0x00, 0x18, 0x66, 0x74, 0x79, 0x70, 0x6d, 0x69, 0x66, 0x31,
+    ]);
+    expect(detectImageKind(mif1)).toBeNull();
+
+    // Truncated headers cannot claim an image.
+    expect(detectImageKind(Uint8Array.from([0xff, 0xd8]))).toBeNull();
+    expect(detectImageKind(Uint8Array.from([0x89, 0x50, 0x4e]))).toBeNull();
+    expect(
+      detectImageKind(Uint8Array.from([0x52, 0x49, 0x46, 0x46, 0x24, 0x00, 0x00, 0x00])),
+    ).toBeNull();
+    expect(
+      detectImageKind(Uint8Array.from([0x00, 0x00, 0x00, 0x18, 0x66, 0x74, 0x79, 0x70])),
+    ).toBeNull();
+  });
+});
 
 /**
  * Payment proof upload.
@@ -53,6 +123,10 @@ describeDb("payment proofs", () => {
     admin = createAdminClient();
     db = new Client({ connectionString, ssl: { rejectUnauthorized: false } });
     await db.connect();
+    // The route's limiter is in-memory and every request this process makes rides on
+    // one shared IP bucket. Clear it so each test starts quiet — the assertions below
+    // are about the per-booking cap, never a leftover window from an earlier test.
+    resetRateLimits();
     await db.query(
       `insert into facility_types (facility_type_id, code, name, platform, category)
        values ($1, $2, 'Proof Test Facility', 'PS5', 'RENTAL')`,
@@ -102,6 +176,7 @@ describeDb("payment proofs", () => {
   });
 
   async function cleanProofs() {
+    resetRateLimits(); // keep the shared in-memory limiter from bleeding between tests
     const { data } = await admin
       .from("payment_proofs")
       .select("object_path")

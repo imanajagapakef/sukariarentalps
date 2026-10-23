@@ -45,10 +45,13 @@ describeLive("admin users route", () => {
 
     // Checked, because a silent failure here produced a baffling 404 two tests later:
     // profiles.user_id has an FK to auth.users, so a bad row just vanishes.
+    // branch_id is required by migration 0034's profiles_staff_needs_branch CHECK:
+    // a STAFF profile with no branch is rejected outright.
     const { error: profileError } = await db.from("profiles").insert({
       user_id: targetId,
       full_name: "Route Test",
       role: "STAFF",
+      branch_id: "BR-GANET",
       active: true,
     });
     if (profileError) throw new Error(`gagal membuat profile test: ${profileError.message}`);

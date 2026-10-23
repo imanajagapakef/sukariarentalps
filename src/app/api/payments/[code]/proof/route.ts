@@ -3,7 +3,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { paymentProofSchema } from "@/lib/validations/booking";
 import { getBookingByCode } from "@/services/booking.service";
 import { createPaymentProof, ProofError } from "@/lib/payment-proofs";
-import { handleRouteError, jsonError } from "@/lib/api/response";
+import { handleRouteError, jsonError, jsonRateLimited } from "@/lib/api/response";
+import { rateLimit } from "@/lib/rate-limit";
 
 /**
  * Customer uploads proof of transfer against a booking code.
@@ -22,6 +23,9 @@ export async function POST(
 ) {
   try {
     const { code } = await params;
+
+    const limit = rateLimit("proofUpload", request, code);
+    if (!limit.allowed) return jsonRateLimited(limit.retryAfterSeconds);
 
     let form: FormData;
     try {
@@ -50,6 +54,12 @@ export async function POST(
     // be somebody else's.
     if (booking.status !== "WAITING_PAYMENT") {
       return jsonError(`Booking ini sudah ${booking.status}`, 409);
+    }
+
+    // The transfer amount must be exactly the booking total, or the cashier is
+    // reconciling a number the system never asked for.
+    if (parsed.data.nominal !== booking.total_amount) {
+      return jsonError(`Nominal transfer harus tepat ${booking.total_amount} (total booking)`, 400);
     }
 
     const proof = await createPaymentProof(
