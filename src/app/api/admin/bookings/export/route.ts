@@ -1,51 +1,51 @@
-import { NextResponse, type NextRequest } from "next/server";
+import type { NextRequest } from "next/server";
+import { z } from "zod";
 import { AuthError, getStaffUser } from "@/lib/authz";
 import { listBookings, type BookingRow } from "@/lib/bookings-query";
 import { handleRouteError } from "@/lib/api/response";
-import { fmtDateTime } from "@/lib/format";
+import { csvFilename, csvNumber, csvPhone, csvResponse, csvText, toCsv } from "@/lib/csv";
+import { wibDateTime, wibDay } from "@/lib/wib";
 
+/** One entry per cell in toRow(), in the same order. toCsv throws if the two drift apart. */
 const COLUMNS = [
   "Kode",
   "Status",
   "Customer",
   "Telepon",
   "Unit",
-  "Mulai",
-  "Selesai",
-  "Durasi (mnt)",
-  "Total",
+  "Mulai (WIB)",
+  "Selesai (WIB)",
+  "Durasi (menit)",
+  "Total (Rp)",
   "Sumber",
-];
+] as const;
 
-/**
- * A leading =, +, - or @ makes Excel/LibreOffice treat the cell as a formula, and
- * customer names and phone numbers are attacker-controllable — a booking named
- * `=cmd|...` would otherwise run when staff opened the export. Prefixing with an
- * apostrophe is the standard fix and is invisible in the cell.
- */
-function cell(value: string | number | null | undefined): string {
-  const s = value === null || value === undefined ? "" : String(value);
-  const safe = /^[=+\-@\t\r]/.test(s) ? `'${s}` : s;
-  return /[",\n\r]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
-}
+// ZodError is mapped to 422 by handleRouteError, so a hand-edited URL gets a clear
+// refusal instead of reaching the query or the response headers.
+const filtersSchema = z.object({
+  status: z.string().max(40).optional(),
+  q: z.string().max(100).optional(),
+  date: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Tanggal harus berformat YYYY-MM-DD")
+    .optional(),
+});
 
-function row(b: BookingRow): string {
+function toRow(b: BookingRow): string[] {
   return [
-    b.booking_code,
-    b.status,
-    b.customers?.name,
-    b.customers?.phone,
-    b.units?.name,
-    fmtDateTime(b.scheduled_start_at),
-    fmtDateTime(b.scheduled_end_at),
-    b.duration_minutes,
-    // Plain number, not the Rp formatter: the column has to stay sortable and
-    // summable in a spreadsheet.
-    b.total_amount,
-    b.source,
-  ]
-    .map(cell)
-    .join(",");
+    csvText(b.booking_code),
+    csvText(b.status),
+    csvText(b.customers?.name),
+    csvPhone(b.customers?.phone),
+    csvText(b.units?.name),
+    // WIB, "YYYY-MM-DD HH:mm": sortable in a spreadsheet and correct for a 00:30 start.
+    csvText(wibDateTime(b.scheduled_start_at)),
+    csvText(wibDateTime(b.scheduled_end_at)),
+    csvNumber(b.duration_minutes),
+    // Plain number, not the Rp formatter: the column has to stay sortable and summable.
+    csvNumber(b.total_amount),
+    csvText(b.source),
+  ];
 }
 
 /**
@@ -58,33 +58,27 @@ function row(b: BookingRow): string {
 export async function GET(request: NextRequest) {
   try {
     const profile = await getStaffUser();
-    // fail-closed tripwire: STAFF scoping rides on branch_id — a null branch on
-    // a STAFF row (DB-impossible after migration 0034) would export every
-    // branch's bookings through the CSV.
+    // fail-closed tripwire: STAFF scoping rides on branch_id. A null branch on a STAFF
+    // row (DB-impossible after migration 0034) would export every branch's bookings.
     if (profile.role === "STAFF" && !profile.branch_id) {
       throw new AuthError("Akun staff belum terikat cabang", 403);
     }
+
     const params = request.nextUrl.searchParams;
+    const param = (key: string) => params.get(key)?.trim() || undefined;
+    const filters = filtersSchema.parse({
+      status: param("status"),
+      q: param("q"),
+      date: param("date"),
+    });
+
     // A STAFF profile exports only its own branch; null (OWNER/ADMIN) = every branch.
-    const rows = await listBookings({
-      status: params.get("status") ?? undefined,
-      q: params.get("q") ?? undefined,
-      date: params.get("date") ?? undefined,
-      branchId: profile.branch_id,
-    });
+    const rows = await listBookings({ ...filters, branchId: profile.branch_id });
 
-    const csv = [COLUMNS.join(","), ...rows.map(row)].join("\r\n");
-    const stamp = (params.get("date") || new Date().toISOString().slice(0, 10)) as string;
-
-    return new NextResponse(`﻿${csv}`, {
-      headers: {
-        "Content-Type": "text/csv; charset=utf-8",
-        // Without this a filename in a Content-Disposition is attacker-guessable
-        // from the date alone, and the Excel cache would serve a stale export.
-        "Content-Disposition": `attachment; filename="bookings-${stamp}.csv"`,
-        "Cache-Control": "no-store",
-      },
-    });
+    // Filters and export date live in the filename, not in the file: rows inside the CSV
+    // would break sorting, filtering and pivots, and an unescaped `q` could inject one.
+    const filename = csvFilename(["bookings", filters.date ?? "semua", filters.status, wibDay()]);
+    return csvResponse(toCsv(COLUMNS, rows.map(toRow)), filename);
   } catch (error) {
     return handleRouteError(error);
   }
