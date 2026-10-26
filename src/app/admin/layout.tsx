@@ -83,20 +83,22 @@ export default async function AdminLayout({ children }: Readonly<{ children: Rea
 
   // Payment queue depth for the nav badge. Nothing settles automatically any more, so
   // a cashier needs to know there is work waiting without opening the Bookings page.
-  // STAFF count only their branch's queue.
-  const pendingCount = await countWaitingPayment(me.branch_id).catch(() => 0);
+  // STAFF count only their branch's queue. Run in parallel with the branch lookup so
+  // a single navigation does not serialize two independent queries.
+  const [pendingCount, branchRow] = await Promise.all([
+    countWaitingPayment(me.branch_id).catch(() => 0),
+    me.role === "STAFF" && me.branch_id
+      ? createAdminClient()
+          .from("branches")
+          .select("short_name, name")
+          .eq("branch_id", me.branch_id)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
+  ]);
 
-  // STAFF bertugas di satu cabang; menampilkan namanya di samping role
-  // membuat scoping itu terlihat alih-alih jadi 403 misterius saat mereka
-  // menyentuh data lain.
   let branchLabel: string | null = null;
   if (me.role === "STAFF" && me.branch_id) {
-    const { data: branch } = await createAdminClient()
-      .from("branches")
-      .select("short_name, name")
-      .eq("branch_id", me.branch_id)
-      .maybeSingle();
-    branchLabel = branch ? branch.short_name ?? branch.name : me.branch_id;
+    branchLabel = branchRow?.data ? branchRow.data.short_name ?? branchRow.data.name : me.branch_id;
   }
 
   return (
@@ -142,28 +144,30 @@ export default async function AdminLayout({ children }: Readonly<{ children: Rea
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex items-center gap-3 border-b border-border bg-surface px-4 py-2.5 md:px-6">
+        <header className="relative flex items-center gap-3 border-b border-border bg-surface px-4 py-2.5 md:px-6">
+          {/* Hamburger di paling kiri, hanya di layar kecil. Drawer keluar dari kiri. */}
+          <AdminNavMobile hidden={hidden} pendingCount={pendingCount} />
+
           <p className="inline-flex items-center gap-2 rounded-full border border-border bg-surface-container px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant">
             <span aria-hidden className="size-2 rounded-full bg-primary" />
             Live &middot; Data real-time
           </p>
 
-          <p className="ml-auto inline-flex items-center gap-2 rounded-lg border border-border bg-surface-container px-3 py-1.5 text-xs text-muted-foreground">
-            <CalendarDays aria-hidden className="size-3.5" />
-            {fmtDate(new Date().toISOString())}
-          </p>
+          {/* Grup kanan selalu terdorong ke ujung. */}
+          <div className="ml-auto flex items-center gap-3">
+            <p className="hidden items-center gap-2 rounded-lg border border-border bg-surface-container px-3 py-1.5 text-xs text-muted-foreground sm:inline-flex">
+              <CalendarDays aria-hidden className="size-3.5" />
+              {fmtDate(new Date().toISOString())}
+            </p>
 
-          <span
-            title={`${name} — ${role}${branchLabel ? ` — ${branchLabel}` : ""}`}
-            className="hidden size-8 shrink-0 place-items-center rounded-full bg-primary text-on-primary sm:grid"
-          >
-            <UserRound aria-hidden className="size-4" />
-          </span>
+            <span
+              title={`${name} — ${role}${branchLabel ? ` — ${branchLabel}` : ""}`}
+              className="hidden size-8 shrink-0 place-items-center rounded-full bg-primary text-on-primary sm:grid"
+            >
+              <UserRound aria-hidden className="size-4" />
+            </span>
+          </div>
         </header>
-
-        <div className="flex items-center gap-2 overflow-x-auto border-b border-border bg-surface px-3 py-2 md:hidden">
-          <AdminNavMobile hidden={hidden} pendingCount={pendingCount} />
-        </div>
 
         <main id="konten" className="min-w-0 flex-1 p-4 md:p-8">{children}</main>
       </div>
