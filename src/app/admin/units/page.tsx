@@ -3,13 +3,15 @@ import { UnitStatusPill } from "@/components/status-pill";
 import { UnitActions } from "@/components/admin/unit-actions";
 import { UnitPhoto } from "@/components/admin/unit-photo";
 import { StatCards } from "@/components/admin/stat-cards";
+import { TablePagination } from "@/components/admin/table-pagination";
 import { SelectField } from "@/components/ui/select-field";
 import { EmptyState } from "@/components/empty-state";
 import {
   UNIT_SORTS,
   UNIT_STATUSES,
   getBranchOptions,
-  listUnits,
+  listUnitsPage,
+  unitStatusBreakdown,
   type UnitFilters,
 } from "@/lib/units-query";
 import { UNIT_LABEL } from "@/lib/format";
@@ -23,15 +25,23 @@ const SORT_LABEL: Record<string, string> = {
   condition: "Kondisi",
 };
 
-export default async function AdminUnitsPage({ searchParams }: { searchParams: Promise<UnitFilters> }) {
-  const filters = await searchParams;
-  const units = await listUnits(filters);
-  const branches = await getBranchOptions();
+export default async function AdminUnitsPage({
+  searchParams,
+}: {
+  searchParams: Promise<UnitFilters & { page?: string }>;
+}) {
+  // `page` belongs to this view only and must not travel into the filters, or a sort
+  // link would carry it and the table would stay on a page the new sort may not have.
+  const { page: pageParam, ...filters } = await searchParams;
+  const { rows: units, total, page, pageCount, from, to } = await listUnitsPage(
+    filters,
+    Number(pageParam ?? "1"),
+  );
+  // Status counts come off the filtered set (one light query over the status column),
+  // not off the page — otherwise every card would describe ten rows, not the fleet.
+  const [byStatus, branches] = await Promise.all([unitStatusBreakdown(filters), getBranchOptions()]);
 
-  // Counts come off the rows this page already fetched — no second query. But these
-  // describe the *filtered* set, so they only equal the fleet total when nothing is
-  // filtered, which is the invariant to check when a status is added.
-  const by = (s: string) => units.filter((u) => u.status === s).length;
+  const by = (s: string) => byStatus[s] ?? 0;
   const outOfService = by("MAINTENANCE") + by("OFFLINE");
   const filtered = Boolean(filters.q || filters.branch || filters.status);
 
@@ -75,7 +85,7 @@ export default async function AdminUnitsPage({ searchParams }: { searchParams: P
       </p>
       <StatCards
         cards={[
-          { label: filtered ? "Unit terfilter" : "Total unit", value: units.length },
+          { label: filtered ? "Unit terfilter" : "Total unit", value: total },
           { label: "Tersedia", value: by("AVAILABLE"), tone: "primary" },
           { label: "Dipesan", value: by("BOOKED") },
           { label: "Sedang dipakai", value: by("IN_USE") },
@@ -180,6 +190,17 @@ export default async function AdminUnitsPage({ searchParams }: { searchParams: P
           </table>
         </div>
       )}
+
+      <TablePagination
+        basePath="/admin/units"
+        params={{ q: filters.q, branch: filters.branch, status: filters.status, sort: activeSort, dir }}
+        page={page}
+        pageCount={pageCount}
+        total={total}
+        from={from}
+        to={to}
+        itemLabel="unit"
+      />
     </div>
   );
 }
