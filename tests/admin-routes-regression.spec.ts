@@ -99,7 +99,10 @@ describeLive("admin routes regression", () => {
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toContain("text/csv");
     // No ?query in the URL — a trailing "?" here used to be baked into every href.
-    expect(response.headers.get("content-disposition")).toMatch(/filename="bookings-[\d-]+\.csv"/);
+    // Tanpa ?date, nama file berisi "semua" + tanggal ekspor: bookings_semua_YYYY-MM-DD.csv
+    expect(response.headers.get("content-disposition")).toMatch(
+      /filename="bookings_semua_\d{4}-\d{2}-\d{2}\.csv"/,
+    );
   });
 
   it("does not 500 on a search term, whatever the user types", async () => {
@@ -162,8 +165,9 @@ describeLive("admin routes regression", () => {
 
   it("serves the reports CSV as a header row plus data", async () => {
     await signInAsOwner();
+    // Rentang ≤366 hari per validasi baru; cukup lebar untuk tangkap semua booking uji.
     const res = await exportReports({
-      nextUrl: new URL("http://localhost/api/admin/reports/export?from=2000-01-01&to=2100-01-01"),
+      nextUrl: new URL("http://localhost/api/admin/reports/export?from=2026-01-01&to=2026-12-31"),
     } as never);
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toContain("text/csv");
@@ -171,8 +175,9 @@ describeLive("admin routes regression", () => {
 
     const text = await res.text();
     const lines = text.split("\r\n").filter(Boolean);
-    expect(lines[0]).toContain("Kode Booking");
-    expect(lines[0]).toContain("Tagihan");
+    // lines[0] = "sep=,", header ada di lines[1].
+    expect(lines[1]).toContain("Kode Booking");
+    expect(lines[1]).toContain("Tagihan");
     // No Rp formatting in a numeric column, or the sheet stops summing.
     expect(lines[0]).not.toContain("Rp");
   });
@@ -184,7 +189,8 @@ describeLive("admin routes regression", () => {
     } as never);
     const text = await res.text();
     expect(res.status).toBe(200);
-    expect(text.split("\r\n").filter(Boolean)).toHaveLength(1);
+    // `sep=,` hint + header baris = 2 baris ketika tidak ada data.
+    expect(text.split("\r\n").filter(Boolean)).toHaveLength(2);
   });
 
   it("neutralises a CSV formula prefix in the reports export too", async () => {
@@ -214,10 +220,10 @@ describeLive("admin routes regression", () => {
     createdPhones.push(`0896${suffix}`);
     await db.from("units").update({ status: "IN_ORDER" }).eq("unit_id", unitId);
 
+    const start5 = new Date(Date.now() + 5 * 864e5).toISOString().slice(0, 10);
     const res = await exportReports({
-      // An explicit wide range, not ?q= — the export takes branch/from/to only, and a
-      // booking dated in the future falls outside the default 30-day window.
-      nextUrl: new URL("http://localhost/api/admin/reports/export?from=2000-01-01&to=2100-01-01"),
+      // Rentang ≤366 hari, mencakup booking masa depan yang baru dibuat (5 hari ke depan).
+      nextUrl: new URL(`http://localhost/api/admin/reports/export?from=${start5}&to=${start5}`),
     } as never);
     const line = (await res.text())
       .split("\r\n")
