@@ -1,6 +1,6 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { expireStaleRegistrations } from "@/services/tournament.service";
+import { expireStaleRegistrations, purgeFinishedTournaments } from "@/services/tournament.service";
 import type { Database } from "@/types/database";
 
 /**
@@ -26,6 +26,8 @@ export async function getAdminTournaments(options?: {
 }> {
   const db = createAdminClient();
   const swept = await expireStaleRegistrations(db);
+  // Retention sweep: DONE tournaments older than a week are gone before the list is read.
+  await purgeFinishedTournaments(db);
 
   let listQuery = db
     .from("tournaments")
@@ -86,6 +88,7 @@ export async function getTournamentAdminDetail(
 }> {
   const db = createAdminClient();
   await expireStaleRegistrations(db);
+  await purgeFinishedTournaments(db);
 
   let tournamentQuery = db
     .from("tournaments")

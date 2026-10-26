@@ -262,6 +262,32 @@ export async function expireStaleRegistrations(db: DB): Promise<number> {
   return data as number;
 }
 
+/**
+ * Retention: a tournament that finished more than `afterDays` ago is removed from the
+ * database, along with its registrations, matches and their payments (those FKs cascade).
+ *
+ * "Finished" is read from `updated_at`: the set_updated_at trigger stamps it when an admin
+ * sets the status to DONE, and a finished tournament is not edited further, so that column
+ * is the completion clock. There is no cron in this app, so this runs on admin tournament
+ * reads — the same place the expiry sweep runs.
+ */
+export async function purgeFinishedTournaments(db: DB, afterDays = 7): Promise<number> {
+  const cutoff = new Date(Date.now() - afterDays * 86_400_000).toISOString();
+  const { data: stale, error } = await db
+    .from("tournaments")
+    .select("tournament_id")
+    .eq("status", "DONE")
+    .lt("updated_at", cutoff);
+  if (error) throw wrap(error);
+
+  const ids = (stale ?? []).map((t) => t.tournament_id);
+  if (ids.length === 0) return 0;
+
+  const { error: deleteError } = await db.from("tournaments").delete().in("tournament_id", ids);
+  if (deleteError) throw wrap(deleteError);
+  return ids.length;
+}
+
 export async function sendRegistrationNotifications(
   db: DB,
   registrationId: string,
