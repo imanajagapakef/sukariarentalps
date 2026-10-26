@@ -156,6 +156,9 @@ export type RegisterCheck = { ok: true } | { ok: false; reason: string };
 export function canRegister(t: Tournament, now: Date): RegisterCheck {
   if (t.status === "DRAFT") return { ok: false, reason: "Pendaftaran belum dibuka." };
   if (t.status === "CANCELLED") return { ok: false, reason: "Turnamen ini dibatalkan." };
+  // Turnamen yang sudah dimulai tidak boleh daftar lagi, terlepas dari statusnya
+  // (status belum di-update ke ONGOING atau registration_closes_at masih di depan).
+  if (new Date(t.starts_at) <= now) return { ok: false, reason: "Pendaftaran sudah ditutup." };
   if (t.status === "FULL" && seatsLeft(t) === 0) {
     return { ok: false, reason: "Kuota sudah penuh." };
   }
