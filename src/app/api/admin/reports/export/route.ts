@@ -3,25 +3,26 @@ import { z } from "zod";
 import { getStaffUser } from "@/lib/authz";
 import { rowsForExport, type ExportRow, type ReportFilters, windowedRows } from "@/lib/reports-query";
 import { handleRouteError } from "@/lib/api/response";
-import { csvFilename, csvNumber, csvPhone, csvResponse, csvText, toCsv } from "@/lib/csv";
+import { exportFilename } from "@/lib/csv";
+import { xlsxResponse } from "@/lib/xlsx";
 import { wibDateTime, wibDay } from "@/lib/wib";
 
 const COLUMNS = [
-  "Kode Booking",
-  "Sesi",
-  "Tanggal",
-  "Tamu",
-  "Telepon",
-  "Cabang",
-  "Unit",
-  "Sumber",
-  "Durasi (menit)",
-  "Status",
-  "Tagihan",
-  "Rental",
-  "Snack",
-  "Lunas",
-  "Kanal Bayar",
+  { header: "Kode Booking", width: 18, align: "left", value: (r: ExportRow) => r.booking_code },
+  { header: "Sesi", width: 18, align: "left", value: (r: ExportRow) => wibDateTime(r.session_at) },
+  { header: "Tanggal", width: 12, align: "left", value: (r: ExportRow) => wibDay(new Date(r.session_at)) },
+  { header: "Tamu", width: 24, align: "left", value: (r: ExportRow) => r.guest ?? "" },
+  { header: "Telepon", width: 18, align: "left", numFmt: "@", value: (r: ExportRow) => r.phone ?? "" },
+  { header: "Cabang", width: 16, align: "left", value: (r: ExportRow) => r.branch },
+  { header: "Unit", width: 18, align: "left", value: (r: ExportRow) => r.unit },
+  { header: "Sumber", width: 12, align: "left", value: (r: ExportRow) => r.source },
+  { header: "Durasi (menit)", width: 16, align: "right", numFmt: "#,##0", value: (r: ExportRow) => r.duration_minutes },
+  { header: "Status", width: 18, align: "left", value: (r: ExportRow) => r.status },
+  { header: "Tagihan", width: 16, align: "right", numFmt: "#,##0", value: (r: ExportRow) => r.invoice },
+  { header: "Rental", width: 16, align: "right", numFmt: "#,##0", value: (r: ExportRow) => r.rental },
+  { header: "Snack", width: 14, align: "right", numFmt: "#,##0", value: (r: ExportRow) => r.snack },
+  { header: "Lunas", width: 10, align: "center", value: (r: ExportRow) => (r.collected ? "Ya" : "Tidak") },
+  { header: "Kanal Bayar", width: 20, align: "left", value: (r: ExportRow) => r.channel },
 ] as const;
 
 const PRESETS = ["today", "d7", "d30"] as const;
@@ -50,30 +51,9 @@ const exportSchema = z
     path: ["to"],
   });
 
-function toRow(r: ExportRow): string[] {
-  return [
-    csvText(r.booking_code),
-    csvText(wibDateTime(r.session_at)),
-    csvText(wibDay(new Date(r.session_at))),
-    csvText(r.guest),
-    csvPhone(r.phone),
-    csvText(r.branch),
-    csvText(r.unit),
-    csvText(r.source),
-    csvNumber(r.duration_minutes),
-    csvText(r.status),
-    csvNumber(r.invoice),
-    csvNumber(r.rental),
-    csvNumber(r.snack),
-    // Boolean jadi teks readable, bukan angka.
-    csvText(r.collected ? "Ya" : "Tidak"),
-    csvText(r.channel),
-  ];
-}
-
 /**
  * Export laporan operasional. Hanya OWNER/ADMIN — STAFF tidak boleh, sama seperti
- * halaman reports. Filter dan rentang tanggal hidup di nama file, bukan di isi CSV.
+ * halaman reports. Filter dan rentang tanggal hidup di nama file, bukan di isi file.
  */
 export async function GET(request: NextRequest) {
   try {
@@ -97,15 +77,15 @@ export async function GET(request: NextRequest) {
     const rows = await rowsForExport(await windowedRows(reportFilters));
 
     // Rentang dan tanggal ekspor di nama file; baris # Laporan / # Rentang dikeluarkan
-    // dari isi CSV supaya tidak merusak sort, filter, dan pivot di spreadsheet.
-    const filename = csvFilename([
+    // dari isi file supaya tidak merusak sort, filter, dan pivot di spreadsheet.
+    const filename = exportFilename([
       "laporan",
       filters.from,
       filters.to,
       filters.branch,
       wibDay(),
-    ]);
-    return csvResponse(toCsv(COLUMNS, rows.map(toRow)), filename);
+    ], "xlsx");
+    return xlsxResponse("Laporan", COLUMNS, rows, filename);
   } catch (error) {
     return handleRouteError(error);
   }

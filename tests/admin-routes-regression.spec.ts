@@ -9,6 +9,7 @@ import {
   signOut,
 } from "./admin-harness";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { ValueType, type Row } from "exceljs";
 
 const describeLive = canAuthenticate ? describe : describe.skip;
 
@@ -91,17 +92,16 @@ describeLive("admin routes regression", () => {
     expect(result.status).toBe(401);
   });
 
-  it("serves the CSV export for a signed-in owner, without a stale filter", async () => {
+  it("serves the XLSX export for a signed-in owner, without a stale filter", async () => {
     await signInAsOwner();
     const response = await exportBookings({
       nextUrl: new URL("http://localhost/api/admin/bookings/export"),
     } as never);
     expect(response.status).toBe(200);
-    expect(response.headers.get("content-type")).toContain("text/csv");
-    // No ?query in the URL — a trailing "?" here used to be baked into every href.
-    // Tanpa ?date, nama file berisi "semua" + tanggal ekspor: bookings_semua_YYYY-MM-DD.csv
+    expect(response.headers.get("content-type")).toContain("spreadsheetml.sheet");
+    // Tanpa ?date, nama file berisi "semua" + tanggal ekspor: bookings_semua_YYYY-MM-DD.xlsx
     expect(response.headers.get("content-disposition")).toMatch(
-      /filename="bookings_semua_\d{4}-\d{2}-\d{2}\.csv"/,
+      /filename="bookings_semua_\d{4}-\d{2}-\d{2}\.xlsx"/,
     );
   });
 
@@ -146,12 +146,21 @@ describeLive("admin routes regression", () => {
     const response = await exportBookings({
       nextUrl: new URL(`http://localhost/api/admin/bookings/export?q=${suffix}`),
     } as never);
-    const csv = await response.text();
-    const line = csv.split("\r\n").find((l) => l.includes(rows[0].booking_code));
+    const buf = Buffer.from(await response.arrayBuffer());
+    const wb = new (require("exceljs")).Workbook();
+    await wb.xlsx.load(buf);
+    const ws = wb.getWorksheet(1);
+    let targetRow: any = null;
+    ws.eachRow((r: Row) => {
+      if (r.getCell(1).value === rows[0].booking_code) targetRow = r;
+    });
+    const line = targetRow.values.join(",");
+    const bookingCode = targetRow.getCell(1).value as string;
+    const customerName = targetRow.getCell(3).value as string;
 
-    expect(line, "booking should appear in the export").toBeTruthy();
-    expect(line).toContain(`'=cmd|${suffix}`);
-    expect(line).not.toMatch(/,=cmd\|/);
+    expect(bookingCode, "booking should appear in the export").toBeTruthy();
+    expect(customerName).toBe(`=cmd|${suffix}`);
+    expect(targetRow.getCell(3).type).toBe(ValueType.String);
   });
 
   it("refuses the reports CSV export with no session", async () => {
@@ -163,23 +172,26 @@ describeLive("admin routes regression", () => {
     expect(res.status).toBeGreaterThanOrEqual(401);
   });
 
-  it("serves the reports CSV as a header row plus data", async () => {
+  it("serves the reports XLSX as a header row plus data", async () => {
     await signInAsOwner();
     // Rentang ≤366 hari per validasi baru; cukup lebar untuk tangkap semua booking uji.
     const res = await exportReports({
       nextUrl: new URL("http://localhost/api/admin/reports/export?from=2026-01-01&to=2026-12-31"),
     } as never);
     expect(res.status).toBe(200);
-    expect(res.headers.get("content-type")).toContain("text/csv");
+    expect(res.headers.get("content-type")).toContain("spreadsheetml.sheet");
     expect(res.headers.get("content-disposition")).toContain("attachment");
 
-    const text = await res.text();
-    const lines = text.split("\r\n").filter(Boolean);
-    // lines[0] = "sep=,", header ada di lines[1].
-    expect(lines[1]).toContain("Kode Booking");
-    expect(lines[1]).toContain("Tagihan");
+    const buf = Buffer.from(await res.arrayBuffer());
+    const wb = new (require("exceljs")).Workbook();
+    await wb.xlsx.load(buf);
+    const ws = wb.getWorksheet(1);
+    const headerRow = ws.getRow(1);
+    const headers = headerRow.values.slice(1) as string[];
+    expect(headers).toContain("Kode Booking");
+    expect(headers).toContain("Tagihan");
     // No Rp formatting in a numeric column, or the sheet stops summing.
-    expect(lines[0]).not.toContain("Rp");
+    expect(headers.join(",")).not.toContain("Rp");
   });
 
   it("exports nothing but a header for a window with no bookings", async () => {
@@ -187,10 +199,13 @@ describeLive("admin routes regression", () => {
     const res = await exportReports({
       nextUrl: new URL("http://localhost/api/admin/reports/export?from=1990-01-01&to=1990-01-02"),
     } as never);
-    const text = await res.text();
+    const buf = Buffer.from(await res.arrayBuffer());
+    const wb = new (require("exceljs")).Workbook();
+    await wb.xlsx.load(buf);
+    const ws = wb.getWorksheet(1);
     expect(res.status).toBe(200);
-    // `sep=,` hint + header baris = 2 baris ketika tidak ada data.
-    expect(text.split("\r\n").filter(Boolean)).toHaveLength(2);
+    // Hanya baris header (row 1), tidak ada data row.
+    expect(ws.rowCount).toBe(1);
   });
 
   it("neutralises a CSV formula prefix in the reports export too", async () => {
@@ -225,13 +240,21 @@ describeLive("admin routes regression", () => {
       // Rentang ≤366 hari, mencakup booking masa depan yang baru dibuat (5 hari ke depan).
       nextUrl: new URL(`http://localhost/api/admin/reports/export?from=${start5}&to=${start5}`),
     } as never);
-    const line = (await res.text())
-      .split("\r\n")
-      .find((l) => l.includes(rows[0].booking_code));
+    const buf = Buffer.from(await res.arrayBuffer());
+    const wb = new (require("exceljs")).Workbook();
+    await wb.xlsx.load(buf);
+    const ws = wb.getWorksheet(1);
+    let targetRow: any = null;
+    ws.eachRow((r: Row) => {
+      if (r.getCell(1).value === rows[0].booking_code) targetRow = r;
+    });
+    const line = targetRow.values.join(",");
+    const bookingCode = targetRow.getCell(1).value as string;
+    const guestName = targetRow.getCell(4).value as string;
 
     expect(line, "hostile booking should appear in the export").toBeTruthy();
-    expect(line).toContain(`'=cmd|${suffix}`);
-    expect(line).not.toMatch(/,=cmd\|/);
+    expect(guestName).toBe(`=cmd|${suffix}`);
+    expect(targetRow.getCell(4).type).toBe(ValueType.String);
   });
 
   it("records a manual stock edit as an ADJUSTMENT instead of writing the column", async () => {

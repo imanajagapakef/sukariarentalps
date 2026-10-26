@@ -756,8 +756,15 @@ export async function guestReport(bookings: ReportBooking[], limit = 10): Promis
 
   const [{ data: guests }, { data: allTime }, items] = await Promise.all([
     db.from("customers").select("customer_id, name, phone").in("customer_id", [...ids]),
-    // Not window-filtered: this is what decides whether a guest is new.
-    db.from("bookings").select("customer_id, status, scheduled_start_at, branch_id").in("customer_id", [...ids]),
+    // Not window-filtered: this is what decides whether a guest is new. Bounded to the
+    // last 2 years so a long-time regular with hundreds of historical bookings does not
+    // force a full-table scan on every report view. First-ever booking older than this
+    // window is treated as "returning", which is the correct business outcome.
+    db
+      .from("bookings")
+      .select("customer_id, status, scheduled_start_at, branch_id")
+      .in("customer_id", [...ids])
+      .gte("scheduled_start_at", new Date(Date.now() - 2 * 365 * 86_400_000).toISOString()),
     itemsForBookings(itemsKey(bookings)),
   ]);
 

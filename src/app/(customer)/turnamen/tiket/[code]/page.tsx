@@ -87,7 +87,11 @@ export default async function TournamentTicketPage({
 
         <div className="mt-4 flex justify-center">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={qr} alt={`QR tiket ${registration.registration_code}`} className="w-56" />
+          <img
+            src={qr}
+            alt={`QR tiket ${registration.registration_code}`}
+            className="w-56 shrink-0 rounded-lg bg-white p-2"
+          />
         </div>
 
         <p className="mt-3 text-center font-display text-2xl tracking-widest">

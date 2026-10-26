@@ -3,21 +3,22 @@ import { z } from "zod";
 import { AuthError, getStaffUser } from "@/lib/authz";
 import { listBookings, type BookingRow } from "@/lib/bookings-query";
 import { handleRouteError } from "@/lib/api/response";
-import { csvFilename, csvNumber, csvPhone, csvResponse, csvText, toCsv } from "@/lib/csv";
+import { exportFilename } from "@/lib/csv";
+import { xlsxResponse } from "@/lib/xlsx";
 import { wibDateTime, wibDay } from "@/lib/wib";
 
-/** One entry per cell in toRow(), in the same order. toCsv throws if the two drift apart. */
+/** One entry per cell in toRow(), in the same order. Width must match COLUMNS below. */
 const COLUMNS = [
-  "Kode",
-  "Status",
-  "Customer",
-  "Telepon",
-  "Unit",
-  "Mulai (WIB)",
-  "Selesai (WIB)",
-  "Durasi (menit)",
-  "Total (Rp)",
-  "Sumber",
+  { header: "Kode", width: 16, align: "left", value: (b: BookingRow) => b.booking_code },
+  { header: "Status", width: 18, align: "left", value: (b: BookingRow) => b.status },
+  { header: "Customer", width: 24, align: "left", value: (b: BookingRow) => b.customers?.name ?? "" },
+  { header: "Telepon", width: 18, align: "left", numFmt: "@", value: (b: BookingRow) => b.customers?.phone ?? "" },
+  { header: "Unit", width: 18, align: "left", value: (b: BookingRow) => b.units?.name ?? "" },
+  { header: "Mulai (WIB)", width: 18, align: "left", value: (b: BookingRow) => wibDateTime(b.scheduled_start_at) },
+  { header: "Selesai (WIB)", width: 18, align: "left", value: (b: BookingRow) => wibDateTime(b.scheduled_end_at) },
+  { header: "Durasi (menit)", width: 16, align: "right", numFmt: "#,##0", value: (b: BookingRow) => b.duration_minutes },
+  { header: "Total (Rp)", width: 16, align: "right", numFmt: "#,##0", value: (b: BookingRow) => b.total_amount },
+  { header: "Sumber", width: 14, align: "left", value: (b: BookingRow) => b.source ?? "" },
 ] as const;
 
 // ZodError is mapped to 422 by handleRouteError, so a hand-edited URL gets a clear
@@ -30,23 +31,6 @@ const filtersSchema = z.object({
     .regex(/^\d{4}-\d{2}-\d{2}$/, "Tanggal harus berformat YYYY-MM-DD")
     .optional(),
 });
-
-function toRow(b: BookingRow): string[] {
-  return [
-    csvText(b.booking_code),
-    csvText(b.status),
-    csvText(b.customers?.name),
-    csvPhone(b.customers?.phone),
-    csvText(b.units?.name),
-    // WIB, "YYYY-MM-DD HH:mm": sortable in a spreadsheet and correct for a 00:30 start.
-    csvText(wibDateTime(b.scheduled_start_at)),
-    csvText(wibDateTime(b.scheduled_end_at)),
-    csvNumber(b.duration_minutes),
-    // Plain number, not the Rp formatter: the column has to stay sortable and summable.
-    csvNumber(b.total_amount),
-    csvText(b.source),
-  ];
-}
 
 /**
  * Honours the same ?status= &q= &date= filters as the table it was clicked from.
@@ -75,10 +59,10 @@ export async function GET(request: NextRequest) {
     // A STAFF profile exports only its own branch; null (OWNER/ADMIN) = every branch.
     const rows = await listBookings({ ...filters, branchId: profile.branch_id });
 
-    // Filters and export date live in the filename, not in the file: rows inside the CSV
+    // Filters and export date live in the filename, not in the file: rows inside the file
     // would break sorting, filtering and pivots, and an unescaped `q` could inject one.
-    const filename = csvFilename(["bookings", filters.date ?? "semua", filters.status, wibDay()]);
-    return csvResponse(toCsv(COLUMNS, rows.map(toRow)), filename);
+    const filename = exportFilename(["bookings", filters.date ?? "semua", filters.status, wibDay()], "xlsx");
+    return xlsxResponse("Bookings", COLUMNS, rows, filename);
   } catch (error) {
     return handleRouteError(error);
   }

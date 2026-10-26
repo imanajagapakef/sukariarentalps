@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { Trophy } from "lucide-react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
+import { ChevronsRight, Crown, Trophy } from "lucide-react";
 import {
   MATCH_STATUS_LABEL,
   bracketRounds,
@@ -16,24 +16,28 @@ import { cn } from "@/lib/utils";
 /**
  * Single-elimination bracket, drawn the way a bracket is drawn.
  *
- * Two things make this read as a bracket instead of a list of columns:
- *
  * 1. **The elbows.** Each match connects to the next round with a horizontal line out of
  *    its right edge, a vertical bar where the two feeders meet, and a horizontal line into
- *    the parent card. The geometry falls out of `justify-around`: with equal-height cards
- *    spread over a fixed height H, match i of a round with n matches sits at
- *    ((i - 0.5) / n) * H — and that is exactly the midpoint of its two feeders, because
- *    the parent round has n/2 matches. So the vertical bar is H / (2n) long, tall enough
- *    to touch both feeders and short enough not to reach its neighbours.
+ *    the parent card. With equal-height cards spread over a fixed height H by
+ *    `justify-around`, match i of a round with n matches sits at ((i - 0.5) / n) * H, which
+ *    is exactly the midpoint of its two feeders. So the vertical bar is H / (2n) long.
+ *    The bar is drawn as two halves (one per feeder) so each half can light up on its own.
  *
- * 2. **The winner is the loud row.** A finished match fills the winning row in the accent
- *    colour and leaves the loser muted, which is what makes the eye travel down the tree
- *    and read the story of the tournament without reading a single name.
+ * 2. **The winner path glows.** A connector lights up the moment the match feeding it has a
+ *    winner, and the line leading into a match that is ready to be played pulses with a
+ *    travelling highlight. The eye follows the glowing trail up the tree and reads the
+ *    story of the tournament without reading a single name.
+ *
+ * 3. **The winner is the loud row.** A finished match fills the winning row in the accent
+ *    colour (with a slow shine) and dims the loser. The champion's card gets a gold halo
+ *    and a crown.
  *
  * Player names come from the denormalised copies on the match row (T10), so this never
  * touches registrations and works with the anon client on the public page. The winner is
  * read from the score rather than from the winner id, which cannot disagree with what the
  * resolver stored.
+ *
+ * All motion is CSS-only and switched off under `prefers-reduced-motion`.
  */
 
 /** Card height. Fixed because the elbow geometry above assumes every card is this tall. */
@@ -42,6 +46,40 @@ const CARD_H = 72;
 const COL_GAP = 56;
 /** Vertical breathing room per first-round match. Decides the whole bracket's height. */
 const SLOT = 96;
+
+const GOLD = "#ffb84d";
+
+const CSS = `
+.tb-in{animation:tb-in .55s cubic-bezier(.2,.8,.2,1) both;animation-delay:var(--d,0ms)}
+.tb-win{position:relative;overflow:hidden}
+.tb-win::after{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(100deg,transparent 35%,rgba(255,255,255,.22) 50%,transparent 65%);transform:translateX(-130%);animation:tb-shine 6s ease-in-out infinite;animation-delay:calc(var(--d,0ms) + 1200ms)}
+.tb-lit{animation:tb-lit 2.4s ease-in-out infinite}
+.tb-flow{background-image:linear-gradient(90deg,transparent,currentColor,transparent);background-size:200% 100%;animation:tb-flow 1.1s linear infinite}
+.tb-gold{animation:tb-gold 2.2s ease-in-out infinite}
+.tb-crown{animation:tb-crown 2s ease-in-out infinite}
+.tb-lift{animation:tb-lift 2.6s ease-in-out infinite}
+.tb-rays{animation:tb-spin 18s linear infinite}
+.tb-conf{animation:tb-conf linear infinite}
+.tb-twinkle{animation:tb-twinkle 1.6s ease-in-out infinite}
+.tb-nudge{animation:tb-nudge 1s ease-in-out infinite}
+.tb-sweep{animation:tb-shine 4.5s ease-in-out infinite}
+@keyframes tb-in{from{opacity:0;transform:translateY(12px) scale(.96)}to{opacity:1;transform:none}}
+@keyframes tb-shine{0%,60%{transform:translateX(-130%)}100%{transform:translateX(130%)}}
+@keyframes tb-lit{0%,100%{opacity:.75}50%{opacity:1}}
+@keyframes tb-flow{to{background-position:-200% 0}}
+@keyframes tb-gold{0%,100%{box-shadow:0 0 0 2px rgba(255,184,77,.5),0 0 14px rgba(255,184,77,.25)}50%{box-shadow:0 0 0 2px rgba(255,184,77,.95),0 0 30px rgba(255,184,77,.55)}}
+@keyframes tb-crown{0%,100%{transform:translateX(-50%) translateY(0) rotate(-6deg)}50%{transform:translateX(-50%) translateY(-4px) rotate(6deg)}}
+@keyframes tb-lift{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
+@keyframes tb-spin{to{transform:rotate(360deg)}}
+@keyframes tb-conf{0%{opacity:0;transform:translateY(-14px) rotate(0)}10%{opacity:1}100%{opacity:0;transform:translateY(130px) rotate(540deg)}}
+@keyframes tb-twinkle{0%,100%{opacity:.2;transform:scale(.6)}50%{opacity:1;transform:scale(1.2)}}
+@keyframes tb-nudge{0%,100%{transform:translateX(0)}50%{transform:translateX(4px)}}
+@media (prefers-reduced-motion:reduce){
+  .tb-in,.tb-win::after,.tb-lit,.tb-flow,.tb-gold,.tb-crown,.tb-lift,.tb-rays,.tb-conf,.tb-twinkle,.tb-nudge,.tb-sweep{animation:none!important}
+  .tb-conf{display:none}
+  .tb-crown{transform:translateX(-50%)}
+}
+`;
 
 export function TournamentBracket({
   matches,
@@ -68,8 +106,8 @@ export function TournamentBracket({
     finalMatch.player_b_name !== null;
 
   // The tree is wider than a phone, so it scrolls inside its own container. `moreRight`
-  // drives the edge fade, and it has to be measured rather than assumed: on a wide screen
-  // the tree fits and a fade would be lying about content that is not there.
+  // drives the edge fade and the "geser" hint, and it has to be measured rather than
+  // assumed: on a wide screen the tree fits and a fade would be lying.
   const scrollerRef = useRef<HTMLDivElement>(null);
   const [moreRight, setMoreRight] = useState(false);
 
@@ -110,143 +148,255 @@ export function TournamentBracket({
     // column. Without it the box grows to the tree's width and hands the whole page a
     // sideways scroll on a phone.
     <div className={cn("min-w-0", className)}>
+      <style>{CSS}</style>
+
       {champion ? (
-        <div className="mb-4">
+        <div className="mb-5">
           <ChampionBanner name={champion} />
         </div>
       ) : finalReady ? (
-        <div className="mb-3 flex justify-center">
-          <FinalTrophy />
+        <div className="mb-4 flex justify-center">
+          <FinalTrophy a={finalMatch.player_a_name ?? ""} b={finalMatch.player_b_name ?? ""} />
         </div>
       ) : null}
-      <div
-        ref={scrollerRef}
-        className="no-scrollbar overflow-x-auto pb-2"
-        role="table"
-        aria-label="Bracket"
-        style={
-          moreRight
-            ? {
-                // A mask rather than an overlay panel, so it fades the content itself and
-                // works over any background colour instead of guessing one per page.
-                maskImage:
-                  "linear-gradient(to right, #000 calc(100% - 56px), transparent 100%)",
-                WebkitMaskImage:
-                  "linear-gradient(to right, #000 calc(100% - 56px), transparent 100%)",
-              }
-            : undefined
-        }
-      >
-        <div className="flex items-start" style={{ minWidth: rounds.length * 250 }}>
-          {rounds.map((round, roundIndex) => (
-            <div
-              key={round.round_no}
-              // Columns grow to share the width but stop at 320px: a bracket gets its
-              // width from its round count, and a two-round tree stretched across a
-              // 1500px screen looks like two enormous cards rather than a bracket.
-              //
-              // `relative` earns its place past styling. The `sr-only` heading below is
-              // `position: absolute`, and an absolutely positioned box is only clipped by
-              // an ancestor that is also its containing block. With the column `static`,
-              // that containing block sat outside this scroller, so the invisible heading
-              // escaped the clip and silently widened the page by ~200px on a phone.
-              className="relative flex flex-1 flex-col justify-around"
-              style={{
-                height,
-                maxWidth: 320,
-                marginRight: roundIndex < rounds.length - 1 ? COL_GAP : 0,
-              }}
-            >
-              <h3 className="sr-only">{round.label}</h3>
-              {round.matches.map((m, i) => {
-                const isLast = roundIndex === rounds.length - 1;
-                const isFirst = roundIndex === 0;
-                // Elbow geometry, see the note above.
-                const barH = height / (2 * round.matches.length);
 
-                return (
-                  <div
-                    key={m.match_id}
-                    className="relative"
-                    style={{ height: CARD_H }}
-                    title={`${round.label} · Match ${i + 1}`}
+      <div className="relative">
+        <div
+          ref={scrollerRef}
+          className="no-scrollbar overflow-x-auto pb-2 pt-4"
+          role="table"
+          aria-label="Bracket"
+          style={
+            moreRight
+              ? {
+                  // A mask rather than an overlay panel, so it fades the content itself and
+                  // works over any background colour instead of guessing one per page.
+                  maskImage:
+                    "linear-gradient(to right, #000 calc(100% - 56px), transparent 100%)",
+                  WebkitMaskImage:
+                    "linear-gradient(to right, #000 calc(100% - 56px), transparent 100%)",
+                }
+              : undefined
+          }
+        >
+          <div className="flex items-start" style={{ minWidth: rounds.length * 250 }}>
+            {rounds.map((round, roundIndex) => {
+              const isLast = roundIndex === rounds.length - 1;
+              const isFirst = roundIndex === 0;
+              const prev = isFirst ? undefined : rounds[roundIndex - 1].matches;
+
+              return (
+                <div
+                  key={round.round_no}
+                  // Columns grow to share the width but stop at 320px: a bracket gets its
+                  // width from its round count, and a two-round tree stretched across a
+                  // 1500px screen looks like two enormous cards rather than a bracket.
+                  //
+                  // `relative` earns its place past styling. The `sr-only` heading below is
+                  // `position: absolute`, and an absolutely positioned box is only clipped
+                  // by an ancestor that is also its containing block. With the column
+                  // `static`, that containing block sat outside this scroller, so the
+                  // invisible heading escaped the clip and silently widened the page by
+                  // ~200px on a phone.
+                  className="relative flex flex-1 flex-col justify-around"
+                  style={{
+                    height,
+                    maxWidth: 320,
+                    marginRight: !isLast ? COL_GAP : 0,
+                  }}
+                >
+                  <h3 className="sr-only">{round.label}</h3>
+                  {round.matches.map((m, i) => {
+                    // Elbow geometry, see the note above.
+                    const barH = height / (2 * round.matches.length);
+                    const half = barH / 2;
+
+                    // Which earlier matches feed this one: the tree is binary, so
+                    // match i is fed by 2i and 2i + 1 of the previous round.
+                    const feederA = prev?.[2 * i];
+                    const feederB = prev?.[2 * i + 1];
+                    const litA = feederA ? Boolean(winnerFromScore(feederA)) : false;
+                    const litB = feederB ? Boolean(winnerFromScore(feederB)) : false;
+                    const ready = m.status === "READY";
+                    const own = Boolean(winnerFromScore(m));
+
+                    return (
+                      <div
+                        key={m.match_id}
+                        className="tb-in relative"
+                        style={
+                          {
+                            height: CARD_H,
+                            "--d": `${roundIndex * 140 + i * 70}ms`,
+                          } as CSSProperties
+                        }
+                        title={`${round.label} · Match ${i + 1}`}
+                      >
+                        {/* Out to the next round: the child's half of the elbow. */}
+                        {!isLast && (
+                          <Seg
+                            lit={own}
+                            style={{
+                              top: "50%",
+                              left: "100%",
+                              width: COL_GAP / 2,
+                              height: 2,
+                              transform: "translateY(-1px)",
+                            }}
+                          />
+                        )}
+                        {/* In from the previous round: two bar halves and the parent's half. */}
+                        {!isFirst && (
+                          <>
+                            <Seg
+                              lit={litA || litB}
+                              flow={ready}
+                              style={{
+                                top: "50%",
+                                left: -COL_GAP / 2,
+                                width: COL_GAP / 2,
+                                height: 2,
+                                transform: "translateY(-1px)",
+                              }}
+                            />
+                            <Seg
+                              lit={litA}
+                              style={{
+                                top: `calc(50% - ${half}px)`,
+                                left: -COL_GAP / 2,
+                                width: 2,
+                                height: half + 1,
+                              }}
+                            />
+                            <Seg
+                              lit={litB}
+                              style={{
+                                top: "calc(50% - 1px)",
+                                left: -COL_GAP / 2,
+                                width: 2,
+                                height: half + 1,
+                              }}
+                            />
+                          </>
+                        )}
+
+                        {/* Ping ring sits outside the card, which clips its own overflow. */}
+                        {spotlightLive && ready && (
+                          <span
+                            aria-hidden
+                            className="pointer-events-none absolute inset-0 animate-ping rounded-lg ring-2 ring-primary/50 motion-reduce:animate-none"
+                          />
+                        )}
+
+                        {isChampion(m) && (
+                          <Crown
+                            aria-hidden
+                            className="tb-crown absolute -top-5 left-1/2 z-10 size-6"
+                            style={{ color: GOLD, filter: `drop-shadow(0 0 6px ${GOLD})` }}
+                          />
+                        )}
+
+                        <MatchCard
+                          match={m}
+                          index={i}
+                          champion={isChampion(m)}
+                          highlight={spotlightLive && ready}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Round names sit under the tree rather than above it: above, they push the whole
+              bracket down and land next to the first round's cards rather than their column.
+
+              They live INSIDE the scroller. As a sibling outside it they were a second,
+              independently wide row, which gave the page a sideways scroll on a phone and
+              left every label sitting still while the tree scrolled away from under it. */}
+          <div className="mt-3 flex" style={{ minWidth: rounds.length * 250 }} aria-hidden>
+            {rounds.map((round, roundIndex) => {
+              const done = round.matches.filter((m) => m.status === "FINISHED").length;
+              const total = round.matches.length;
+              const complete = done === total;
+              const isFinal = roundIndex === rounds.length - 1;
+
+              return (
+                <div
+                  key={round.round_no}
+                  className="flex flex-1 flex-col items-center gap-1.5"
+                  style={{
+                    maxWidth: 320,
+                    marginRight: roundIndex < rounds.length - 1 ? COL_GAP : 0,
+                  }}
+                >
+                  <span
+                    className={cn(
+                      "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 font-display text-xs uppercase tracking-wide",
+                      complete
+                        ? "border-primary/50 bg-primary/15 text-primary"
+                        : "border-border bg-surface-low text-muted-foreground",
+                    )}
                   >
-                    {/* Out to the next round: the child's half of the elbow. */}
-                    {!isLast && (
+                    {isFinal && <Trophy className="size-3" />}
+                    {round.label}
+                  </span>
+                  <span className="flex items-center gap-2">
+                    <span className="h-1 w-14 overflow-hidden rounded-full bg-surface-low">
                       <span
-                        aria-hidden
-                        className="absolute bg-primary/45"
-                        style={{
-                          top: "50%",
-                          left: "100%",
-                          width: COL_GAP / 2,
-                          height: 2,
-                          transform: "translateY(-1px)",
-                        }}
+                        className="block h-full rounded-full bg-primary transition-[width] duration-700"
+                        style={{ width: `${(done / total) * 100}%` }}
                       />
-                    )}
-                    {/* In from the previous round: the bar and the parent's half. */}
-                    {!isFirst && (
-                      <>
-                        <span
-                          aria-hidden
-                          className="absolute bg-primary/45"
-                          style={{
-                            top: "50%",
-                            left: -COL_GAP / 2,
-                            width: COL_GAP / 2,
-                            height: 2,
-                            transform: "translateY(-1px)",
-                          }}
-                        />
-                        <span
-                          aria-hidden
-                          className="absolute bg-primary/45"
-                          style={{
-                            top: "50%",
-                            left: -COL_GAP / 2,
-                            width: 2,
-                            height: barH,
-                            transform: "translateY(-50%)",
-                          }}
-                        />
-                      </>
-                    )}
-
-                    <MatchCard
-                      match={m}
-                      index={i}
-                      champion={isChampion(m)}
-                      highlight={spotlightLive && m.status === "READY"}
-                    />
-                  </div>
-                );
-              })}
-            </div>
-          ))}
+                    </span>
+                    <span className="text-[10px] tabular-nums text-muted-foreground">
+                      {done}/{total}
+                    </span>
+                  </span>
+                </div>
+              );
+            })}
+          </div>
         </div>
 
-        {/* Round names sit under the tree rather than above it: above, they push the whole
-            bracket down and land next to the first round's cards rather than their column.
-
-            They live INSIDE the scroller. As a sibling outside it they were a second,
-            independently wide row — which gave the page a sideways scroll on a phone, and
-            left every label sitting still while the tree scrolled away from under it. */}
-        <div className="mt-3 flex" style={{ minWidth: rounds.length * 250 }} aria-hidden>
-          {rounds.map((round, roundIndex) => (
-            <div
-              key={round.round_no}
-              className="flex-1 text-center"
-              style={{ maxWidth: 320, marginRight: roundIndex < rounds.length - 1 ? COL_GAP : 0 }}
-            >
-              <span className="font-display text-xs uppercase tracking-wide text-muted-foreground">
-                {round.label}
-              </span>
-            </div>
-          ))}
-        </div>
+        {/* "There is more this way": only drawn when the tree actually overflows. */}
+        {moreRight && (
+          <span
+            aria-hidden
+            className="tb-nudge pointer-events-none absolute right-1 top-1/2 -translate-y-1/2 rounded-full bg-primary p-1.5 text-background shadow-lg shadow-primary/40"
+          >
+            <ChevronsRight className="size-4" />
+          </span>
+        )}
       </div>
     </div>
+  );
+}
+
+/** One connector segment. Lit = a winner has come through it; flow = a match is waiting to be played. */
+function Seg({
+  lit,
+  flow = false,
+  style,
+}: {
+  lit: boolean;
+  flow?: boolean;
+  style: CSSProperties;
+}) {
+  return (
+    <span
+      aria-hidden
+      className={cn(
+        "absolute",
+        flow
+          ? "tb-flow text-primary"
+          : lit
+            ? "tb-lit bg-primary shadow-[0_0_8px] shadow-primary/70"
+            : "bg-primary/25",
+      )}
+      style={style}
+    />
   );
 }
 
@@ -265,11 +415,12 @@ function MatchCard({
 
   return (
     <div
-      className={`relative flex h-full flex-col justify-center overflow-hidden rounded-lg border bg-card ${
-        highlight
-          ? "border-primary shadow-[0_0_0_3px] shadow-primary/25"
-          : "border-border"
-      }`}
+      className={cn(
+        "relative flex h-full flex-col justify-center overflow-hidden rounded-lg border bg-card transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/60",
+        champion && "tb-gold border-transparent",
+        highlight && !champion && "border-primary shadow-[0_0_0_3px] shadow-primary/25",
+        !highlight && !champion && "border-border",
+      )}
     >
       {/* Match number, outside the card on the left like the reference bracket. */}
       <span
@@ -284,6 +435,7 @@ function MatchCard({
         seed={match.player_a_seed}
         score={match.score_a}
         won={winner === "a"}
+        lost={winner === "b"}
         empty={match.player_a_name === null}
         champion={champion}
       />
@@ -292,6 +444,7 @@ function MatchCard({
         seed={match.player_b_seed}
         score={match.score_b}
         won={winner === "b"}
+        lost={winner === "a"}
         empty={match.player_b_name === null}
         champion={champion}
       />
@@ -303,6 +456,12 @@ function MatchCard({
           {MATCH_STATUS_LABEL.WAITING}
         </span>
       )}
+      {match.status === "READY" && (
+        <span className="absolute right-2 top-1.5 flex items-center gap-1 text-[9px] font-semibold uppercase tracking-wide text-primary">
+          <span className="size-1.5 animate-pulse rounded-full bg-primary motion-reduce:animate-none" />
+          {MATCH_STATUS_LABEL.READY}
+        </span>
+      )}
     </div>
   );
 }
@@ -312,6 +471,7 @@ function PlayerRow({
   seed,
   score,
   won,
+  lost,
   empty,
   champion,
 }: {
@@ -319,27 +479,40 @@ function PlayerRow({
   seed: number | null;
   score: number | null;
   won: boolean;
+  lost: boolean;
   empty: boolean;
   champion: boolean;
 }) {
   return (
     <div
-      className={`flex items-center gap-2 px-3 py-1.5 ${
-        won
-          ? "bg-primary/25 font-semibold text-foreground shadow-[inset_3px_0_0_0] shadow-primary"
-          : empty
-            ? "text-muted-foreground"
-            : "text-on-surface-variant"
-      }`}
+      className={cn(
+        "flex items-center gap-2 px-3 py-1.5 transition-colors",
+        won &&
+          "tb-win bg-gradient-to-r from-primary/35 to-primary/10 font-semibold text-foreground shadow-[inset_4px_0_0_0] shadow-primary",
+        !won && empty && "text-muted-foreground",
+        !won && !empty && !lost && "text-on-surface-variant",
+        lost && "text-muted-foreground opacity-60",
+      )}
     >
       {seed !== null && (
-        <span className="w-5 shrink-0 text-[10px] tabular-nums text-muted-foreground">
+        <span className="w-5 shrink-0 rounded bg-surface-low text-center text-[10px] tabular-nums text-muted-foreground">
           {seed}
         </span>
       )}
-      <span className="min-w-0 flex-1 truncate text-sm">{name}</span>
-      {champion && won && <Trophy aria-hidden className="size-3.5 shrink-0 text-primary" />}
-      <span className="shrink-0 font-display text-sm tabular-nums">{score ?? ""}</span>
+      <span className={cn("min-w-0 flex-1 truncate text-sm", lost && "line-through decoration-1")}>
+        {name}
+      </span>
+      {champion && won && (
+        <Trophy aria-hidden className="size-3.5 shrink-0" style={{ color: GOLD }} />
+      )}
+      <span
+        className={cn(
+          "shrink-0 font-display text-sm tabular-nums",
+          won && "rounded bg-primary px-1.5 py-0.5 text-xs leading-none text-background",
+        )}
+      >
+        {score ?? ""}
+      </span>
     </div>
   );
 }
@@ -365,8 +538,10 @@ function TrophyFigure({ className = "" }: { className?: string }) {
       />
       <rect x="46" y="30" width="4" height="5" className="fill-primary" />
       <rect x="41" y="35" width="14" height="4" rx="1.5" className="fill-primary" />
+      {/* cup shine */}
+      <path d="M42 11v8" stroke="#fff" strokeOpacity=".5" strokeWidth="2" strokeLinecap="round" />
 
-      {/* the figure — arms up, gripping the base */}
+      {/* the figure: arms up, gripping the base */}
       <circle cx="48" cy="52" r="6" className="fill-current" />
       <path
         d="M48 58v16M48 74l-5 8M48 74l5 8"
@@ -384,41 +559,140 @@ function TrophyFigure({ className = "" }: { className?: string }) {
   );
 }
 
+/** A slowly turning sunburst, masked to fade out at the edge. Sits behind a trophy. */
+function Rays({ className = "" }: { className?: string }) {
+  const mask = "radial-gradient(closest-side, #000 25%, transparent 72%)";
+  return (
+    <div
+      aria-hidden
+      className={cn("tb-rays pointer-events-none absolute rounded-full", className)}
+      style={{
+        background:
+          "repeating-conic-gradient(from 0deg, rgba(97,224,106,.26) 0deg 8deg, transparent 8deg 16deg)",
+        maskImage: mask,
+        WebkitMaskImage: mask,
+      }}
+    />
+  );
+}
+
+const TWINKLES = [
+  { x: "6%", y: "20%", d: "0s" },
+  { x: "92%", y: "30%", d: ".5s" },
+  { x: "14%", y: "78%", d: "1s" },
+  { x: "84%", y: "82%", d: ".25s" },
+];
+
 /**
  * Shown above a bracket whose final is set but not yet decided: "get ready for the final".
  *
- * The whole group lifts on a slow loop; `motion-reduce` drops the movement.
+ * Sunburst, a trophy that floats, and the two finalists face to face. `motion-reduce`
+ * drops the movement through the stylesheet.
  */
-function FinalTrophy() {
+function FinalTrophy({ a, b }: { a: string; b: string }) {
   return (
-    <div className="flex flex-col items-center gap-1.5">
-      <div className="animate-final-lift text-primary motion-reduce:animate-none">
-        <TrophyFigure className="h-[88px] w-[96px]" />
+    <div className="relative flex w-full max-w-md flex-col items-center gap-2">
+      <div className="relative flex h-[112px] w-[112px] items-center justify-center">
+        <Rays className="-inset-8" />
+        {TWINKLES.map((t, i) => (
+          <span
+            key={i}
+            aria-hidden
+            className="tb-twinkle absolute size-1.5 bg-primary"
+            style={{ left: t.x, top: t.y, animationDelay: t.d }}
+          />
+        ))}
+        <div className="tb-lift relative text-primary">
+          <TrophyFigure className="h-[88px] w-[96px]" />
+        </div>
       </div>
-      <span className="font-display text-xs uppercase tracking-[0.22em] text-primary">
+
+      <span className="flex items-center gap-3 font-display text-xs uppercase tracking-[0.22em] text-primary">
+        <span className="h-px w-8 bg-gradient-to-r from-transparent to-primary" />
         Siap Final
+        <span className="h-px w-8 bg-gradient-to-l from-transparent to-primary" />
       </span>
+
+      <div className="flex w-full min-w-0 items-center justify-center gap-2 px-2 font-display text-sm uppercase">
+        <span className="min-w-0 flex-1 truncate text-right text-foreground">{a}</span>
+        <span className="shrink-0 rounded-full bg-primary px-2 py-0.5 text-[10px] font-bold leading-none text-background">
+          VS
+        </span>
+        <span className="min-w-0 flex-1 truncate text-left text-foreground">{b}</span>
+      </div>
     </div>
   );
 }
+
+const CONFETTI = [
+  { l: 4, d: 0, t: 3.2, c: "#61e06a" },
+  { l: 11, d: 1.1, t: 2.8, c: GOLD },
+  { l: 19, d: 0.4, t: 3.6, c: "#8ab4ff" },
+  { l: 27, d: 1.9, t: 3, c: "#ff6b6b" },
+  { l: 36, d: 0.8, t: 3.4, c: "#61e06a" },
+  { l: 45, d: 2.3, t: 2.9, c: GOLD },
+  { l: 54, d: 0.2, t: 3.5, c: "#8ab4ff" },
+  { l: 62, d: 1.5, t: 3.1, c: "#ff6b6b" },
+  { l: 71, d: 0.6, t: 3.3, c: "#61e06a" },
+  { l: 79, d: 2.1, t: 2.8, c: GOLD },
+  { l: 87, d: 1.2, t: 3.6, c: "#8ab4ff" },
+  { l: 95, d: 0.9, t: 3, c: "#61e06a" },
+];
 
 /**
  * Shown above a bracket whose final is decided: who took the whole thing.
  *
  * Read from the score, so it can never disagree with the champion row in the tree. The
- * name is the point of the banner, so it is set large and takes the accent colour.
+ * name is the point of the banner, so it is set large with a gradient fill, with a
+ * sunburst, falling confetti and a shine sweeping across the whole strip.
  */
 function ChampionBanner({ name }: { name: string }) {
   return (
-    <div className="flex items-center gap-4 rounded-xl border border-primary/40 bg-primary/10 px-4 py-3 sm:px-5 sm:py-4">
-      <div className="animate-final-lift shrink-0 text-primary motion-reduce:animate-none">
-        <TrophyFigure className="h-[64px] w-[70px]" />
+    <div className="relative overflow-hidden rounded-2xl border border-primary/50 bg-gradient-to-r from-primary/25 via-primary/10 to-transparent px-4 py-4 sm:px-6 sm:py-5">
+      {/* confetti */}
+      <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
+        {CONFETTI.map((p, i) => (
+          <span
+            key={i}
+            className="tb-conf absolute top-0 block h-2 w-1"
+            style={{
+              left: `${p.l}%`,
+              background: p.c,
+              animationDuration: `${p.t}s`,
+              animationDelay: `${p.d}s`,
+              opacity: 0,
+            }}
+          />
+        ))}
+        <span
+          className="tb-sweep absolute inset-y-0 left-0 w-1/3"
+          style={{
+            background:
+              "linear-gradient(100deg, transparent 20%, rgba(255,255,255,.16) 50%, transparent 80%)",
+          }}
+        />
       </div>
-      <div className="min-w-0">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-          Juara
-        </p>
-        <p className="font-display truncate text-xl uppercase text-primary sm:text-2xl">{name}</p>
+
+      <div className="relative flex items-center gap-4 sm:gap-6">
+        <div className="relative flex h-[84px] w-[84px] shrink-0 items-center justify-center sm:h-[96px] sm:w-[96px]">
+          <Rays className="-inset-6" />
+          <div className="tb-lift relative text-primary">
+            <TrophyFigure className="h-[64px] w-[70px] sm:h-[74px] sm:w-[80px]" />
+          </div>
+        </div>
+
+        <div className="min-w-0">
+          <span
+            className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.22em] text-background"
+            style={{ background: GOLD }}
+          >
+            <Crown aria-hidden className="size-3" />
+            Juara
+          </span>
+          <p className="mt-1.5 truncate bg-gradient-to-r from-primary via-[#d9ffd3] to-primary bg-clip-text font-display text-2xl uppercase leading-tight text-transparent sm:text-4xl">
+            {name}
+          </p>
+        </div>
       </div>
     </div>
   );

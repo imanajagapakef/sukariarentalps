@@ -8,10 +8,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/empty-state";
+import { SlotPicker, UnitStatusChip, isUnitBlocked } from "@/components/booking/availability-ui";
 import { createClient } from "@/lib/supabase/client";
 import { fmtDate, fmtDuration, fmtISODay, fmtTime, rp } from "@/lib/format";
 import { stockStatus } from "@/lib/snack-stock";
-import { phoneRegex, SLOT_COPY, type Slot, type SlotState } from "@/lib/validations/booking";
+import { phoneRegex, type Slot } from "@/lib/validations/booking";
 import {
   eligibleOfferings,
   keepsEligibility,
@@ -166,7 +167,14 @@ export function BookingForm({
   // slot is unavailable and when it frees up rather than listing bare times.
   const [slots, setSlots] = useState<Slot[] | null>(null);
   const [slotsError, setSlotsError] = useState<string | null>(null);
+  const [slotsNonce, setSlotsNonce] = useState(0);
+  const [refreshedAt, setRefreshedAt] = useState<number | null>(null);
   const [startIso, setStartIso] = useState<string | null>(null);
+  const startIsoRef = useRef(startIso);
+  const presetPending = useRef(false);
+  useEffect(() => {
+    startIsoRef.current = startIso;
+  }, [startIso]);
 
   const rentalUnits = useMemo(
     () => units.filter((u) => u.branch_id === branchId && u.facility_types?.category === "RENTAL"),
@@ -272,22 +280,37 @@ export function BookingForm({
     };
   }, [db, branchId, facilityTypeId, duration, cfg]);
 
-  // Refetch the grid whenever the unit, day or duration changes, and drop any
-  // selection that no longer exists in the new grid.
+  // Efek 1: saat unit, tanggal, durasi, atau konfigurasi berubah — reset grid dan
+  // tandai bahwa slot baru harus dipilih saat data tiba. Grid lama tidak dihapus
+  // di sini; itu terjadi di efek 2 agar layar tidak kedip saat memperbarui.
   useEffect(() => {
     if (!branchId || !unitId || !date || !cfg) {
       setSlots(null);
+      setSlotsError(null);
+      setRefreshedAt(null);
+      presetPending.current = false;
       return;
     }
     if (duration < cfg.minimum_duration_minutes || duration > cfg.maximum_duration_minutes) {
       setSlots(null);
       setSlotsError(`Durasi harus antara ${cfg.minimum_duration_minutes} dan ${cfg.maximum_duration_minutes} menit.`);
+      setRefreshedAt(null);
+      presetPending.current = false;
       return;
     }
+    // Konteks berubah: grid lama tidak valid lagi, tandai untuk dipilih ulang saat
+    // data baru tiba. Jangan setSlots(null) di sini — biarkan efek 2 tetap menampilkan
+    // grid lama sampai data baru siap.
+    presetPending.current = true;
+  }, [branchId, unitId, date, duration, cfg]);
+
+  // Efek 2: ambil ulang grid saat konteks atau slotsNonce berubah. Mempertahankan
+  // grid lama selama memuat (tidak ada skeleton yang menutupi kotak yang ada).
+  useEffect(() => {
+    if (!branchId || !unitId || !date || !cfg) return;
+    if (duration < cfg.minimum_duration_minutes || duration > cfg.maximum_duration_minutes) return;
 
     let alive = true;
-    setSlots(null);
-    setSlotsError(null);
     void (async () => {
       const params = new URLSearchParams({
         branch_id: branchId,
@@ -302,27 +325,57 @@ export function BookingForm({
         if (!alive) return;
         const next: Slot[] = body.slots ?? [];
         setSlots(next);
-        setStartIso((prev) => {
-          if (prev && next.some((s) => s.slot_start === prev && s.state === "AVAILABLE")) return prev;
-          // Nothing valid selected: fall back to the instant-booking preset, so
-          // "?slot=evening" opens with 20:00 already picked. Null when the unit
-          // is booked then, which leaves the visitor to choose rather than
-          // silently booking the wrong time.
-          return preset ? pickSlotStart(next, preset) : null;
-        });
+        setRefreshedAt(Date.now());
+
+        if (presetPending.current) {
+          // Konteks baru: coba pasang preset (mis. ?slot=evening → 20:00), atau
+          // biarkan null jika tidak ada yang cocok.
+          const picked = preset ? pickSlotStart(next, preset) : null;
+          setStartIso(picked);
+          startIsoRef.current = picked;
+          presetPending.current = false;
+        } else {
+          // Refresh manual atau nonce bump: pertahankan pilihan saat masih valid,
+          // else kosongkan.
+          if (
+            startIsoRef.current &&
+            !next.some((s) => s.slot_start === startIsoRef.current && s.state === "AVAILABLE")
+          ) {
+            setStartIso(null);
+            startIsoRef.current = null;
+          }
+        }
       } catch (e) {
         if (alive) {
           setSlots([]);
           setSlotsError(e instanceof Error ? e.message : "Gagal memuat slot");
+          setRefreshedAt(null);
         }
       }
     })();
     return () => {
       alive = false;
     };
-  }, [branchId, unitId, date, duration, cfg, preset]);
+  }, [branchId, unitId, date, duration, cfg, preset, slotsNonce]);
 
-  const bookableSlots = useMemo(
+  // Refetch saat tab kembali aktif, agar ketersediaan tidak basi. Maksimal sekali
+  // per 15 detik, hanya di step 2 atau seterusnya. Sengaja tidak refetch saat masuk
+  // step 3 — data dari step 2 masih segar, dan konflik tetap ditangani server.
+  const lastRefetchRef = useRef(0);
+  useEffect(() => {
+    function onVisibilityChange() {
+      if (document.visibilityState !== "visible") return;
+      if (step < 2) return;
+      const now = Date.now();
+      if (now - lastRefetchRef.current < 15_000) return;
+      lastRefetchRef.current = now;
+      setSlotsNonce((n) => n + 1);
+    }
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", onVisibilityChange);
+  }, [step]);
+
+  const freeSlots = useMemo(
     () => (slots ?? []).filter((s) => s.state === "AVAILABLE"),
     [slots],
   );
@@ -339,7 +392,7 @@ export function BookingForm({
    *  disagree by a rounding step. */
   const grandTotal = rentalTotal + snackTotal;
 
-  const timeValid = startIso !== null;
+  const timeValid = startIso != null && slots?.some((s) => s.slot_start === startIso && s.state === "AVAILABLE");
 
   /** One reason for the primary button being dead, computed once and reused as `disabled`,
    *  the hint under it, and its `aria-describedby`. Two separate conditions is how the
@@ -348,18 +401,11 @@ export function BookingForm({
     if (step === 1) return unitId ? null : "Pilih unit dulu.";
     if (step !== 2) return null;
     if (slots === null) return "Memuat ketersediaan jam…";
-    if (bookableSlots.length === 0) return "Tidak ada jam kosong untuk pilihan ini.";
+    if (freeSlots.length === 0) return "Tidak ada jam kosong untuk pilihan ini.";
     if (!timeValid) return "Pilih jam mulai yang tersedia.";
     if (price === null) return "Menghitung harga…";
     return null;
   })();
-
-  /** The legend explains only what is on screen: an all-green grid does not need three
-   *  more lines defining CLEANING. */
-  const legendStates = useMemo(() => {
-    const present = new Set((slots ?? []).map((s) => s.state));
-    return (["AVAILABLE", "BOOKED", "IN_USE", "CLEANING"] as const).filter((k) => present.has(k));
-  }, [slots]);
 
   // Step changes move focus to that step's heading, so a keyboard or screen-reader user
   // lands inside the new step instead of being left where the previous button used to be.
@@ -444,13 +490,28 @@ export function BookingForm({
         }),
       });
       const body = await res.json().catch(() => null);
-      if (!res.ok) throw new Error(body?.error?.message ?? `Gagal booking (${res.status})`);
+      if (!res.ok) {
+        const err = new Error(body?.error?.message ?? `Gagal booking (${res.status})`);
+        (err as { code?: string }).code = body?.error?.code;
+        throw err;
+      }
       router.push(`/tiket/${body.booking.booking_code}`);
     } catch (e) {
       // Only a failure re-enables the form. On success the router is already navigating
       // away, and flipping the button back to "Buat Booking" invites a second submit of
       // the same booking while the first is still in flight.
       setSubmitting(false);
+      const errCode = e instanceof Error && "code" in e ? (e as { code?: string }).code : undefined;
+      // Konflik slot (23P01): orang lain mengambil jam yang sama. Kembali ke step 2,
+      // kosongkan pilihan, muat ulang grid, dan tunjukkan pesan yang jelas.
+      if (errCode === "23P01") {
+        setStartIso(null);
+        startIsoRef.current = null;
+        setStep(2);
+        setSlotsNonce((n) => n + 1);
+        setError("Jam yang dipilih baru saja diambil orang lain. Silakan pilih jam lain.");
+        return;
+      }
       setError(e instanceof Error ? e.message : String(e));
     }
   }
@@ -540,20 +601,22 @@ export function BookingForm({
                     type="button"
                     role="radio"
                     aria-checked={unitId === u.unit_id}
+                    aria-disabled={isUnitBlocked(u.status)}
+                    disabled={isUnitBlocked(u.status)}
                     onClick={() => setUnitId(u.unit_id)}
                     className={`flex items-center justify-between gap-2 rounded-lg border p-3 text-left text-sm transition-colors ${
-                      unitId === u.unit_id ? "border-primary bg-primary/10" : "border-border hover:border-primary/60"
+                      unitId === u.unit_id
+                        ? "border-primary bg-primary/10"
+                        : isUnitBlocked(u.status)
+                          ? "border-border/50 bg-muted/40 text-muted-foreground cursor-not-allowed"
+                          : "border-border hover:border-primary/60"
                     }`}
                   >
                     <span>
                       <span className="font-display block">{u.name}</span>
                       <span className="text-muted-foreground">{u.facility_types?.name}</span>
                     </span>
-                    {u.status !== "AVAILABLE" && (
-                      <span className="text-xs text-warning">
-                        {u.status === "IN_USE" ? "sedang dipakai" : u.status === "BOOKED" ? "dipesan" : u.status.toLowerCase()}
-                      </span>
-                    )}
+                    <UnitStatusChip status={u.status} />
                   </button>
                 ))}
               </div>
@@ -612,70 +675,27 @@ export function BookingForm({
             <fieldset className="space-y-2">
               <legend className="text-sm font-medium">Jam Mulai</legend>
 
-              {slotsError ? (
-                <p className="text-sm text-warning">{slotsError}</p>
-              ) : !unitId ? (
+              {!unitId ? (
                 <p className="text-sm text-muted-foreground">Pilih unit dulu di langkah sebelumnya.</p>
-              ) : slots === null ? (
-                <p className="text-sm text-muted-foreground" role="status">
-                  Memuat ketersediaan…
-                </p>
-              ) : bookableSlots.length === 0 ? (
-                <p className="text-sm text-warning">
-                  Tidak ada slot kosong untuk unit ini di {date}. Coba ganti tanggal atau unit lain.
-                </p>
               ) : (
-                <>
-                  <div role="radiogroup" aria-label="Pilih jam mulai" className="grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-5">
-                    {slots.map((s) => {
-                      const open = s.state === "AVAILABLE";
-                      const copy = SLOT_COPY[s.state as SlotState];
-                      const picked = startIso === s.slot_start;
-                      return (
-                        <button
-                          key={s.slot_start}
-                          type="button"
-                          role="radio"
-                          aria-checked={picked}
-                          disabled={!open}
-                          onClick={() => setStartIso(s.slot_start)}
-                          title={
-                            s.ready_at
-                              ? `${copy?.label ?? s.state} · ${copy?.hint ?? ""} ${fmtTime(s.ready_at)}`
-                              : (copy?.label ?? s.state)
-                          }
-                          className={`min-h-14 rounded-lg border p-2 text-left transition-colors ${
-                            picked
-                              ? "border-primary bg-primary/15 glow-primary"
-                              : open
-                                ? "border-border hover:border-primary/60"
-                                : "cursor-not-allowed border-border/60 bg-muted/50 opacity-60"
-                          }`}
-                        >
-                          <span className="font-display block text-sm uppercase tabular-nums">
-                            {fmtTime(s.slot_start)}
-                          </span>
-                          <span className="block text-[11px] leading-tight text-muted-foreground">
-                            {copy?.label ?? s.state}
-                            {s.ready_at && ` · ${fmtTime(s.ready_at)}`}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-
-                  <ul className="flex flex-wrap gap-x-4 gap-y-1 pt-1 text-xs text-muted-foreground">
-                    {legendStates.map((k) => (
-                      <li key={k}>
-                        <span className="font-medium text-foreground">{SLOT_COPY[k].label}</span> — {SLOT_COPY[k].hint}
-                      </li>
-                    ))}
-                  </ul>
-                </>
+                <SlotPicker
+                  slots={slots}
+                  error={slotsError}
+                  startIso={startIso}
+                  onPick={setStartIso}
+                  durationMinutes={duration}
+                  onRefresh={() => setSlotsNonce((n) => n + 1)}
+                  refreshedAt={refreshedAt}
+                  onNextDay={() => {
+                    const next = new Date(Date.parse(date + "T00:00:00+07:00") + 86_400_000);
+                    const nextDay = fmtISODay(next);
+                    if (nextDay <= maxDate) setDate(nextDay);
+                  }}
+                />
               )}
             </fieldset>
 
-            {!timeValid && slots && bookableSlots.length > 0 && (
+            {!timeValid && slots && freeSlots.length > 0 && (
               <p className="text-sm text-warning">Pilih satu jam mulai yang tersedia.</p>
             )}
 

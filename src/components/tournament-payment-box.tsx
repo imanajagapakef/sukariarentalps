@@ -2,15 +2,17 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { QrisCard } from "@/components/payment/qris-card";
 import { rp } from "@/lib/format";
 
 /**
  * The fee payment box on a ticket.
  *
- * Free is not a special case here — it is the absence of this component. A paid ticket
- * asks the server for a dynamic-amount QRIS from the merchant's static string, the same
- * conversion the booking flow uses, and shows the code so a customer at the counter can
- * just read it out.
+ * Free is not a special case here — it is the absence of this component. A paid
+ * ticket asks the server for a dynamic-amount QRIS from the merchant's static
+ * string, generates the QR on the client (the API returns only the payload
+ * string), and renders it inside the shared QrisCard instead of dumping the raw
+ * payload into a <pre>.
  */
 export function TournamentPaymentBox({
   code,
@@ -19,7 +21,7 @@ export function TournamentPaymentBox({
   code: string;
   amount: number;
 }) {
-  const [qr, setQr] = useState<string | null>(null);
+  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -38,7 +40,16 @@ export function TournamentPaymentBox({
         setBusy(false);
         return;
       }
-      setQr(body.payment.qr_string as string);
+      const qrString = body.payment.qr_string as string;
+      // qrcode dimuat secara dinamis setelah tombol ditekan agar bundle awal
+      // halaman tiket tidak membebani beban sebelum pengguna benar-benar butuh QR.
+      const qrcode = (await import("qrcode")).default;
+      const dataUrl = await qrcode.toDataURL(qrString, {
+        width: 512,
+        margin: 1,
+        errorCorrectionLevel: "M",
+      });
+      setQrDataUrl(dataUrl);
       setBusy(false);
     } catch {
       setError("Gagal terhubung. Coba lagi.");
@@ -47,35 +58,29 @@ export function TournamentPaymentBox({
   }
 
   return (
-    <div className="rounded-lg border border-primary/40 bg-primary/5 p-4">
-      <p className="text-sm">
-        <span className="text-muted-foreground">HTM </span>
-        <span className="font-display text-primary">{rp(amount)}</span>
-        <span className="text-muted-foreground"> — belum dibayar.</span>
-      </p>
-
-      {qr ? (
-        <div className="mt-3 space-y-2 text-center">
-          {/* A plain rendered code rather than an <img>: the QR payload is already a
-              string, and rendering it directly avoids another round trip. */}
-          <pre className="overflow-x-auto rounded bg-card p-2 text-[10px] leading-tight break-all">
-            {qr}
-          </pre>
-          <p className="text-xs text-muted-foreground">
-            Scan pakai QRIS (app m-banking / GoPay), atau bayar di kasir dengan
-            tunjukkan kode tiket ini.
-          </p>
-        </div>
+    <div className="space-y-4">
+      {qrDataUrl ? (
+        <QrisCard
+          amount={amount}
+          qrDataUrl={qrDataUrl}
+          status="PENDING"
+          note="Tunjukkan QR ini ke kasir setelah pembayaran."
+        />
       ) : (
-        <Button type="button" className="mt-3 w-full" onClick={ask} disabled={busy}>
-          {busy ? "Menyiapkan QRIS…" : "Bayar QRIS"}
-        </Button>
+        <>
+          <p className="text-sm">
+            <span className="text-muted-foreground">HTM </span>
+            <span className="font-display text-primary">{rp(amount)}</span>
+            <span className="text-muted-foreground"> — belum dibayar.</span>
+          </p>
+          <Button type="button" className="mt-3 w-full" onClick={ask} disabled={busy}>
+            {busy ? "Menyiapkan QRIS…" : "Bayar QRIS"}
+          </Button>
+        </>
       )}
 
       {error && (
-        <p role="alert" className="mt-2 text-xs text-danger">
-          {error}
-        </p>
+        <p role="alert" className="mt-2 text-xs text-danger">{error}</p>
       )}
     </div>
   );

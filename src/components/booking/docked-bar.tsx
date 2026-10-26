@@ -1,6 +1,6 @@
 /** Docked bottom action bar. */
 
-import type { BookingUnit } from "./booking-form-types";
+import type { FormUnit } from "./booking-form-types";
 
 import { Button } from "@/components/ui/button";
 import { fmtDate, fmtDuration, fmtTime, rp } from "@/lib/format";
@@ -21,7 +21,7 @@ export function DockedBar({
   onSubmit,
 }: {
   step: number;
-  selectedUnit: BookingUnit | null;
+  selectedUnit: FormUnit | null;
   date: string;
   startIso: string | null;
   duration: number;

@@ -81,10 +81,10 @@ export function toCsv(
 }
 
 /**
- * Filename built only from [a-z0-9_-], so nothing from a query string can break out of
- * the quotes in Content-Disposition or smuggle a header line.
+ * Sanitizes filename parts to [a-z0-9_-] and appends an extension, so nothing from a
+ * query string can break out of the quotes in Content-Disposition or smuggle a header line.
  */
-export function csvFilename(parts: ReadonlyArray<string | undefined>): string {
+export function exportFilename(parts: ReadonlyArray<string | undefined>, ext: string): string {
   const clean = parts
     .map((p) =>
       (p ?? "")
@@ -94,7 +94,13 @@ export function csvFilename(parts: ReadonlyArray<string | undefined>): string {
         .slice(0, 40),
     )
     .filter(Boolean);
-  return `${clean.join("_") || "export"}.csv`;
+  return `${clean.join("_") || "export"}.${ext}`;
+}
+
+/** Filename built only from [a-z0-9_-], so nothing from a query string can break out of
+ * the quotes in Content-Disposition or smuggle a header line. */
+export function csvFilename(parts: ReadonlyArray<string | undefined>): string {
+  return exportFilename(parts, "csv");
 }
 
 /** `filename` must come from csvFilename. */
