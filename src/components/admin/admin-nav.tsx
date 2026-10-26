@@ -20,9 +20,11 @@ import {
   Users,
   Menu,
   X,
+  UserRound,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { LogoutButton } from "@/components/logout-button";
 
 export type AdminNavItem = { href: string; label: string; icon: LucideIcon };
 
@@ -144,9 +146,13 @@ export function AdminNav({ hidden = [], pendingCount = 0 }: { hidden?: string[];
 export function AdminNavMobile({
   hidden = [],
   pendingCount = 0,
+  userName,
+  userRole,
 }: {
   hidden?: string[];
   pendingCount?: number;
+  userName?: string;
+  userRole?: string;
 }) {
   const { groups } = useAdminNav(hidden);
   const pathname = usePathname() ?? "/admin";
@@ -278,6 +284,26 @@ export function AdminNavMobile({
               </div>
             ))}
           </nav>
+
+          {/* Footer stays put while the list scrolls: the identity and the logout button
+              must be reachable without scrolling, and staff are most likely to need the
+              logout on the phone they are holding. */}
+          <div className="shrink-0 space-y-2 border-t border-border p-3">
+            {userName && (
+              <div className="flex items-center gap-2.5">
+                <span className="grid size-9 shrink-0 place-items-center rounded-full bg-primary text-on-primary">
+                  <UserRound aria-hidden className="size-4" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-semibold">{userName}</span>
+                  {userRole && (
+                    <span className="block truncate text-xs text-muted-foreground">{userRole}</span>
+                  )}
+                </span>
+              </div>
+            )}
+            <LogoutButton />
+          </div>
         </aside>
       </div>
     </>

@@ -146,7 +146,7 @@ export default async function AdminLayout({ children }: Readonly<{ children: Rea
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="relative flex items-center gap-3 border-b border-border bg-surface px-4 py-2.5 md:px-6">
           {/* Hamburger di paling kiri, hanya di layar kecil. Drawer keluar dari kiri. */}
-          <AdminNavMobile hidden={hidden} pendingCount={pendingCount} />
+          <AdminNavMobile hidden={hidden} pendingCount={pendingCount} userName={name} userRole={role} />
 
           <p className="inline-flex items-center gap-2 rounded-full border border-border bg-surface-container px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant">
             <span aria-hidden className="size-2 rounded-full bg-primary" />
