@@ -144,9 +144,47 @@
     color-scheme: dark;
     scroll-behavior: smooth;
     @apply font-sans;
+    /*
+      The viewport must never pan sideways.
+
+      Anything even one pixel wider than the screen turns the whole page into a
+      sideways drag on iOS Safari, while Chrome quietly refuses to scroll to that
+      overflow — which is why the same page "aman" on Android and "bisa digeser"
+      on an iPhone. Phones are full of near-misses: a rotated sticker, a
+      `shrink-0 whitespace-nowrap` button, a marquee child thousands of pixels
+      wide. Guarding the root once is cheaper than chasing every one of them.
+
+      It has to be `hidden`, and it has to be here on `html` ALONE.
+
+      • `hidden`, not `clip`: only `hidden` is propagated from the root element
+        to the viewport (CSS Overflow §3.4). `clip` explicitly is NOT, so a root
+        that said `clip` — however modern the browser — left the viewport exactly
+        as scrollable as before. That was the miss: the guard was written, looked
+        right in Chrome (which clamps the overflow anyway), and the page still
+        dragged on an iPhone. There is a WPT test for it — a `clip` root still
+        lets `scrollIntoView` scroll the viewport sideways — and it is why this
+        line must not be overridden by a `clip` rule further down the sheet.
+      • On `html` ALONE: the instant `body` also carries a non-visible overflow,
+        `body` stops propagating to the viewport and becomes a scroll container
+        of its own, and the sticky header stops sticking (measured: the header
+        ended up 1389px up the page). On the root only, `hidden` locks the
+        viewport while the sticky header keeps resolving against the viewport
+        and native lazy-loading keeps measuring against it.
+    */
+    overflow-x: hidden;
+    /*
+      …and iOS does not fully trust that guard. WebKit bug 153852: once the
+      browser chrome has collapsed (or in a home-screen app) Safari still drags
+      the page sideways even though nothing is scrollable — a non-scrolling
+      overflow guard is not what stops that elastic pan there. This is the
+      documented, iOS 16+ honoured switch for exactly that, and it leaves
+      vertical bounce and pull-to-refresh alone.
+    */
+    overscroll-behavior-x: none;
   }
 
   body {
+    overscroll-behavior-x: none;
     background-color: var(--color-surface);
     color: var(--color-on-surface);
     font-family: var(--font-sans);

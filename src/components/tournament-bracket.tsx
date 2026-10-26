@@ -51,7 +51,7 @@ const GOLD = "#ffb84d";
 
 const CSS = `
 .tb-in{animation:tb-in .55s cubic-bezier(.2,.8,.2,1) both;animation-delay:var(--d,0ms)}
-.tb-win{position:relative;overflow:hidden}
+.tb-win{position:relative;overflow:hidden;contain:paint}
 .tb-win::after{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(100deg,transparent 35%,rgba(255,255,255,.22) 50%,transparent 65%);transform:translateX(-130%);animation:tb-shine 6s ease-in-out infinite;animation-delay:calc(var(--d,0ms) + 1200ms)}
 .tb-lit{animation:tb-lit 2.4s ease-in-out infinite}
 .tb-flow{background-image:linear-gradient(90deg,transparent,currentColor,transparent);background-size:200% 100%;animation:tb-flow 1.1s linear infinite}
@@ -163,7 +163,7 @@ export function TournamentBracket({
       <div className="relative">
         <div
           ref={scrollerRef}
-          className="no-scrollbar overflow-x-auto pb-2 pt-4"
+          className="no-scrollbar overflow-x-auto overscroll-x-contain pb-2 pt-4"
           role="table"
           aria-label="Bracket"
           style={
@@ -232,6 +232,26 @@ export function TournamentBracket({
                         }
                         title={`${round.label} · Match ${i + 1}`}
                       >
+                        {/* Match index, pinned just above the card's top-left corner.
+                            It hangs on this wrapper rather than inside `MatchCard`
+                            because the card clips its own overflow (it has to: the
+                            winner shine and the rounded corners depend on it) and
+                            would swallow a badge that pokes past its edge.
+
+                            Above the top edge, not out to the left. The gap left of
+                            every later round is filled by the elbow connector, and
+                            left of the FIRST round sits outside the scroller's
+                            content box — a badge there is reachable only by widening
+                            the page, which is the sideways drag we are keeping off a
+                            phone. Here it grows within the column, so it can never
+                            hand the page a horizontal scroll. */}
+                        <span
+                          aria-hidden
+                          className="absolute -top-3.5 left-1 rounded border border-border bg-surface-low px-1.5 text-[10px] leading-tight tabular-nums text-muted-foreground"
+                        >
+                          {i + 1}
+                        </span>
+
                         {/* Out to the next round: the child's half of the elbow. */}
                         {!isLast && (
                           <Seg
@@ -298,7 +318,6 @@ export function TournamentBracket({
 
                         <MatchCard
                           match={m}
-                          index={i}
                           champion={isChampion(m)}
                           highlight={spotlightLive && ready}
                         />
@@ -402,12 +421,10 @@ function Seg({
 
 function MatchCard({
   match,
-  index,
   champion,
   highlight,
 }: {
   match: TournamentMatch;
-  index: number;
   champion: boolean;
   highlight: boolean;
 }) {
@@ -422,14 +439,6 @@ function MatchCard({
         !highlight && !champion && "border-border",
       )}
     >
-      {/* Match number, outside the card on the left like the reference bracket. */}
-      <span
-        aria-hidden
-        className="absolute -left-1 top-1/2 -translate-x-full -translate-y-1/2 rounded border border-border bg-surface-low px-1.5 text-[10px] tabular-nums text-muted-foreground"
-      >
-        {index + 1}
-      </span>
-
       <PlayerRow
         name={slotLabel(match, "a")}
         seed={match.player_a_seed}

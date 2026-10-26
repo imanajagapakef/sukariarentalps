@@ -399,7 +399,16 @@ export default async function Home() {
           })}
         </div>
         <div className="mt-8 flex justify-center">
-          <Button asChild size="lg">
+          {/* The label is the longest CTA on the page and every `Button` is
+              `shrink-0 whitespace-nowrap`, so below ~340px this button was wider
+              than the screen and dragged the whole page with it. Let it wrap and
+              cap it at the container instead: two lines on a small phone, one
+              line everywhere else. */}
+          <Button
+            asChild
+            size="lg"
+            className="h-auto max-w-full py-3 text-center leading-tight whitespace-normal"
+          >
             <Link href="/games">
               <Gamepad2 aria-hidden className="size-5" /> Jelajahi {games.length}+ Katalog Game
             </Link>
