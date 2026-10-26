@@ -6,6 +6,7 @@ import {
   MATCH_STATUS_LABEL,
   bracketRounds,
   isChampion,
+  resultHeadline,
   slotLabel,
   winnerFromScore,
   type TournamentMatch,
@@ -54,6 +55,18 @@ export function TournamentBracket({
 }) {
   const rounds = bracketRounds(matches);
 
+  // The final is the match nobody feeds into. Two headline states read off it: a champion
+  // once it is decided, and "final is set" once both finalists are known but the match has
+  // not been played. Either way the bracket wears a banner above it.
+  const finalMatch = matches.find((m) => m.next_match_id === null) ?? null;
+  const champion =
+    finalMatch?.status === "FINISHED" ? (resultHeadline(finalMatch)?.winner ?? null) : null;
+  const finalReady =
+    !champion &&
+    finalMatch !== null &&
+    finalMatch.player_a_name !== null &&
+    finalMatch.player_b_name !== null;
+
   // The tree is wider than a phone, so it scrolls inside its own container. `moreRight`
   // drives the edge fade, and it has to be measured rather than assumed: on a wide screen
   // the tree fits and a fade would be lying about content that is not there.
@@ -97,6 +110,15 @@ export function TournamentBracket({
     // column. Without it the box grows to the tree's width and hands the whole page a
     // sideways scroll on a phone.
     <div className={cn("min-w-0", className)}>
+      {champion ? (
+        <div className="mb-4">
+          <ChampionBanner name={champion} />
+        </div>
+      ) : finalReady ? (
+        <div className="mb-3 flex justify-center">
+          <FinalTrophy />
+        </div>
+      ) : null}
       <div
         ref={scrollerRef}
         className="no-scrollbar overflow-x-auto pb-2"
@@ -318,6 +340,86 @@ function PlayerRow({
       <span className="min-w-0 flex-1 truncate text-sm">{name}</span>
       {champion && won && <Trophy aria-hidden className="size-3.5 shrink-0 text-primary" />}
       <span className="shrink-0 font-display text-sm tabular-nums">{score ?? ""}</span>
+    </div>
+  );
+}
+
+/**
+ * The stylised figure raising the cup, shared by the "final is set" and champion banners.
+ *
+ * Pure SVG, no image asset; the caller sizes it and adds the lift animation.
+ */
+function TrophyFigure({ className = "" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 96 88" fill="none" aria-hidden className={className}>
+      {/* soft floor glow */}
+      <ellipse cx="48" cy="84" rx="24" ry="4" className="fill-primary/15" />
+
+      {/* the cup */}
+      <path d="M38 8h20v12a10 10 0 0 1-20 0z" className="fill-primary" />
+      <path
+        d="M34 11h-5a6 6 0 0 0 6 6M62 11h5a6 6 0 0 1-6 6"
+        className="stroke-primary"
+        strokeWidth="2.4"
+        strokeLinecap="round"
+      />
+      <rect x="46" y="30" width="4" height="5" className="fill-primary" />
+      <rect x="41" y="35" width="14" height="4" rx="1.5" className="fill-primary" />
+
+      {/* the figure — arms up, gripping the base */}
+      <circle cx="48" cy="52" r="6" className="fill-current" />
+      <path
+        d="M48 58v16M48 74l-5 8M48 74l5 8"
+        className="stroke-current"
+        strokeWidth="4.5"
+        strokeLinecap="round"
+      />
+      <path
+        d="M48 60 40 38M48 60 56 38"
+        className="stroke-current"
+        strokeWidth="4"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+/**
+ * Shown above a bracket whose final is set but not yet decided: "get ready for the final".
+ *
+ * The whole group lifts on a slow loop; `motion-reduce` drops the movement.
+ */
+function FinalTrophy() {
+  return (
+    <div className="flex flex-col items-center gap-1.5">
+      <div className="animate-final-lift text-primary motion-reduce:animate-none">
+        <TrophyFigure className="h-[88px] w-[96px]" />
+      </div>
+      <span className="font-display text-xs uppercase tracking-[0.22em] text-primary">
+        Siap Final
+      </span>
+    </div>
+  );
+}
+
+/**
+ * Shown above a bracket whose final is decided: who took the whole thing.
+ *
+ * Read from the score, so it can never disagree with the champion row in the tree. The
+ * name is the point of the banner, so it is set large and takes the accent colour.
+ */
+function ChampionBanner({ name }: { name: string }) {
+  return (
+    <div className="flex items-center gap-4 rounded-xl border border-primary/40 bg-primary/10 px-4 py-3 sm:px-5 sm:py-4">
+      <div className="animate-final-lift shrink-0 text-primary motion-reduce:animate-none">
+        <TrophyFigure className="h-[64px] w-[70px]" />
+      </div>
+      <div className="min-w-0">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+          Juara
+        </p>
+        <p className="font-display truncate text-xl uppercase text-primary sm:text-2xl">{name}</p>
+      </div>
     </div>
   );
 }

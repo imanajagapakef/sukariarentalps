@@ -129,6 +129,14 @@
     0%, 100% { filter: drop-shadow(0 0 6px rgba(97,224,106,.25)); }
     50% { filter: drop-shadow(0 0 18px rgba(97,224,106,.7)); }
   }
+
+  /* Bracket hero: the trophy-raising celebration shown above a bracket whose final is set. */
+  --animate-final-lift: final-lift 2.6s ease-in-out infinite;
+
+  @keyframes final-lift {
+    0%, 100% { transform: translateY(0) scale(1); }
+    50% { transform: translateY(-7px) scale(1.04); }
+  }
 }
 
 @layer base {
