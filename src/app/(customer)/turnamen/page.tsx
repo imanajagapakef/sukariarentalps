@@ -1,3 +1,5 @@
+import { PageHero } from "@/components/page-hero";
+import { Trophy, Sparkles } from "lucide-react";
 import { Suspense } from "react";
 import Link from "next/link";
 import { getTournamentOverviews } from "@/lib/tournaments";
@@ -19,10 +21,12 @@ export const revalidate = 60;
 export default function TournamentsPage() {
   return (
     <div className="mx-auto max-w-5xl px-4 py-10 md:px-8">
-      <h1 className="font-display text-3xl uppercase md:text-5xl">Turnamen</h1>
-      <p className="mt-2 max-w-2xl text-muted-foreground">
-        Adu serabutan di lokasi. Daftar dulu, bayar HTM kalau ada, tiketnya langsung jadi.
-      </p>
+      <PageHero
+        eyebrow={{ icon: Sparkles, label: "Kompetisi" }}
+        title="Turnamen"
+        titleIcon={Trophy}
+        description="Adu serabutan di lokasi. Daftar dulu, bayar HTM kalau ada, tiketnya langsung jadi."
+      />
 
       <div className="mt-8">
         <Suspense fallback={<p className="text-sm text-muted-foreground">Memuat turnamen…</p>}>
@@ -115,14 +119,14 @@ async function TournamentList() {
               <div className="mt-auto flex items-center gap-2 pt-2">
                 <Link
                   href={`/turnamen/${t.slug}`}
-                  className="flex-1 rounded-lg border border-border px-3 py-2 text-center text-sm font-bold hover:border-primary hover:text-primary"
+                  className="flex-1 rounded-lg border border-border px-3 py-2 text-center text-sm font-bold transition-colors hover:border-primary hover:text-primary"
                 >
                   Detail
                 </Link>
                 {gate.ok ? (
                   <Link
                     href={`/turnamen/${t.slug}#daftar`}
-                    className="flex-1 rounded-lg bg-primary px-3 py-2 text-center text-sm font-bold text-primary-foreground hover:opacity-90"
+                    className="flex-1 rounded-lg bg-primary px-3 py-2 text-center text-sm font-bold text-primary-foreground transition-opacity hover:opacity-90"
                   >
                     Daftar
                   </Link>

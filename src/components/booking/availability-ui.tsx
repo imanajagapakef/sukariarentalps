@@ -236,7 +236,7 @@ export function SlotPicker({
             <button
               type="button"
               onClick={() => onPick(nearest.slot_start)}
-              className="min-h-11 rounded-lg border border-primary/50 px-3 text-sm font-medium text-primary hover:bg-primary/10"
+              className="min-h-11 rounded-lg border border-primary/50 px-3 text-sm font-medium text-primary transition-colors hover:bg-primary/10"
             >
               Pilih jam terdekat ({fmtTime(nearest.slot_start)})
             </button>
@@ -245,7 +245,7 @@ export function SlotPicker({
             <button
               type="button"
               onClick={() => onPick(null)}
-              className="min-h-11 rounded-lg border border-destructive/50 px-3 text-sm font-medium text-destructive hover:bg-destructive/10"
+              className="min-h-11 rounded-lg border border-destructive/50 px-3 text-sm font-medium text-destructive transition-colors hover:bg-destructive/10"
             >
               Hapus pilihan
             </button>
@@ -299,7 +299,7 @@ export function SlotPicker({
                       if (open) onPick(s.slot_start);
                     }}
                     className={[
-                      "flex min-h-16 flex-col justify-between rounded-lg border p-2 text-left transition-colors",
+                      "flex min-h-16 flex-col justify-between rounded-lg border p-2 text-left transition-ui",
                       "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
                       isPicked
                         ? "border-primary bg-primary text-primary-foreground glow-primary"

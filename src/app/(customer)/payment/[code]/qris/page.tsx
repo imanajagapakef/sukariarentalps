@@ -1,3 +1,4 @@
+import { Breadcrumbs } from "@/components/breadcrumbs";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import QRCode from "qrcode";
@@ -78,6 +79,14 @@ export default async function PaymentQrisPage({ params }: { params: Promise<{ co
           broadcast fired into an empty room and the QR sat there until a manual
           refresh. */}
       <LiveBooking code={booking.booking_code} status={booking.status} />
+      <Breadcrumbs
+        className="mt-4"
+        items={[
+          { label: "Home", href: "/" },
+          { label: `Payment ${booking.booking_code}`, href: `/payment/${booking.booking_code}` },
+          { label: "QRIS" },
+        ]}
+      />
       <QrisCard
         amount={booking.total_amount}
         qrDataUrl={qrDataUrl}

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SelectField } from "@/components/ui/select-field";
+import { Trash2 } from "lucide-react";
 
 type Branch = { branch_id: string; branch_code: string; branch_name: string };
 
@@ -245,6 +246,30 @@ export function StaffManager({
                   onClick={() => void post("PATCH", `/api/admin/users/${s.user_id}`, { active: true })}
                 >
                   Aktifkan
+                </Button>
+              )}
+              {/* Hapus = permanen, dan sengaja diletakkan paling kanan supaya tidak
+                  bersebelahan dengan tombol yang bisa dibalikkan. Pesan konfirmasi
+                  menyebut apa yang hilang (profil + tautan jejak) dan menawarkan
+                  "Nonaktifkan" sebagai alternatif yang reversibel. */}
+              {canToggle && (
+                <Button
+                  size="xs"
+                  variant="destructive"
+                  disabled={busy}
+                  title="Hapus akun secara permanen"
+                  onClick={() => {
+                    const label = s.full_name ?? s.email ?? s.user_id;
+                    const ok = confirm(
+                      `Hapus permanen akun ${label}?\n\n` +
+                        `Profilnya ikut terhapus dan jejak audit/booking kehilangan tautan ke akun ini. ` +
+                        `Tindakan ini tidak bisa dibatalkan.\n\n` +
+                        `Kalau hanya ingin memblokir login, pakai "Nonaktifkan" saja.`,
+                    );
+                    if (ok) void post("DELETE", `/api/admin/users/${s.user_id}`, {});
+                  }}
+                >
+                  <Trash2 aria-hidden className="size-3.5" /> Hapus
                 </Button>
               )}
             </div>

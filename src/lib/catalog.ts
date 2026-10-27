@@ -11,7 +11,9 @@ import { isWorthwhile } from "@/lib/promo-rules";
  * Caching, precisely: the client in `lib/supabase/public` is the one that decides, by
  * passing `next.revalidate` to every fetch. There is no `unstable_cache` here and there
  * does not need to be — the data cache already lives one layer down. `cache()` from React
- * is *not* that cache: it only dedupes repeated calls inside a single render.
+ * is *not* that cache: it only dedupes repeated calls inside a single render, which is
+ * why it is safe to put in front of the live reads too — it never serves a request
+ * anything older than that request's own first read.
  *
  * Only branches keep the 300 s default. Everything a booking depends on — unit status,
  * snack stock, promo eligibility — is read live, because a stale row there means the
@@ -19,6 +21,25 @@ import { isWorthwhile } from "@/lib/promo-rules";
  * `getGames` defaults to the 300 s cache for browsing pages, while /booking asks for
  * `revalidate: 0` because `game_availability` decides which games a branch can offer.
  */
+
+/** Error with the failing read's name on it, so a log line says where to look. */
+const fail = (scope: string, e: { message: string }) => new Error(`catalog/${scope}: ${e.message}`);
+
+/* -------------------------------------------------------------------------- */
+/*  Select lists                                                              */
+/* -------------------------------------------------------------------------- */
+
+const GAME_SCALARS =
+  "game_id, image_url, name, slug, short_description, developer, publisher, release_date, age_rating";
+const GAME_AVAIL = "game_availability(branch_id, available)";
+const GAME_LIST = `${GAME_SCALARS}, game_platforms(platform_id), ${GAME_AVAIL}`;
+
+const UNIT_SCALARS =
+  "unit_id, image_url, name, status, condition, branch_id, facility_type_id, branches(name, short_name), facility_types(name, platform, category)";
+
+/* -------------------------------------------------------------------------- */
+/*  Types                                                                     */
+/* -------------------------------------------------------------------------- */
 
 export type BranchRow = {
   branch_id: string;
@@ -72,10 +93,13 @@ export type GameRow = {
   game_availability: { branch_id: string | null; available: boolean }[];
 };
 
-export type GameDetailRow = GameRow & {
+/**
+ * `Omit` rather than `&`: the detail embed is a to-one object with many more fields,
+ * and intersecting it with GameRow's union made `game_features` a type nothing could
+ * satisfy cleanly. `publisher` / `release_date` already live on GameRow.
+ */
+export type GameDetailRow = Omit<GameRow, "game_features"> & {
   description: string | null;
-  publisher: string | null;
-  release_date: string | null;
   game_features: {
     genre: string | null;
     local_multiplayer: boolean;
@@ -102,6 +126,26 @@ export type PromoRow = {
   }[];
 };
 
+export type GameRequestRow = {
+  request_id: string;
+  game_name: string;
+  status: string;
+  vote_count: number;
+  created_at: string;
+};
+
+export type FacilityTypeRow = {
+  facility_type_id: string;
+  code: string;
+  name: string;
+  platform: string;
+  category: string;
+};
+
+/* -------------------------------------------------------------------------- */
+/*  Branches / units                                                          */
+/* -------------------------------------------------------------------------- */
+
 export const getBranches = cache(async (): Promise<BranchRow[]> => {
   const db = createClient();
   const { data, error } = await db
@@ -109,32 +153,21 @@ export const getBranches = cache(async (): Promise<BranchRow[]> => {
     .select("branch_id, image_url, name, short_name, address, phone, operating_hours, google_rating, google_review_count, status")
     .eq("status", "ACTIVE")
     .order("name");
-  if (error) throw new Error(error.message);
+  if (error) throw fail("getBranches", error);
   return (data ?? []) as BranchRow[];
 });
 
-const UNIT_SCALARS =
-  "unit_id, image_url, name, status, condition, branch_id, facility_type_id, branches(name, short_name), facility_types(name, platform, category)";
-
-export async function getUnitsWithFacility(): Promise<UnitRow[]> {
+export const getUnitsWithFacility = cache(async (): Promise<UnitRow[]> => {
   const db = createClient();
-  const { data, error } = await db
-    .from("units")
-    .select(UNIT_SCALARS)
-    .order("branch_id")
-    .order("unit_id");
-  if (error) throw new Error(error.message);
+  const { data, error } = await db.from("units").select(UNIT_SCALARS).order("branch_id").order("unit_id");
+  if (error) throw fail("getUnitsWithFacility", error);
   return (data ?? []) as UnitRow[];
-}
+});
 
-/**
- * Game catalogue.
- *
- * `game_features.genre` rides along so the genre filter can run client-side over the
- * page's own result set. Migration 0018 filled genre for all 58 games, which is what
- * makes that filter worth showing — before it, 6 of 58 rows had features and a genre
- * chip would have hidden almost the whole catalogue.
- */
+/* -------------------------------------------------------------------------- */
+/*  Games                                                                     */
+/* -------------------------------------------------------------------------- */
+
 /**
  * The genre for a game, whichever shape the embed came back in.
  *
@@ -148,29 +181,46 @@ export function gameGenre(g: Pick<GameRow, "game_features">): string | null {
   return Array.isArray(f) ? (f[0]?.genre ?? null) : (f.genre ?? null);
 }
 
-export async function getGames(options?: { revalidate?: number }): Promise<GameRow[]> {
-  const db = createClient(options);
+/**
+ * Keyed on the revalidate number, not the options object: React's cache() compares
+ * arguments by identity, so a fresh `{ revalidate: 0 }` literal on every call would
+ * never dedupe.
+ */
+const gamesQuery = cache(async (revalidate: number | undefined): Promise<GameRow[]> => {
+  const db = createClient(revalidate === undefined ? undefined : { revalidate });
   const { data, error } = await db
     .from("games")
-    .select(
-      `${GAME_SCALARS}, game_platforms(platform_id), ${GAME_AVAIL}, game_features(genre)`,
-    )
+    .select(`${GAME_LIST}, game_features(genre)`)
     .eq("active", true)
     .order("name");
-  if (error) throw new Error(error.message);
+  if (error) throw fail("getGames", error);
   return (data ?? []) as GameRow[];
+});
+
+/**
+ * Game catalogue.
+ *
+ * `game_features.genre` rides along so the genre filter can run client-side over the
+ * page's own result set. Migration 0018 backfilled genre across the catalogue, which
+ * is what makes that filter worth showing.
+ *
+ * Defaults to the 300 s cache for browsing pages; /booking passes `revalidate: 0`
+ * because `game_availability` decides which games a branch can offer.
+ */
+export function getGames(options?: { revalidate?: number }): Promise<GameRow[]> {
+  return gamesQuery(options?.revalidate);
 }
 
-export async function getPlatforms() {
+export const getPlatforms = cache(async () => {
   const db = createClient();
   const { data, error } = await db
     .from("platforms")
     .select("platform_id, name")
     .eq("active", true)
     .order("name");
-  if (error) throw new Error(error.message);
+  if (error) throw fail("getPlatforms", error);
   return data ?? [];
-}
+});
 
 export const getGameBySlug = cache(async (slug: string): Promise<GameDetailRow | null> => {
   const db = createClient();
@@ -185,25 +235,23 @@ export const getGameBySlug = cache(async (slug: string): Promise<GameDetailRow |
     .eq("slug", slug)
     .eq("active", true)
     .maybeSingle();
-  if (error) throw new Error(error.message);
+  if (error) throw fail("getGameBySlug", error);
   return (data ?? null) as GameDetailRow | null;
 });
-
-const GAME_SCALARS =
-  "game_id, image_url, name, slug, short_description, developer, publisher, release_date, age_rating";
-const GAME_AVAIL = "game_availability(branch_id, available)";
 
 /**
  * Games to show in the "cari yang mirip" row.
  *
- * Prefers same-genre, but game_features only covers 6 of 58 games, so a
- * genre-only lookup returned nothing for most of the catalogue and the whole
- * section was dead code. Falls back to same-platform, which every game has.
+ * Prefers same-genre, then tops the row up from the same platform, which every game has.
+ * The old version only fell back when the genre match came back completely empty, so a
+ * game with a single same-genre sibling showed a one-card row. Both queries are ordered
+ * by name so the row does not reshuffle between requests.
  *
  * Note: a relation may only be embedded once per select. Embedding
  * game_platforms both plainly and as !inner makes PostgREST emit a duplicate
  * FROM subquery and fail with "aggregate functions are not allowed in FROM
- * clause of their own query level".
+ * clause of their own query level". That is why the platform query uses its own
+ * select list instead of GAME_LIST.
  */
 export async function getSimilarGames(
   genre: string | null,
@@ -213,55 +261,41 @@ export async function getSimilarGames(
 ): Promise<GameRow[]> {
   if (!genre && !platformId) return [];
   const db = createClient();
+  const picked: GameRow[] = [];
 
   if (genre) {
     const { data, error } = await db
       .from("games")
-      .select(
-        `${GAME_SCALARS}, game_platforms(platform_id), ${GAME_AVAIL}, game_features!inner(genre)`,
-      )
+      .select(`${GAME_LIST}, game_features!inner(genre)`)
       .eq("active", true)
       .eq("game_features.genre", genre)
       .neq("game_id", excludeGameId)
+      .order("name")
       .limit(limit);
-    if (error) throw new Error(error.message);
-    if (data?.length) return data as GameRow[];
+    if (error) throw fail("getSimilarGames/genre", error);
+    picked.push(...((data ?? []) as GameRow[]));
   }
 
-  if (platformId) {
+  if (platformId && picked.length < limit) {
+    const taken = new Set(picked.map((g) => g.game_id));
     const { data, error } = await db
       .from("games")
       .select(`${GAME_SCALARS}, game_platforms!inner(platform_id), ${GAME_AVAIL}`)
       .eq("active", true)
       .eq("game_platforms.platform_id", platformId)
       .neq("game_id", excludeGameId)
-      .limit(limit);
-    if (error) throw new Error(error.message);
-    return (data ?? []) as GameRow[];
+      .order("name")
+      // Over-fetch by what is already taken, so de-duplicating cannot leave the row short.
+      .limit(limit + taken.size);
+    if (error) throw fail("getSimilarGames/platform", error);
+    for (const g of (data ?? []) as GameRow[]) {
+      if (picked.length >= limit) break;
+      if (!taken.has(g.game_id)) picked.push(g);
+    }
   }
 
-  return [];
+  return picked;
 }
-
-export async function getSnacks(): Promise<SnackRow[]> {
-  const db = createClient();
-  const { data, error } = await db
-    .from("snacks")
-    .select("snack_id, image_url, name, category, price, stock, min_stock")
-    .eq("active", true)
-    .order("category")
-    .order("name");
-  if (error) throw new Error(error.message);
-  return (data ?? []) as SnackRow[];
-}
-
-export type GameRequestRow = {
-  request_id: string;
-  game_name: string;
-  status: string;
-  vote_count: number;
-  created_at: string;
-};
 
 /**
  * Most-wanted titles, for the "TOP REQUEST GAMEPOP" block on /games.
@@ -270,7 +304,7 @@ export type GameRequestRow = {
  * left the wishlist, and REJECTED should not keep competing for attention.
  * vote_count is maintained by the sync_game_request_votes trigger.
  */
-export async function getTopGameRequests(limit = 5): Promise<GameRequestRow[]> {
+export const getTopGameRequests = cache(async (limit = 5): Promise<GameRequestRow[]> => {
   const db = createClient();
   const { data, error } = await db
     .from("game_requests")
@@ -279,11 +313,47 @@ export async function getTopGameRequests(limit = 5): Promise<GameRequestRow[]> {
     .order("vote_count", { ascending: false })
     .order("created_at", { ascending: true })
     .limit(limit);
-  if (error) throw new Error(error.message);
+  if (error) throw fail("getTopGameRequests", error);
   return (data ?? []) as GameRequestRow[];
-}
+});
 
-export async function getPromotions(): Promise<PromoRow[]> {
+/**
+ * Every game request, for staff triage on /admin/games.
+ *
+ * Unlike the public top-5 this keeps *all* statuses. A request moved to
+ * APPROVED/REJECTED/ADDED has left the customer-facing wishlist, but staff still
+ * need to see it — otherwise "hapus yang sudah selesai" is impossible and the table
+ * only grows. `anon` can read this table (public read policy, migration 0002), so
+ * no service client is needed here, exactly like the public list.
+ */
+export const getGameRequests = cache(async (limit = 100): Promise<GameRequestRow[]> => {
+  const db = createClient();
+  const { data, error } = await db
+    .from("game_requests")
+    .select("request_id, game_name, status, vote_count, created_at")
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error) throw fail("getGameRequests", error);
+  return (data ?? []) as GameRequestRow[];
+});
+
+/* -------------------------------------------------------------------------- */
+/*  Snacks / promos / pricing                                                 */
+/* -------------------------------------------------------------------------- */
+
+export const getSnacks = cache(async (): Promise<SnackRow[]> => {
+  const db = createClient();
+  const { data, error } = await db
+    .from("snacks")
+    .select("snack_id, image_url, name, category, price, stock, min_stock")
+    .eq("active", true)
+    .order("category")
+    .order("name");
+  if (error) throw fail("getSnacks", error);
+  return (data ?? []) as SnackRow[];
+});
+
+export const getPromotions = cache(async (): Promise<PromoRow[]> => {
   const db = createClient();
   const { data, error } = await db
     .from("promotions")
@@ -292,9 +362,9 @@ export async function getPromotions(): Promise<PromoRow[]> {
     )
     .eq("status", "ACTIVE")
     .order("created_at", { ascending: false });
-  if (error) throw new Error(error.message);
+  if (error) throw fail("getPromotions", error);
   return (data ?? []) as PromoRow[];
-}
+});
 
 /**
  * Bookable promo packages, each carrying the normal price it is measured against.
@@ -308,7 +378,7 @@ export async function getPromotions(): Promise<PromoRow[]> {
 export const getPromoOfferings = cache(async (): Promise<PromoOffering[]> => {
   const db = createClient();
   const { data, error } = await db.rpc("promo_offerings");
-  if (error) throw new Error(error.message);
+  if (error) throw fail("getPromoOfferings", error);
   // Drop packages that are not actually cheaper. calculate_price returns 0 when the
   // branch has no price rule for that facility type — an ACTIVE promo can name a
   // combination nobody has priced yet, and create_booking would refuse it anyway.
@@ -316,42 +386,38 @@ export const getPromoOfferings = cache(async (): Promise<PromoOffering[]> => {
   return ((data ?? []) as PromoOffering[]).filter(isWorthwhile);
 });
 
-export type FacilityTypeRow = {
-  facility_type_id: string;
-  code: string;
-  name: string;
-  platform: string;
-  category: string;
-};
-
-export async function getFacilityTypes(): Promise<FacilityTypeRow[]> {
+export const getFacilityTypes = cache(async (): Promise<FacilityTypeRow[]> => {
   const db = createClient();
   const { data, error } = await db
     .from("facility_types")
     .select("facility_type_id, code, name, platform, category")
     .order("name");
-  if (error) throw new Error(error.message);
+  if (error) throw fail("getFacilityTypes", error);
   return (data ?? []) as FacilityTypeRow[];
-}
+});
 
 /**
  * Lowest active hourly rate per facility type, across branches.
  * Used for the "Mulai RpX/Jam" chips on home & facility cards.
+ *
+ * A rule with no duration, or a price that is not a positive number, is skipped: a
+ * stray Rp 0 row would otherwise win the minimum and advertise "Mulai Rp0/jam".
  */
-export async function getMinHourlyRates(): Promise<Record<string, number>> {
+export const getMinHourlyRates = cache(async (): Promise<Record<string, number>> => {
   const db = createClient();
   const { data, error } = await db
     .from("pricing_rules")
     .select("facility_type_id, pricing_type, duration_minutes, price")
     .eq("active", true);
-  if (error) throw new Error(error.message);
+  if (error) throw fail("getMinHourlyRates", error);
   const map: Record<string, number> = {};
   for (const r of data ?? []) {
     if (r.pricing_type !== "HOURLY" || !r.duration_minutes) continue;
     const perHour = (r.price / r.duration_minutes) * 60;
+    if (!Number.isFinite(perHour) || perHour <= 0) continue;
     if (map[r.facility_type_id] === undefined || perHour < map[r.facility_type_id]) {
       map[r.facility_type_id] = perHour;
     }
   }
   return map;
-}
+});

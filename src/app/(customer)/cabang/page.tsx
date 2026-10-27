@@ -1,3 +1,6 @@
+import { PageHero } from "@/components/page-hero";
+import { MapPin, Monitor, Store, Zap } from "lucide-react";
+import { StatCards } from "@/components/stat-cards";
 import Link from "next/link";
 import Image from "next/image";
 import { getBranches, getUnitsWithFacility } from "@/lib/catalog";
@@ -16,15 +19,33 @@ export default async function CabangPage() {
     getBranchPhotos(),
   ]);
   const availability = groupByBranch(units);
+  const totalUnits = [...availability.values()].reduce((s, v) => s + v.total, 0);
+  const totalFree = [...availability.values()].reduce((s, v) => s + v.available, 0);
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-10 md:px-8">
-      <div className="mt-6 flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
-        <div className="max-w-2xl">
-          <h1 className="font-display text-3xl uppercase md:text-5xl">Cabang</h1>
-        </div>
-        <CabangHeroAnimation className="h-24 w-full md:h-44 md:w-120 shrink-0" />
-      </div>
+      <PageHero
+        className="mt-6"
+        eyebrow={{ icon: Store, label: `${branches.length} cabang` }}
+        title="Cabang"
+        titleIcon={MapPin}
+        description="Lihat unit yang lagi kosong, jam buka, dan rute tiap cabang."
+        aside={<CabangHeroAnimation className="h-24 w-full md:h-44 md:w-120 shrink-0" />}
+      />
+      <StatCards
+        cards={[
+          { label: "Cabang aktif", value: branches.length, icon: Store, hint: "lokasi siap dikunjungi" },
+          {
+            label: "Unit kosong",
+            value: totalFree,
+            tone: totalFree > 0 ? "primary" : "muted",
+            icon: Zap,
+            hint: "bisa langsung main",
+          },
+          { label: "Total unit", value: totalUnits, icon: Monitor, hint: "seluruh armada" },
+        ]}
+      />
+
       <div className="mt-8 grid gap-4 sm:grid-cols-2">
         {branches.map((b) => {
           const stats = availability.get(b.branch_id);
@@ -41,7 +62,7 @@ export default async function CabangPage() {
               {/* First gallery photo is the cover; falls back to the legacy single
                   image_url so a branch that only has the old one still looks right. */}
               {cover && (
-                <Link href={`/cabang/${b.branch_id}`} className="relative block aspect-[16/9] bg-muted">
+                <Link href={`/cabang/${b.branch_id}`} className="relative block aspect-16/9 bg-muted">
                   <Image
                     src={cover}
                     alt={b.name}

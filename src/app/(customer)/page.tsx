@@ -388,7 +388,7 @@ export default async function Home() {
                   seed={g.game_id}
                   src={g.image_url}
                   label={g.name}
-                  className="aspect-[3/4] w-full rounded-lg text-[0.65rem]"
+                  className="aspect-3/4 w-full rounded-lg text-[0.65rem]"
                 />
                 <p className="line-clamp-2 text-sm font-bold leading-tight">{g.name}</p>
                 <p className="text-[0.7rem] text-muted-foreground">
@@ -452,7 +452,7 @@ export default async function Home() {
                   seed={s.snack_id}
                   src={s.image_url}
                   label={s.category}
-                  className="aspect-[4/3] w-full rounded-lg text-[0.65rem]"
+                  className="aspect-4/3 w-full rounded-lg text-[0.65rem]"
                 />
                 <p className="line-clamp-2 text-sm font-bold leading-tight">{s.name}</p>
                 <p className="font-display text-lg text-primary">{rp(s.price)}</p>

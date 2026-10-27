@@ -8,6 +8,10 @@ coverage/
 # smoke-test / server logs
 *.log
 
+# Regenerable scrape cache for scripts/gen-game-features.mjs (~7 MB).
+# Rebuild with `node scripts/gen-game-features.mjs`; must not be committed.
+wikidata-cache.json
+
 .env
 .env.*
 !.env.example

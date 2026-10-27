@@ -70,3 +70,24 @@ export async function setStaffStatus(
     if (unbanError) throw new Error(`Profil aktif, tapi login masih terkunci: ${unbanError.message}`);
   }
 }
+
+/**
+ * Hard-delete a staff account and its auth identity.
+ *
+ * The irreversible counterpart to the ban above, kept separate on purpose: a ban
+ * keeps the person on the books, a delete removes them.
+ *
+ * What makes it safe to offer at all is that every reference to the account
+ * survives with the *link* cut, not the row:
+ *   - `profiles.user_id … on delete cascade`            → the profile goes with it;
+ *   - `bookings.created_by`, `inventory_movements.actor_id`, `audit_logs.actor_id`,
+ *     `tournament_registrations.requested_by … on delete set null` → the history
+ *     stays, the actor becomes anonymous.
+ *
+ * The route audits the delete *before* this runs: afterwards there is no profile
+ * left to read the role off, and `audit_logs.actor_id` would be nulled anyway.
+ */
+export async function deleteStaffUser(db: DB, userId: string) {
+  const { error } = await db.auth.admin.deleteUser(userId);
+  if (error) throw new Error(error.message);
+}

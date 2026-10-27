@@ -16,8 +16,12 @@ export function Ticker({ items }: { items: string[] }) {
     // to its own layer — at which point the clip holds (Safari: "doesn't respect
     // overflow: hidden in conjunction with transform"). Without it the 2354px
     // strip leaks past the clip and widens the whole page on an iPhone.
+    //
+    // The movement is also made stoppable, which WCAG 2.2.2 asks of anything
+    // that starts on its own and runs past five seconds: hovering parks it, and
+    // `motion-reduce` removes it outright.
     <div className="max-w-full overflow-hidden border-y border-border bg-primary-container py-2 text-on-primary contain-paint will-change-transform">
-      <div className="flex w-max animate-marquee gap-16 whitespace-nowrap text-sm font-semibold uppercase tracking-wider">
+      <div className="flex w-max animate-marquee gap-16 whitespace-nowrap text-sm font-semibold uppercase tracking-wider hover:[animation-play-state:paused] motion-reduce:animate-none">
         <span>{line}</span>
         <span aria-hidden>{line}</span>
       </div>

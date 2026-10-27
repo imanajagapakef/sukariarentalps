@@ -1,9 +1,10 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { headers } from "next/headers";
 import QRCode from "qrcode";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getRegistrationByCode } from "@/services/tournament.service";
+import { hasTournamentAccess } from "@/lib/tournament-access";
 import { getTournamentBySlug } from "@/lib/tournaments";
 import { TournamentPaymentBox } from "@/components/tournament-payment-box";
 import { REGISTRATION_STATUS_LABEL } from "@/lib/tournament-rules";
@@ -34,6 +35,12 @@ export default async function TournamentTicketPage({
   params: Promise<{ code: string }>;
 }) {
   const { code } = await params;
+  // The ticket renders the player's name and a share link that embeds their
+  // phone, so the code alone must not grant access. Checked before any query:
+  // a visitor without the cookie never reaches the database at all.
+  if (!(await hasTournamentAccess(code))) {
+    redirect(`/cek-turnamen?code=${encodeURIComponent(code)}`);
+  }
   const db = createAdminClient();
   const registration = await getRegistrationByCode(db, code);
   if (!registration) notFound();
@@ -152,7 +159,7 @@ export default async function TournamentTicketPage({
               href={waShareHref(registration.phone, share)}
               target="_blank"
               rel="noopener noreferrer"
-              className="block rounded-lg border border-primary px-3 py-2 text-center text-sm font-bold text-primary hover:bg-primary/10"
+              className="block rounded-lg border border-primary px-3 py-2 text-center text-sm font-bold text-primary transition-colors hover:bg-primary/10"
             >
               Bagikan ke WhatsApp
             </a>
@@ -161,7 +168,7 @@ export default async function TournamentTicketPage({
           {tournament && (
             <Link
               href={`/turnamen/${tournament.slug}`}
-              className="block rounded-lg border border-border px-3 py-2 text-center text-sm hover:border-primary hover:text-primary"
+              className="block rounded-lg border border-border px-3 py-2 text-center text-sm transition-colors hover:border-primary hover:text-primary"
             >
               Lihat detail & bracket
             </Link>

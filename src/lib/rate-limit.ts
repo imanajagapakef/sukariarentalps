@@ -6,6 +6,13 @@ import type { NextRequest } from "next/server";
  * one node, and egress behind a shared proxy collapses everyone into one
  * bucket (fail-closed for abuse, fail-closed for a school computer lab too,
  * which is acceptable while the frontend scales).
+ *
+ * IMPORTANT: the key is the client IP taken from `x-forwarded-for` /
+ * `x-real-ip`. That is only trustworthy when the app sits behind a proxy that
+ * OVERWRITES those headers (Vercel/Cloudflare/nginx all do). If the Node server
+ * is exposed directly, a caller can rotate the header and bypass every limit.
+ * A shared store (Upstash/Redis) is the next step when the app scales past one
+ * instance; until then, keep the origin private and behind a proxy.
  */
 
 type KindConfig = { limit: number; windowSeconds: number };
@@ -20,6 +27,7 @@ const CONFIG = {
   vitals: { limit: 40, windowSeconds: 300 },
   tournamentRegister: { limit: 8, windowSeconds: 600 },
   tournamentPay: { limit: 10, windowSeconds: 300 },
+  tournamentRead: { limit: 10, windowSeconds: 300 },
 } satisfies Record<string, KindConfig>;
 
 export type RateLimitKind = keyof typeof CONFIG;

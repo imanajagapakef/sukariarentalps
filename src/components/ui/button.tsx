@@ -4,7 +4,7 @@ import { cn } from "cn"
 import { Slot } from "radix-ui"
 
 const buttonVariants = cva(
-  "group/button inline-flex shrink-0 items-center justify-center rounded-lg border-2 border-transparent bg-clip-padding text-sm font-bold uppercase tracking-wide whitespace-nowrap transition-all outline-none select-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background active:not-aria-[haspopup]:translate-y-[2px] disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-2 aria-invalid:ring-destructive/20 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  "group/button inline-flex shrink-0 items-center justify-center rounded-lg border-2 border-transparent bg-clip-padding text-sm font-bold uppercase tracking-wide whitespace-nowrap transition-ui outline-none select-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background active:not-aria-[haspopup]:translate-y-0.5 disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-2 aria-invalid:ring-destructive/20 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {
@@ -26,11 +26,11 @@ const buttonVariants = cva(
         default: "h-12 gap-2 px-5",
         xs: "h-8 gap-1 rounded-md px-2 text-xs tracking-normal normal-case [&_svg:not([class*='size-'])]:size-3",
         sm: "h-11 gap-1.5 px-3.5 text-[0.8rem] [&_svg:not([class*='size-'])]:size-3.5",
-        lg: "h-[52px] gap-2 px-7 text-base [&_svg:not([class*='size-'])]:size-5",
+        lg: "h-13 gap-2 px-7 text-base [&_svg:not([class*='size-'])]:size-5",
         icon: "size-12",
         "icon-xs": "size-8 rounded-md [&_svg:not([class*='size-'])]:size-3",
         "icon-sm": "size-11 [&_svg:not([class*='size-'])]:size-4",
-        "icon-lg": "size-[52px] [&_svg:not([class*='size-'])]:size-5",
+        "icon-lg": "size-13 [&_svg:not([class*='size-'])]:size-5",
       },
     },
     defaultVariants: {

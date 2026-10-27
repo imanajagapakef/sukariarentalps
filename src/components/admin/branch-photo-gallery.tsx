@@ -90,7 +90,7 @@ export function BranchPhotoGallery({ branchId, photos }: { branchId: string; pho
         <ul className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
           {ordered.map((p, index) => (
             <li key={p.photo_id} className="flex flex-col gap-2">
-              <div className="relative aspect-[4/3] overflow-hidden rounded-lg border border-border bg-muted">
+              <div className="relative aspect-4/3 overflow-hidden rounded-lg border border-border bg-muted">
                 {/* eslint-disable-next-line @next/next/no-img-element -- admin preview; the bucket is public */}
                 <img src={p.image_url} alt={p.caption ?? `Foto ${index + 1}`} className="h-full w-full object-cover" />
                 {index === 0 && (

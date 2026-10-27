@@ -42,7 +42,7 @@ export function PaymentPicker({
                 role="radio"
                 aria-checked={picked}
                 onClick={() => setMethod(c.id)}
-                className={`flex items-start gap-4 rounded-xl border p-4 text-left transition-all duration-200 ${
+                className={`flex items-start gap-4 rounded-xl border p-4 text-left transition-colors duration-200 ${
                   picked
                     ? "border-primary bg-primary/10 shadow-arcade-sm"
                     : "border-border hover:border-primary/60 hover:bg-card"

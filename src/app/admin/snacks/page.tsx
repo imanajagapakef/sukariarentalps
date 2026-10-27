@@ -1,7 +1,10 @@
+import Link from "next/link";
+import { PageHero } from "@/components/page-hero";
+import { Boxes, Sandwich, ExternalLink } from "lucide-react";
 import { getSnacks } from "@/lib/catalog";
 import { TableEditor } from "@/components/admin/table-editor";
 import type { Column } from "@/components/admin/table-editor";
-import { StatCards } from "@/components/admin/stat-cards";
+import { StatCards } from "@/components/stat-cards";
 import { fmtDateTime, rp } from "@/lib/format";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -52,10 +55,21 @@ export default async function AdminSnacksPage() {
 
   return (
     <div>
-      <h1 className="font-display text-2xl uppercase">Snacks</h1>
-      <p className="mt-1 text-sm text-muted-foreground">
-        Stok di sini tercatat sebagai movement, jadi setiap perubahan punya jejak.
-      </p>
+      <PageHero
+        size="admin"
+        title="Snacks"
+        titleIcon={Sandwich}
+        eyebrow={{ icon: Boxes, label: `Inventori · ${snacks.length} menu` }}
+        description="Stok di sini tercatat sebagai movement, jadi setiap perubahan punya jejak."
+        actions={
+          <Link
+            href="/snacks"
+            className="inline-flex h-10 items-center gap-2 rounded-full border border-border bg-background/60 px-4 text-sm font-medium backdrop-blur transition-colors hover:border-primary"
+          >
+            <ExternalLink aria-hidden className="size-4" /> Halaman publik
+          </Link>
+        }
+      />
       <StatCards
         cards={[
           { label: "Menu aktif", value: snacks.length },

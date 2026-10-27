@@ -1,13 +1,22 @@
 import { describe, expect, it } from "vitest";
 import { xlsxResponse } from "@/lib/xlsx";
 import { exportFilename } from "@/lib/csv";
-import { ValueType } from "exceljs";
+import { ValueType, Workbook } from "exceljs";
+
+/**
+ * exceljs declares its own `interface Buffer extends ArrayBuffer` shim, which
+ * Node's generic `Buffer` does not satisfy at the type level. The runtime value
+ * is a Buffer, so cast at this single boundary instead of weakening the tests.
+ */
+function loadWorkbook(wb: Workbook, buf: Buffer) {
+  return wb.xlsx.load(buf as unknown as Parameters<typeof wb.xlsx.load>[0]);
+}
 
 describe("xlsxResponse", () => {
   const columns = [
     { header: "Kode", width: 16, align: "left", value: (r: { code: string }) => r.code },
     { header: "Telepon", width: 18, align: "left", numFmt: "@", value: (r: { code: string }) => r.code },
-    { header: "Jumlah", width: 12, align: "right", numFmt: "#,##0", value: (r: { code: string }) => 150000 },
+    { header: "Jumlah", width: 12, align: "right", numFmt: "#,##0", value: () => 150000 },
   ] as const;
 
   it("membuat buffer xlsx yang bisa dibaca balik", async () => {
@@ -24,11 +33,10 @@ describe("xlsxResponse", () => {
     const rows = [{ code: "SR-001" }];
     const res = await xlsxResponse("Test", columns, rows, "test.xlsx");
     const buf = Buffer.from(await res.arrayBuffer());
-    const wb = new (require("exceljs")).Workbook();
-    await wb.xlsx.load(buf);
-    const ws = wb.getWorksheet(1);
-    expect(ws.views[0]?.state).toBe("frozen");
-    expect(ws.views[0]?.ySplit).toBe(1);
+    const wb = new Workbook();
+    await loadWorkbook(wb, buf);
+    const ws = wb.getWorksheet(1)!;
+    expect(ws.views[0]).toMatchObject({ state: "frozen", ySplit: 1 });
     expect(ws.autoFilter).toBeTruthy();
   });
 
@@ -36,9 +44,9 @@ describe("xlsxResponse", () => {
     const rows = [{ code: "08123456789" }];
     const res = await xlsxResponse("Test", columns, rows, "test.xlsx");
     const buf = Buffer.from(await res.arrayBuffer());
-    const wb = new (require("exceljs")).Workbook();
-    await wb.xlsx.load(buf);
-    const ws = wb.getWorksheet(1);
+    const wb = new Workbook();
+    await loadWorkbook(wb, buf);
+    const ws = wb.getWorksheet(1)!;
     const cell = ws.getRow(2).getCell(2);
     expect(cell.type).toBe(ValueType.String);
     expect(cell.value).toBe("08123456789");
@@ -49,9 +57,9 @@ describe("xlsxResponse", () => {
     const rows = [{ code: "SR-001" }];
     const res = await xlsxResponse("Test", columns, rows, "test.xlsx");
     const buf = Buffer.from(await res.arrayBuffer());
-    const wb = new (require("exceljs")).Workbook();
-    await wb.xlsx.load(buf);
-    const ws = wb.getWorksheet(1);
+    const wb = new Workbook();
+    await loadWorkbook(wb, buf);
+    const ws = wb.getWorksheet(1)!;
     const cell = ws.getRow(2).getCell(3);
     expect(cell.type).toBe(ValueType.Number);
     expect(cell.value).toBe(150000);
@@ -65,9 +73,9 @@ describe("xlsxResponse", () => {
     const rows = [{ name: "=cmd|'/c calc'!A1" }];
     const res = await xlsxResponse("Test", hostileColumns, rows, "test.xlsx");
     const buf = Buffer.from(await res.arrayBuffer());
-    const wb = new (require("exceljs")).Workbook();
-    await wb.xlsx.load(buf);
-    const ws = wb.getWorksheet(1);
+    const wb = new Workbook();
+    await loadWorkbook(wb, buf);
+    const ws = wb.getWorksheet(1)!;
     const cell = ws.getRow(2).getCell(1);
     expect(cell.type).toBe(ValueType.String);
     expect(cell.value).toBe("=cmd|'/c calc'!A1");

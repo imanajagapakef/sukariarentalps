@@ -1,17 +1,23 @@
 import type { NextConfig } from "next";
 
 // The only external origin the app talks to is Supabase (auth, database, and
-// image storage). Parse the host from the public URL env var at build time;
-// fall back to the known project host so a missing/mis-set env never produces
-// an empty directive value.
+// image storage). Parse the host from the public URL env var at build time.
+// A missing/malformed value fails the production build instead of silently
+// pinning CSP and image allowlists to a stale project; dev keeps the known
+// host so a fresh clone still boots.
 const SUPABASE_HOST_FALLBACK = "siqjyxawzlkybvkkfhny.supabase.co";
 
 function getSupabaseHost(): string {
-  try {
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    if (url) return new URL(url).hostname;
-  } catch {
-    // Malformed URL -> fall through to the static host below.
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  if (url) {
+    try {
+      return new URL(url).hostname;
+    } catch {
+      throw new Error(`NEXT_PUBLIC_SUPABASE_URL bukan URL yang valid: ${url}`);
+    }
+  }
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("NEXT_PUBLIC_SUPABASE_URL wajib diisi saat build produksi");
   }
   return SUPABASE_HOST_FALLBACK;
 }
@@ -43,7 +49,7 @@ const nextConfig: NextConfig = {
   outputFileTracingRoot: __dirname,
   images: {
     remotePatterns: [
-      { protocol: "https", hostname: "siqjyxawzlkybvkkfhny.supabase.co" },
+      { protocol: "https", hostname: supabaseHost },
     ],
   },
   experimental: {

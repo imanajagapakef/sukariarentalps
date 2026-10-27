@@ -72,7 +72,7 @@ export function ImageUploader({
         )}
       </span>
 
-      <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-border px-2 py-1.5 text-xs hover:border-primary/60">
+      <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-border px-2 py-1.5 text-xs transition-colors hover:border-primary/60">
         <Upload aria-hidden className="size-3.5" />
         {busy ? "Proses…" : "Pilih"}
         <input

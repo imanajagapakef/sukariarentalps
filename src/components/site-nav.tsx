@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useState } from "react";
 import { Menu, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -35,9 +35,30 @@ const NAV = [
  * closes on Escape, and it locks body scroll so the page behind does not move under the
  * user's thumb.
  */
+/*
+  `useLayoutEffect` on the client — it runs before the browser paints, so the active
+  highlight lands on the very first frame instead of flickering in — and `useEffect` on
+  the server, where effects never run anyway. The branch sits at module scope, so it
+  cannot change a single byte of rendered markup.
+*/
+const useIsoLayoutEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
+
 export function SiteNav() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  /*
+    The active highlight is resolved only *after* mount.
+
+    `usePathname()` during hydration is not guaranteed to equal the pathname the server
+    rendered for — Next documents the mismatch for rewrites, and a layout whose RSC
+    payload is reused for another route does the same thing quietly. Reading it during
+    the first client render then produced a hydration error on every active link: the
+    server HTML had no `aria-current` and no dot, the client's first render had both.
+    Gating on `hydrated` makes the client's first render byte-identical to the server's;
+    the layout effect applies the real highlight before paint, so nothing flickers.
+  */
+  const [hydrated, setHydrated] = useState(false);
+  useIsoLayoutEffect(() => setHydrated(true), []);
 
   // Navigating away should dismiss the menu. pathname changes on every route change,
   // including one the menu itself triggered, which is exactly when we want it closed.
@@ -62,7 +83,7 @@ export function SiteNav() {
   }, [open]);
 
   const isActive = (href: string) =>
-    href === "/" ? pathname === "/" : pathname.startsWith(href);
+    hydrated && (href === "/" ? pathname === "/" : pathname.startsWith(href));
 
   return (
     <>
@@ -121,12 +142,22 @@ export function SiteNav() {
           having to become a column. */}
       <div
         id="site-mobile-nav"
-        hidden={!open}
         // Solid, not translucent: at 98% the hero's display type still ghosted through
         // behind the rows and made the menu look like a bug rather than a panel. z-50
         // puts it above the sticky header's own stacking context so nothing in the page
         // can paint over an open menu.
-        className="absolute inset-x-0 top-full z-50 border-b border-white/10 bg-surface-lowest shadow-2xl shadow-black/60 xl:hidden"
+        //
+        // Kept mounted and shown with `visibility`, not toggled with the `hidden`
+        // attribute: `display: none` cannot animate, so the rows would stagger while the
+        // panel itself appeared in a single frame. `invisible` is equivalent for the
+        // accessibility tree and the tab order — it is still gone while closed.
+        className={cn(
+          "absolute inset-x-0 top-full z-50 border-b border-white/10 bg-surface-lowest shadow-2xl shadow-black/60 xl:hidden",
+          "transition-[opacity,translate,visibility] duration-[var(--dur-base)] ease-out-quint motion-reduce:transition-none",
+          open
+            ? "visible translate-y-0 opacity-100"
+            : "pointer-events-none invisible -translate-y-1.5 opacity-0",
+        )}
       >
         <nav aria-label="Utama (ponsel)" className="mx-auto flex max-w-6xl flex-col px-4 pb-4 pt-2">
           {NAV.map((n, i) => {
@@ -140,7 +171,7 @@ export function SiteNav() {
                 // is what makes the panel read as opening rather than appearing.
                 style={{ transitionDelay: `${i * 28}ms` }}
                 className={cn(
-                  "flex items-center justify-between rounded-lg px-3 py-3 text-sm font-medium transition-all duration-300 motion-reduce:transition-none",
+                  "flex items-center justify-between rounded-lg px-3 py-3 text-sm font-medium transition-ui motion-reduce:transition-none",
                   open ? "translate-x-0 opacity-100" : "-translate-x-2 opacity-0",
                   active
                     ? "bg-primary/15 text-primary"
@@ -157,7 +188,7 @@ export function SiteNav() {
             href="/booking"
             style={{ transitionDelay: `${NAV.length * 28}ms` }}
             className={cn(
-              "mt-2 rounded-lg bg-primary px-3 py-3 text-center text-sm font-bold text-primary-foreground transition-all duration-300 motion-reduce:transition-none",
+              "mt-2 rounded-lg bg-primary px-3 py-3 text-center text-sm font-bold text-primary-foreground transition-ui motion-reduce:transition-none",
               open ? "translate-x-0 opacity-100" : "-translate-x-2 opacity-0",
             )}
           >

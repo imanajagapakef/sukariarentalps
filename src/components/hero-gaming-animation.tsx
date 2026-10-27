@@ -1,6 +1,6 @@
 const CSS = `
 .hg *{transform-box:fill-box}
-.hg-tv{animation:hg-glow 3.2s ease-in-out infinite}
+.hg-tv{filter:drop-shadow(0 0 14px rgba(97,224,106,.5));animation:hg-glow 3.2s ease-in-out infinite}
 .hg-beam{animation:hg-beam 3.2s ease-in-out infinite}
 .hg-ground{animation:hg-ground .5s linear infinite}
 .hg-coins{animation:hg-coins .75s linear infinite}
@@ -15,7 +15,7 @@ const CSS = `
 .hg-btn{animation:hg-blink 1.1s steps(2,end) infinite}
 .hg-star{animation:hg-blink 1.8s steps(2,end) infinite}
 .hg-drift{animation:hg-drift 6s ease-in infinite}
-@keyframes hg-glow{0%,100%{filter:drop-shadow(0 0 6px rgba(97,224,106,.25))}50%{filter:drop-shadow(0 0 18px rgba(97,224,106,.65))}}
+@keyframes hg-glow{0%,100%{opacity:.82}50%{opacity:1}}
 @keyframes hg-beam{0%,100%{opacity:.6}50%{opacity:1}}
 @keyframes hg-ground{to{transform:translateX(-24px)}}
 @keyframes hg-coins{to{transform:translateX(-60px)}}

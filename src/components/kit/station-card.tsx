@@ -40,7 +40,7 @@ export function StationCard({
           src={unit.image_url}
           label={unit.name}
           alt={`${unit.name} — ${unit.facility_types?.name ?? "unit"}`}
-          className="aspect-[3/2] w-full rounded-lg"
+          className="aspect-3/2 w-full rounded-lg"
         />
       )}
 
@@ -48,7 +48,7 @@ export function StationCard({
         <div className="min-w-0">
           <Link
             href={detailHref}
-            className="font-display block text-lg uppercase leading-tight hover:text-primary"
+            className="font-display block text-lg uppercase leading-tight transition-colors hover:text-primary"
           >
             {unit.name}
           </Link>

@@ -9,7 +9,17 @@ import {
   signOut,
 } from "./admin-harness";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { ValueType, type Row } from "exceljs";
+import { ValueType, Workbook, type Row } from "exceljs";
+import { wibDay } from "@/lib/wib";
+
+/**
+ * exceljs declares its own `interface Buffer extends ArrayBuffer` shim, which
+ * Node's generic `Buffer` does not satisfy at the type level. The runtime value
+ * is a Buffer, so cast at this single boundary instead of weakening the tests.
+ */
+function loadWorkbook(wb: Workbook, buf: Buffer) {
+  return wb.xlsx.load(buf as unknown as Parameters<typeof wb.xlsx.load>[0]);
+}
 
 const describeLive = canAuthenticate ? describe : describe.skip;
 
@@ -21,6 +31,7 @@ describeLive("admin routes regression", () => {
   const suffix = Date.now().toString(36).toUpperCase();
   const snackId = `B-SNK-RT${suffix}`;
   const unitId = `B-U-RT${suffix}`;
+  const unitId2 = `B-U2-RT${suffix}`;
   const startStock = 10;
   let bookingId = "";
   // Both CSV-injection tests create a booking. A single `bookingId` let the second test
@@ -58,6 +69,19 @@ describeLive("admin routes regression", () => {
       status: "IN_ORDER",
     });
     if (unitError) throw new Error(`gagal membuat unit test: ${unitError.message}`);
+
+    // A second dedicated unit: both CSV-injection tests book at the same instant, so
+    // reusing one unit would collide on unit_reservations_no_overlap. Borrowing a
+    // catalogue unit instead left it stuck IN_ORDER after the run — so it gets its own.
+    const { error: unit2Error } = await db.from("units").insert({
+      unit_id: unitId2,
+      branch_id: "BR-GANET",
+      facility_type_id: "FAC-REGULAR",
+      name: "Route Test Unit 2",
+      condition: "GOOD",
+      status: "IN_ORDER",
+    });
+    if (unit2Error) throw new Error(`gagal membuat unit test 2: ${unit2Error.message}`);
   });
 
   afterAll(async () => {
@@ -80,6 +104,9 @@ describeLive("admin routes regression", () => {
     await db.from("unit_status_history").delete().eq("unit_id", unitId);
     await db.from("unit_reservations").delete().eq("unit_id", unitId);
     await db.from("units").delete().eq("unit_id", unitId);
+    await db.from("unit_status_history").delete().eq("unit_id", unitId2);
+    await db.from("unit_reservations").delete().eq("unit_id", unitId2);
+    await db.from("units").delete().eq("unit_id", unitId2);
     signOut();
   });
 
@@ -147,14 +174,15 @@ describeLive("admin routes regression", () => {
       nextUrl: new URL(`http://localhost/api/admin/bookings/export?q=${suffix}`),
     } as never);
     const buf = Buffer.from(await response.arrayBuffer());
-    const wb = new (require("exceljs")).Workbook();
-    await wb.xlsx.load(buf);
-    const ws = wb.getWorksheet(1);
-    let targetRow: any = null;
+    const wb = new Workbook();
+    await loadWorkbook(wb, buf);
+    const ws = wb.getWorksheet(1)!;
+    const matched: Row[] = [];
     ws.eachRow((r: Row) => {
-      if (r.getCell(1).value === rows[0].booking_code) targetRow = r;
+      if (r.getCell(1).value === rows[0].booking_code) matched.push(r);
     });
-    const line = targetRow.values.join(",");
+    const targetRow = matched[0];
+    if (!targetRow) throw new Error("booking should appear in the export");
     const bookingCode = targetRow.getCell(1).value as string;
     const customerName = targetRow.getCell(3).value as string;
 
@@ -183,11 +211,11 @@ describeLive("admin routes regression", () => {
     expect(res.headers.get("content-disposition")).toContain("attachment");
 
     const buf = Buffer.from(await res.arrayBuffer());
-    const wb = new (require("exceljs")).Workbook();
-    await wb.xlsx.load(buf);
-    const ws = wb.getWorksheet(1);
+    const wb = new Workbook();
+    await loadWorkbook(wb, buf);
+    const ws = wb.getWorksheet(1)!;
     const headerRow = ws.getRow(1);
-    const headers = headerRow.values.slice(1) as string[];
+    const headers = (headerRow.values as unknown as string[]).slice(1);
     expect(headers).toContain("Kode Booking");
     expect(headers).toContain("Tagihan");
     // No Rp formatting in a numeric column, or the sheet stops summing.
@@ -200,9 +228,9 @@ describeLive("admin routes regression", () => {
       nextUrl: new URL("http://localhost/api/admin/reports/export?from=1990-01-01&to=1990-01-02"),
     } as never);
     const buf = Buffer.from(await res.arrayBuffer());
-    const wb = new (require("exceljs")).Workbook();
-    await wb.xlsx.load(buf);
-    const ws = wb.getWorksheet(1);
+    const wb = new Workbook();
+    await loadWorkbook(wb, buf);
+    const ws = wb.getWorksheet(1)!;
     expect(res.status).toBe(200);
     // Hanya baris header (row 1), tidak ada data row.
     expect(ws.rowCount).toBe(1);
@@ -210,19 +238,12 @@ describeLive("admin routes regression", () => {
 
   it("neutralises a CSV formula prefix in the reports export too", async () => {
     // Same trust boundary as the bookings export: guest names are attacker-controlled.
+    // Uses its own unit (not a catalogue row) so the run leaves the catalogue untouched.
     const db = createAdminClient();
-    const { data: unitRows } = await db
-      .from("units")
-      .select("unit_id")
-      .eq("branch_id", "BR-GANET")
-      .eq("status", "AVAILABLE")
-      .limit(1);
-    const unitId = unitRows![0].unit_id;
-
-    await db.from("units").update({ status: "AVAILABLE" }).eq("unit_id", unitId);
+    await db.from("units").update({ status: "AVAILABLE" }).eq("unit_id", unitId2);
     const created = await db.rpc("create_booking", {
       p_branch_id: "BR-GANET",
-      p_unit_id: unitId,
+      p_unit_id: unitId2,
       p_customer_name: `=cmd|${suffix}`,
       p_customer_phone: `0896${suffix}`,
       p_start_at: new Date(Date.now() + 5 * 864e5).toISOString(),
@@ -233,23 +254,27 @@ describeLive("admin routes regression", () => {
     bookingId = rows[0].booking_id;
     createdBookings.push(bookingId);
     createdPhones.push(`0896${suffix}`);
-    await db.from("units").update({ status: "IN_ORDER" }).eq("unit_id", unitId);
+    await db.from("units").update({ status: "IN_ORDER" }).eq("unit_id", unitId2);
 
-    const start5 = new Date(Date.now() + 5 * 864e5).toISOString().slice(0, 10);
+    // The reports window is a WIB calendar day, so derive the date in WIB. Slicing a
+    // UTC ISO string lands on the wrong day when the run happens between 17:00–24:00
+    // UTC (00:00–07:00 WIB), which is exactly when this used to flake.
+    const start5 = wibDay(new Date(Date.now() + 5 * 864e5));
     const res = await exportReports({
       // Rentang ≤366 hari, mencakup booking masa depan yang baru dibuat (5 hari ke depan).
       nextUrl: new URL(`http://localhost/api/admin/reports/export?from=${start5}&to=${start5}`),
     } as never);
     const buf = Buffer.from(await res.arrayBuffer());
-    const wb = new (require("exceljs")).Workbook();
-    await wb.xlsx.load(buf);
-    const ws = wb.getWorksheet(1);
-    let targetRow: any = null;
+    const wb = new Workbook();
+    await loadWorkbook(wb, buf);
+    const ws = wb.getWorksheet(1)!;
+    const matched: Row[] = [];
     ws.eachRow((r: Row) => {
-      if (r.getCell(1).value === rows[0].booking_code) targetRow = r;
+      if (r.getCell(1).value === rows[0].booking_code) matched.push(r);
     });
-    const line = targetRow.values.join(",");
-    const bookingCode = targetRow.getCell(1).value as string;
+    const targetRow = matched[0];
+    if (!targetRow) throw new Error("hostile booking should appear in the export");
+    const line = (targetRow.values as unknown as string[]).join(",");
     const guestName = targetRow.getCell(4).value as string;
 
     expect(line, "hostile booking should appear in the export").toBeTruthy();

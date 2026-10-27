@@ -30,7 +30,7 @@ export async function SiteFooter() {
           <ul className="mt-3 space-y-3 text-sm text-on-surface-variant">
             {branches.map((b) => (
               <li key={b.branch_id}>
-                <Link href={`/cabang/${b.branch_id}`} className="hover:text-primary">
+                <Link href={`/cabang/${b.branch_id}`} className="transition-colors hover:text-primary">
                   <span className="block font-bold text-foreground">
                     {b.name}
                   </span>
@@ -56,7 +56,7 @@ export async function SiteFooter() {
               { href: "/cek-booking", label: "Cek Status Booking" },
             ].map((l) => (
               <li key={l.href}>
-                <Link href={l.href} className="hover:text-primary">
+                <Link href={l.href} className="transition-colors hover:text-primary">
                   {l.label}
                 </Link>
               </li>
@@ -70,7 +70,7 @@ export async function SiteFooter() {
           </p>
           <ul className="mt-3 space-y-2 text-sm text-on-surface-variant">
             <li>
-              <Link href="/feedback" className="hover:text-primary">
+              <Link href="/feedback" className="transition-colors hover:text-primary">
                 Feedback
               </Link>
             </li>

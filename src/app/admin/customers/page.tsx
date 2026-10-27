@@ -1,8 +1,10 @@
+import { PageHero } from "@/components/page-hero";
+import { UserRound, Users } from "lucide-react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { fmtDate, rp } from "@/lib/format";
 import { EmptyState } from "@/components/empty-state";
-import { StatCards } from "@/components/admin/stat-cards";
+import { StatCards } from "@/components/stat-cards";
 
 /**
  * Customer directory. RLS on customers is OWNER/ADMIN/STAFF, so the cookie-scoped
@@ -53,8 +55,12 @@ export default async function CustomersPage({
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 md:px-8">
-      <p className="font-display text-sm uppercase tracking-[0.06em] text-primary">CRM</p>
-      <h1 className="font-display mt-2 text-3xl uppercase md:text-4xl">Pelanggan</h1>
+      <PageHero
+        size="admin"
+        title="Pelanggan"
+        titleIcon={Users}
+        eyebrow={{ icon: UserRound, label: `CRM · ${rows.length} pelanggan` }}
+      />
 
         <StatCards
           cards={[
@@ -89,7 +95,7 @@ export default async function CustomersPage({
         </div>
       ) : (
         <div className="mt-6 overflow-x-auto rounded-xl border border-border">
-          <table className="w-full min-w-[44rem] text-sm">
+          <table className="w-full min-w-176 text-sm">
             <thead className="bg-muted text-left text-xs uppercase tracking-wide text-muted-foreground">
               <tr>
                 <th scope="col" className="px-4 py-3">Nama</th>

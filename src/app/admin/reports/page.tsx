@@ -1,7 +1,9 @@
+import { PageHero } from "@/components/page-hero";
+import { CalendarDays, BarChart3 } from "lucide-react";
 import Link from "next/link";
 import { BookingStatusPill } from "@/components/status-pill";
 import { NoPermission } from "@/components/admin/no-permission";
-import { StatCards } from "@/components/admin/stat-cards";
+import { StatCards } from "@/components/stat-cards";
 import { SelectField } from "@/components/ui/select-field";
 import { EmptyState } from "@/components/empty-state";
 import { getStaffUser } from "@/lib/authz";
@@ -90,11 +92,13 @@ export default async function AdminReportsPage({
 
   return (
     <div>
-      <h1 className="font-display text-2xl uppercase">Reports</h1>
-      <p className="mt-1 text-sm text-muted-foreground">
-        Laporan operasional {range.from} s/d {range.to}
-        {branchName ? ` · ${branchName}` : " · semua cabang"}
-      </p>
+      <PageHero
+        size="admin"
+        title="Reports"
+        titleIcon={BarChart3}
+        eyebrow={{ icon: CalendarDays, label: `${range.from} → ${range.to}` }}
+        description={`Laporan operasional ${range.from} s/d ${range.to}${branchName ? ` · ${branchName}` : " · semua cabang"}`}
+      />
 
       <form className="mt-4 flex flex-wrap items-end gap-2" method="get">
         <SelectField
@@ -151,7 +155,7 @@ export default async function AdminReportsPage({
         <Link
           href={`/api/admin/reports/export${exportQuery ? `?${exportQuery}` : ""}`}
           prefetch={false}
-          className="inline-flex h-12 items-center rounded-lg border border-input px-4 text-sm font-medium hover:bg-accent"
+          className="inline-flex h-12 items-center rounded-lg border border-input px-4 text-sm font-medium transition-colors hover:bg-accent"
         >
           Export CSV
         </Link>
@@ -217,7 +221,7 @@ async function GameRequestSection() {
           </div>
 
           <div className="mt-4 overflow-x-auto rounded-xl border border-border">
-            <table className="w-full min-w-[36rem] text-sm">
+            <table className="w-full min-w-144 text-sm">
               <thead className="bg-surface-container text-left text-xs uppercase tracking-wide text-muted-foreground">
                 <tr>
                   <th scope="col" className="px-4 py-3 font-semibold">Judul</th>
@@ -228,7 +232,7 @@ async function GameRequestSection() {
               </thead>
               <tbody>
                 {req.top.map((r) => (
-                  <tr key={r.request_id} className="border-t border-border hover:bg-accent/40">
+                  <tr key={r.request_id} className="border-t border-border transition-colors hover:bg-accent/40">
                     <td className="px-4 py-2 font-medium">{r.game_name}</td>
                     <td className="px-4 py-2 text-xs uppercase text-muted-foreground">
                       {REQUEST_LABEL[r.status] ?? r.status}
@@ -284,7 +288,7 @@ async function GuestSection({ rows }: { rows: ReportBooking[] }) {
         <p className="mt-2 text-sm text-muted-foreground">Belum ada tamu di periode ini.</p>
       ) : (
         <div className="mt-2 overflow-x-auto rounded-xl border border-border">
-          <table className="w-full min-w-[58rem] text-sm">
+          <table className="w-full min-w-232 text-sm">
             <thead className="bg-surface-container text-left text-xs uppercase tracking-wide text-muted-foreground">
               <tr>
                 <th scope="col" className="px-4 py-3 font-semibold">Tamu</th>
@@ -300,7 +304,7 @@ async function GuestSection({ rows }: { rows: ReportBooking[] }) {
             </thead>
             <tbody>
               {guests.topGuests.map((g) => (
-                <tr key={g.customer_id} className="border-t border-border align-top hover:bg-accent/40">
+                <tr key={g.customer_id} className="border-t border-border align-top transition-colors hover:bg-accent/40">
                   <td className="px-4 py-2">
                     <span className="block font-medium">
                       {g.name}
@@ -418,7 +422,7 @@ async function OccupancySection({
 
       <h3 className="mt-6 text-sm font-medium">Utilisasi per bilik</h3>
       <div className="mt-2 overflow-x-auto rounded-xl border border-border">
-        <table className="w-full min-w-[54rem] text-sm">
+        <table className="w-full min-w-216 text-sm">
           <thead className="bg-surface-container text-left text-xs uppercase tracking-wide text-muted-foreground">
             <tr>
               <th scope="col" className="px-4 py-3 font-semibold">Unit</th>
@@ -433,7 +437,7 @@ async function OccupancySection({
           </thead>
           <tbody>
             {occ.perUnit.map((u) => (
-              <tr key={u.unit_id} className="border-t border-border hover:bg-accent/40">
+              <tr key={u.unit_id} className="border-t border-border transition-colors hover:bg-accent/40">
                 <td className="px-4 py-2">
                   <span className="block font-medium">{u.name}</span>
                   <span className="block font-mono text-xs text-muted-foreground">{u.unit_id}</span>
@@ -537,7 +541,7 @@ function BookingSection({
         Transaksi terbaru · {transactions.length} dari {report.total}
       </h3>
       <div className="mt-2 overflow-x-auto rounded-xl border border-border">
-        <table className="w-full min-w-[56rem] text-sm">
+        <table className="w-full min-w-224 text-sm">
           <thead className="bg-surface-container text-left text-xs uppercase tracking-wide text-muted-foreground">
             <tr>
               <th scope="col" className="px-4 py-3 font-semibold">Kode</th>
@@ -552,7 +556,7 @@ function BookingSection({
           </thead>
           <tbody>
             {transactions.map((b) => (
-              <tr key={b.booking_id} className="border-t border-border align-top hover:bg-accent/40">
+              <tr key={b.booking_id} className="border-t border-border align-top transition-colors hover:bg-accent/40">
                 <td className="whitespace-nowrap px-4 py-3 font-mono text-xs">{b.booking_code}</td>
                 <td className="whitespace-nowrap px-4 py-3">{fmtDateTime(b.scheduled_start_at)}</td>
                 <td className="px-4 py-3">
@@ -674,7 +678,7 @@ async function RevenueSection({ rows }: { rows: ReportBooking[] }) {
         <p className="mt-2 text-sm text-muted-foreground">Belum ada pembayaran di periode ini.</p>
       ) : (
         <div className="mt-2 overflow-x-auto rounded-xl border border-border">
-          <table className="w-full min-w-[52rem] text-sm">
+          <table className="w-full min-w-208 text-sm">
             <thead className="bg-surface-container text-left text-xs uppercase tracking-wide text-muted-foreground">
               <tr>
                 <th scope="col" className="px-4 py-3 font-semibold">Tanggal</th>
@@ -695,7 +699,7 @@ async function RevenueSection({ rows }: { rows: ReportBooking[] }) {
               {journal.map((j) => (
                 <tr
                   key={j.payment_id}
-                  className={`border-t border-border align-top hover:bg-accent/40 ${
+                  className={`border-t border-border align-top transition-colors hover:bg-accent/40 ${
                     j.collected ? "" : "text-muted-foreground"
                   }`}
                 >

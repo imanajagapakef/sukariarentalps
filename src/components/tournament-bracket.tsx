@@ -433,7 +433,7 @@ function MatchCard({
   return (
     <div
       className={cn(
-        "relative flex h-full flex-col justify-center overflow-hidden rounded-lg border bg-card transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/60",
+        "relative flex h-full flex-col justify-center overflow-hidden rounded-lg border bg-card transition-ui hover:-translate-y-0.5 hover:border-primary/60",
         champion && "tb-gold border-transparent",
         highlight && !champion && "border-primary shadow-[0_0_0_3px] shadow-primary/25",
         !highlight && !champion && "border-border",
@@ -497,7 +497,7 @@ function PlayerRow({
       className={cn(
         "flex items-center gap-2 px-3 py-1.5 transition-colors",
         won &&
-          "tb-win bg-gradient-to-r from-primary/35 to-primary/10 font-semibold text-foreground shadow-[inset_4px_0_0_0] shadow-primary",
+          "tb-win bg-linear-to-r from-primary/35 to-primary/10 font-semibold text-foreground shadow-[inset_4px_0_0_0] shadow-primary",
         !won && empty && "text-muted-foreground",
         !won && !empty && !lost && "text-on-surface-variant",
         lost && "text-muted-foreground opacity-60",
@@ -601,7 +601,7 @@ const TWINKLES = [
 function FinalTrophy({ a, b }: { a: string; b: string }) {
   return (
     <div className="relative flex w-full max-w-md flex-col items-center gap-2">
-      <div className="relative flex h-[112px] w-[112px] items-center justify-center">
+      <div className="relative flex h-28 w-28 items-center justify-center">
         <Rays className="-inset-8" />
         {TWINKLES.map((t, i) => (
           <span
@@ -612,14 +612,14 @@ function FinalTrophy({ a, b }: { a: string; b: string }) {
           />
         ))}
         <div className="tb-lift relative text-primary">
-          <TrophyFigure className="h-[88px] w-[96px]" />
+          <TrophyFigure className="h-22 w-24" />
         </div>
       </div>
 
       <span className="flex items-center gap-3 font-display text-xs uppercase tracking-[0.22em] text-primary">
-        <span className="h-px w-8 bg-gradient-to-r from-transparent to-primary" />
+        <span className="h-px w-8 bg-linear-to-r from-transparent to-primary" />
         Siap Final
-        <span className="h-px w-8 bg-gradient-to-l from-transparent to-primary" />
+        <span className="h-px w-8 bg-linear-to-l from-transparent to-primary" />
       </span>
 
       <div className="flex w-full min-w-0 items-center justify-center gap-2 px-2 font-display text-sm uppercase">
@@ -657,7 +657,7 @@ const CONFETTI = [
  */
 function ChampionBanner({ name }: { name: string }) {
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-primary/50 bg-gradient-to-r from-primary/25 via-primary/10 to-transparent px-4 py-4 sm:px-6 sm:py-5">
+    <div className="relative overflow-hidden rounded-2xl border border-primary/50 bg-linear-to-r from-primary/25 via-primary/10 to-transparent px-4 py-4 sm:px-6 sm:py-5">
       {/* confetti */}
       <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
         {CONFETTI.map((p, i) => (
@@ -683,10 +683,10 @@ function ChampionBanner({ name }: { name: string }) {
       </div>
 
       <div className="relative flex items-center gap-4 sm:gap-6">
-        <div className="relative flex h-[84px] w-[84px] shrink-0 items-center justify-center sm:h-[96px] sm:w-[96px]">
+        <div className="relative flex h-21 w-21 shrink-0 items-center justify-center sm:h-24 sm:w-24">
           <Rays className="-inset-6" />
           <div className="tb-lift relative text-primary">
-            <TrophyFigure className="h-[64px] w-[70px] sm:h-[74px] sm:w-[80px]" />
+            <TrophyFigure className="h-16 w-17.5 sm:h-18.5 sm:w-20" />
           </div>
         </div>
 
@@ -698,7 +698,7 @@ function ChampionBanner({ name }: { name: string }) {
             <Crown aria-hidden className="size-3" />
             Juara
           </span>
-          <p className="mt-1.5 truncate bg-gradient-to-r from-primary via-[#d9ffd3] to-primary bg-clip-text font-display text-2xl uppercase leading-tight text-transparent sm:text-4xl">
+          <p className="mt-1.5 truncate bg-linear-to-r from-primary via-[#d9ffd3] to-primary bg-clip-text font-display text-2xl uppercase leading-tight text-transparent sm:text-4xl">
             {name}
           </p>
         </div>

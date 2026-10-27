@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database";
 import type { CreateBookingInput } from "@/lib/validations/booking";
@@ -182,7 +183,15 @@ export async function verifyBookingAccessByCode(
   const digits = (value: string) => (value.match(/\d/g) ?? []).join("");
   const given = digits(last4);
   const onFile = digits(booking.customers?.phone ?? "").slice(-4);
-  if (given.length !== 4 || given !== onFile) {
+  if (given.length !== 4) {
+    return { ok: false, state: "wrong_last4" };
+  }
+  // Constant-time so response timing does not reveal how many digits matched.
+  const same = timingSafeEqual(
+    Buffer.from(given.padEnd(4, "\0"), "utf8"),
+    Buffer.from(onFile.padEnd(4, "\0"), "utf8"),
+  );
+  if (!same) {
     return { ok: false, state: "wrong_last4" };
   }
   return { ok: true, booking };

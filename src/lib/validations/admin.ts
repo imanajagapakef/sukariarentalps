@@ -200,3 +200,24 @@ export const bookingActionSchema = z.object({
   action: z.enum(["confirm", "check_in", "complete", "cancel", "no_show", "mark_ready"]),
   reason: z.string().trim().max(200).optional(),
 });
+
+/**
+ * Game requests (migration 0002, `request_status`).
+ *
+ * Staff triage the public wishlist from /admin/games: mark one under review while
+ * it is being sourced, or APPROVED/ADDED once it is in — those leave the public
+ * top-list automatically. REJECTED keeps the row so the same title cannot be
+ * re-requested into a duplicate (`game_requests_name_uniq`).
+ */
+export const gameRequestStatusSchema = z.enum([
+  "REQUESTED",
+  "UNDER_REVIEW",
+  "APPROVED",
+  "REJECTED",
+  "ADDED",
+]);
+
+export const gameRequestPatchSchema = z.object({
+  request_id: z.string().trim().min(1).max(40),
+  status: gameRequestStatusSchema.optional(),
+});

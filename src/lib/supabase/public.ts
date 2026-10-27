@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database";
+import { getPublicEnv } from "@/lib/env";
 
 /**
  * Cookieless anon client for public catalog reads (RLS allows anon SELECT).
@@ -26,9 +27,11 @@ export function createPublicClient(options?: { revalidate?: number }) {
   const existing = clients.get(revalidate);
   if (existing) return existing;
 
+  const { NEXT_PUBLIC_SUPABASE_URL: url, NEXT_PUBLIC_SUPABASE_ANON_KEY: key } = getPublicEnv();
+
   const client = createClient<Database>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    url,
+    key,
     {
       auth: { persistSession: false, autoRefreshToken: false },
       global: {

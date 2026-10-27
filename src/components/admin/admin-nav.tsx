@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   BarChart3,
   BadgePercent,
@@ -25,6 +26,20 @@ import {
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { LogoutButton } from "@/components/logout-button";
+
+/*
+  Same hydration guard as SiteNav: `usePathname()` at hydration can disagree with the
+  pathname the server rendered for (a reused layout payload does it quietly), which
+  mismatched every active row — `aria-current` plus the active background. Resolve the
+  highlight after mount instead, before paint so it never flickers.
+*/
+const useIsoLayoutEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
+
+function useHydrated() {
+  const [hydrated, setHydrated] = useState(false);
+  useIsoLayoutEffect(() => setHydrated(true), []);
+  return hydrated;
+}
 
 export type AdminNavItem = { href: string; label: string; icon: LucideIcon };
 
@@ -89,6 +104,7 @@ function useAdminNav(hidden: string[]) {
 /** Desktop sidebar list. */
 export function AdminNav({ hidden = [], pendingCount = 0 }: { hidden?: string[]; pendingCount?: number }) {
   const { groups, pathname } = useAdminNav(hidden);
+  const hydrated = useHydrated();
 
   const badgeFor = (href: string) =>
     href === "/admin/bookings" && pendingCount > 0 ? (
@@ -115,7 +131,7 @@ export function AdminNav({ hidden = [], pendingCount = 0 }: { hidden?: string[];
           )}
           <ul className="flex flex-col gap-0.5">
             {group.items.map(({ href, label, icon: Icon }) => {
-              const active = isActive(pathname, href);
+              const active = hydrated && isActive(pathname, href);
               return (
                 <li key={href}>
                   <Link
@@ -157,6 +173,13 @@ export function AdminNavMobile({
   const { groups } = useAdminNav(hidden);
   const pathname = usePathname() ?? "/admin";
   const [open, setOpen] = useState(false);
+  // Portal target only exists in the browser; gate the drawer behind a mounted flag so
+  // the server render and the first client render stay identical.
+  const [mounted, setMounted] = useState(false);
+
+  useIsoLayoutEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Close on navigation.
   useEffect(() => {
@@ -212,100 +235,108 @@ export function AdminNavMobile({
         </span>
       </button>
 
-      {/* Left drawer, full height, slides in from the left. Fixed so it can cover the
-          viewport regardless of where the trigger sits in the header. */}
-      <div
-        className={cn("fixed inset-0 z-50 md:hidden", !open && "pointer-events-none")}
-        aria-hidden={!open}
-      >
-        {/* Backdrop */}
-        <div
-          onClick={() => setOpen(false)}
-          className={cn(
-            "absolute inset-0 bg-black/60 transition-opacity duration-300 motion-reduce:transition-none",
-            open ? "opacity-100" : "opacity-0",
-          )}
-        />
-
-        {/* Panel */}
-        <aside
-          id="admin-mobile-nav"
-          aria-label="Admin (ponsel)"
-          className={cn(
-            "absolute inset-y-0 left-0 flex w-[min(19rem,85vw)] flex-col border-r border-border bg-surface shadow-2xl transition-all duration-300 motion-reduce:transition-none",
-            open ? "translate-x-0 opacity-100 visible" : "-translate-x-full opacity-0 invisible",
-          )}
-        >
-          <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border px-4 py-3">
-            <span className="font-display text-sm uppercase tracking-wider text-primary">Menu</span>
-            <button
-              type="button"
+      {/* Left drawer, full height, slides in from the left. Portalled to <body> on
+          purpose: the trigger lives inside the sticky header, and that header carries
+          `backdrop-blur`. A filtered ancestor becomes the containing block for
+          `position: fixed` descendants, so a drawer rendered in place would be sized to
+          the header instead of the viewport and sit clipped on a phone. The portal
+          escapes that containing block. */}
+      {mounted &&
+        createPortal(
+          <div
+            className={cn("fixed inset-0 z-50 md:hidden", !open && "pointer-events-none")}
+            aria-hidden={!open}
+          >
+            {/* Backdrop */}
+            <div
               onClick={() => setOpen(false)}
-              aria-label="Tutup menu"
-              className="inline-flex size-8 items-center justify-center rounded-md text-foreground transition-colors hover:bg-surface-high"
+              className={cn(
+                "absolute inset-0 bg-black/60 transition-opacity duration-300 motion-reduce:transition-none",
+                open ? "opacity-100" : "opacity-0",
+              )}
+            />
+
+            {/* Panel */}
+            <aside
+              id="admin-mobile-nav"
+              aria-label="Admin (ponsel)"
+              className={cn(
+                "absolute inset-y-0 left-0 flex w-[min(19rem,85vw)] flex-col border-r border-border bg-surface shadow-2xl transition-all duration-300 motion-reduce:transition-none",
+                open ? "translate-x-0 opacity-100 visible" : "-translate-x-full opacity-0 invisible",
+              )}
             >
-              <X className="size-5" />
-            </button>
-          </div>
+              <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border px-4 py-3">
+                <span className="font-display text-sm uppercase tracking-wider text-primary">Menu</span>
+                <button
+                  type="button"
+                  onClick={() => setOpen(false)}
+                  aria-label="Tutup menu"
+                  className="inline-flex size-8 items-center justify-center rounded-md text-foreground transition-colors hover:bg-surface-high"
+                >
+                  <X className="size-5" />
+                </button>
+              </div>
 
-          {/* min-h-0 + overflow-y-auto: the list scrolls on short screens instead of being
-              clipped. */}
-          <nav className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
-            {groups.map((group, gi) => (
-              <div key={group.label} className={gi === 0 ? "" : "mt-5 border-t border-border pt-5"}>
-                {gi > 0 && (
-                  <p className="px-3 pb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                    {group.label}
-                  </p>
+              {/* min-h-0 + overflow-y-auto: the list scrolls on short screens instead of being
+                  clipped. */}
+              <nav className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
+                {groups.map((group, gi) => (
+                  <div key={group.label} className={gi === 0 ? "" : "mt-5 border-t border-border pt-5"}>
+                    {gi > 0 && (
+                      <p className="px-3 pb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                        {group.label}
+                      </p>
+                    )}
+                    <ul className="flex flex-col gap-0.5">
+                      {group.items.map(({ href, label, icon: Icon }) => {
+                        const active = mounted && isActive(href);
+                        return (
+                          <li key={href}>
+                            <Link
+                              href={href}
+                              aria-current={active ? "page" : undefined}
+                              className={cn(
+                                "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors",
+                                active
+                                  ? "bg-primary font-bold text-on-primary shadow-arcade-sm"
+                                  : "text-on-surface-variant hover:bg-surface-high hover:text-foreground",
+                              )}
+                            >
+                              <Icon aria-hidden className="size-4 shrink-0" />
+                              {label}
+                              {badgeFor(href)}
+                            </Link>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
+                ))}
+              </nav>
+
+              {/* Footer stays put while the list scrolls: the identity and the logout button
+                  must be reachable without scrolling, and staff are most likely to need the
+                  logout on the phone they are holding. */}
+              <div className="shrink-0 space-y-2 border-t border-border p-3">
+                {userName && (
+                  <div className="flex items-center gap-2.5">
+                    <span className="grid size-9 shrink-0 place-items-center rounded-full bg-primary text-on-primary">
+                      <UserRound aria-hidden className="size-4" />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-semibold">{userName}</span>
+                      {userRole && (
+                        <span className="block truncate text-xs text-muted-foreground">{userRole}</span>
+                      )}
+                    </span>
+                  </div>
                 )}
-                <ul className="flex flex-col gap-0.5">
-                  {group.items.map(({ href, label, icon: Icon }) => {
-                    const active = isActive(href);
-                    return (
-                      <li key={href}>
-                        <Link
-                          href={href}
-                          aria-current={active ? "page" : undefined}
-                          className={cn(
-                            "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors",
-                            active
-                              ? "bg-primary font-bold text-on-primary shadow-arcade-sm"
-                              : "text-on-surface-variant hover:bg-surface-high hover:text-foreground",
-                          )}
-                        >
-                          <Icon aria-hidden className="size-4 shrink-0" />
-                          {label}
-                          {badgeFor(href)}
-                        </Link>
-                      </li>
-                    );
-                  })}
-                </ul>
+                <LogoutButton />
               </div>
-            ))}
-          </nav>
-
-          {/* Footer stays put while the list scrolls: the identity and the logout button
-              must be reachable without scrolling, and staff are most likely to need the
-              logout on the phone they are holding. */}
-          <div className="shrink-0 space-y-2 border-t border-border p-3">
-            {userName && (
-              <div className="flex items-center gap-2.5">
-                <span className="grid size-9 shrink-0 place-items-center rounded-full bg-primary text-on-primary">
-                  <UserRound aria-hidden className="size-4" />
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-semibold">{userName}</span>
-                  {userRole && (
-                    <span className="block truncate text-xs text-muted-foreground">{userRole}</span>
-                  )}
-                </span>
-              </div>
-            )}
-            <LogoutButton />
-          </div>
-        </aside>
-      </div>
+            </aside>
+          </div>,
+          document.body,
+        )}
     </>
   );
 }

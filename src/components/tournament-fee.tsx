@@ -42,7 +42,7 @@ export function FeeTag({
      holds at every text size; `min-h` reserves the sticker's own height for the
      free-without-list-price case, where there is no price line to centre on. */
 return (
-    <span className="relative inline-flex min-h-[24px] flex-col items-start pr-1 pt-2.5">
+    <span className="relative inline-flex min-h-6 flex-col items-start pr-1 pt-2.5">
       {fee.strikePrice ? (
         <span className={`${scale} text-muted-foreground line-through decoration-2`}>
           {rp(fee.strikePrice)}

@@ -1,3 +1,6 @@
+import { Breadcrumbs } from "@/components/breadcrumbs";
+import { PageHero } from "@/components/page-hero";
+import { Trophy } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getTournamentBySlug, getTournamentMatches } from "@/lib/tournaments";
@@ -30,13 +33,23 @@ export default async function TournamentDetailPage({
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 md:px-8">
-      <Link href="/turnamen" className="text-sm text-muted-foreground hover:text-primary">
-        ← Semua turnamen
-      </Link>
+      <Breadcrumbs
+        items={[
+          { label: "Home", href: "/" },
+          { label: "Turnamen", href: "/turnamen" },
+          { label: tournament.title },
+        ]}
+      />
 
-      <div className="mt-4 grid gap-6 md:grid-cols-[1.4fr_1fr]">
+      <PageHero
+        className="mt-4"
+        eyebrow={{ icon: Trophy, label: "Turnamen" }}
+        title={tournament.title}
+        titleIcon={Trophy}
+      />
+
+      <div className="mt-6 grid gap-6 md:grid-cols-[1.4fr_1fr]">
         <div>
-          <h1 className="font-display text-3xl uppercase md:text-4xl">{tournament.title}</h1>
 
           {tournament.poster_url && (
             // eslint-disable-next-line @next/next/no-img-element

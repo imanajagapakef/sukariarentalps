@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database";
 import { convertQRIS } from "@/lib/qris-dinamis";
@@ -117,6 +118,40 @@ export async function getRegistrationByCode(db: DB, code: string): Promise<Regis
     .maybeSingle();
 
   return { ...data, branch: branch ?? null } as RegistrationDetail;
+}
+
+/**
+ * Verifies the caller knows the last 4 digits of the phone used to register.
+ * A discriminated union so the route can answer 404 vs 401 without treating a
+ * wrong guess as a server error.
+ */
+export type RegistrationAccessResult =
+  | { ok: true; registration: RegistrationDetail }
+  | { ok: false; state: "not_found" | "wrong_last4" };
+
+export async function verifyRegistrationAccessByCode(
+  db: DB,
+  code: string,
+  last4: string,
+): Promise<RegistrationAccessResult> {
+  const registration = await getRegistrationByCode(db, code);
+  if (!registration) return { ok: false, state: "not_found" };
+
+  const digits = (value: string) => (value.match(/\d/g) ?? []).join("");
+  const given = digits(last4);
+  const onFile = digits(registration.phone ?? "").slice(-4);
+  if (given.length !== 4) {
+    return { ok: false, state: "wrong_last4" };
+  }
+  // Constant-time so response timing does not reveal how many digits matched.
+  const same = timingSafeEqual(
+    Buffer.from(given.padEnd(4, "\0"), "utf8"),
+    Buffer.from(onFile.padEnd(4, "\0"), "utf8"),
+  );
+  if (!same) {
+    return { ok: false, state: "wrong_last4" };
+  }
+  return { ok: true, registration };
 }
 
 /**

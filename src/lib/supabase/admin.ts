@@ -1,5 +1,7 @@
+import "server-only";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database";
+import { getPublicEnv, getServerEnv } from "@/lib/env";
 
 /**
  * Service-role client. Bypasses RLS and is the only way to call the booking
@@ -14,14 +16,8 @@ import type { Database } from "@/types/database";
  * `force-dynamic`, which forces no-store and ignores this either way.
  */
 export function createAdminClient(options?: { revalidate?: number }): SupabaseClient<Database> {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (!url || !key) {
-    throw new Error(
-      "NEXT_PUBLIC_SUPABASE_URL dan SUPABASE_SERVICE_ROLE_KEY wajib diisi",
-    );
-  }
+  const { NEXT_PUBLIC_SUPABASE_URL: url } = getPublicEnv();
+  const { SUPABASE_SERVICE_ROLE_KEY: key } = getServerEnv();
 
   return createClient<Database>(url, key, {
     auth: { persistSession: false, autoRefreshToken: false },

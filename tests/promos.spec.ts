@@ -14,15 +14,23 @@ const describeLive = canAuthenticate ? describe : describe.skip;
  * fail loudly instead of silently half-saving.
  *
  * The seeded PROMO-MANTAI-GANET is never touched — it is the one real promo, and its
- * DRAFT status is a business decision, not something a test should flip.
+ * publish state is a business decision, not something a test should flip. The suite
+ * captures that state before it runs and asserts it is unchanged at the end.
  */
 describeLive("promos route", () => {
   let db: ReturnType<typeof createAdminClient>;
   const created: string[] = [];
+  let realPromoStatus: string | null = null;
 
   beforeAll(async () => {
     await signInAsOwner();
     db = createAdminClient();
+    const { data: real } = await db
+      .from("promotions")
+      .select("status")
+      .eq("promotion_id", "PROMO-MANTAI-GANET")
+      .maybeSingle();
+    realPromoStatus = (real?.status as string | null) ?? null;
   });
 
   afterAll(async () => {
@@ -262,7 +270,9 @@ describeLive("promos route", () => {
       .select("status")
       .eq("promotion_id", "PROMO-MANTAI-GANET")
       .single();
-    // Publishing it is the owner's call; the suite must not make it.
-    expect(data?.status).toBe("DRAFT");
+    // The suite must not change the real promo's publish state. Comparing against
+    // the status captured before the run (instead of hardcoding DRAFT) keeps this
+    // honest when the owner has already published it.
+    expect(data?.status).toBe(realPromoStatus);
   });
 });

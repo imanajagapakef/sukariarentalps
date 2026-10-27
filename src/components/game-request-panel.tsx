@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { Lightbulb, ThumbsUp } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -78,10 +79,19 @@ export function GameRequestPanel({ initial }: { initial: GameRequestRow[] }) {
     );
   }
 
+  // Bar vote relatif ke request teratas: dengan satu request saja, bar pertama
+  // tampil penuh — yang memang benar ("paling dicari").
+  const maxVotes = requests.reduce((m, r) => Math.max(m, r.vote_count), 0);
+
   return (
     <section className="mt-12 grid gap-6 lg:grid-cols-2">
-      <div className="rounded-xl border border-border bg-card p-5">
-        <p className="flex items-center gap-2 font-display text-sm uppercase tracking-[0.06em] text-primary">
+      <div className="relative isolate overflow-hidden rounded-2xl border border-border bg-card p-5 shadow-arcade-sm sm:p-6">
+        <span
+          aria-hidden
+          className="pointer-events-none absolute inset-x-0 top-0 h-0.5 bg-linear-to-r from-primary via-primary/40 to-transparent"
+        />
+        <div aria-hidden className="pointer-events-none absolute -right-16 -top-20 -z-10 size-56 rounded-full bg-primary/15 blur-3xl" />
+        <p className="font-display flex items-center gap-2 text-sm uppercase tracking-[0.06em] text-primary">
           <Lightbulb aria-hidden className="size-4" />
           Game yang bisa di-install?
         </p>
@@ -111,8 +121,13 @@ export function GameRequestPanel({ initial }: { initial: GameRequestRow[] }) {
         {notice && <p className="mt-3 text-sm text-primary">{notice}</p>}
       </div>
 
-      <div className="rounded-xl border border-border bg-card p-5">
-        <p className="font-display text-sm uppercase tracking-[0.06em] text-primary">TOP REQUEST GAMEPOP</p>
+      <div className="relative isolate overflow-hidden rounded-2xl border border-border bg-card p-5 shadow-arcade-sm sm:p-6">
+        <span
+          aria-hidden
+          className="pointer-events-none absolute inset-x-0 top-0 h-0.5 bg-linear-to-r from-amber via-amber/40 to-transparent"
+        />
+        <div aria-hidden className="pointer-events-none absolute -right-16 -top-20 -z-10 size-56 rounded-full bg-amber/15 blur-3xl" />
+        <p className="font-display text-sm uppercase tracking-[0.06em] text-amber">Top request gamepop</p>
         <h2 className="font-display mt-2 text-2xl uppercase">Paling Dicari</h2>
 
         {requests.length === 0 ? (
@@ -121,33 +136,55 @@ export function GameRequestPanel({ initial }: { initial: GameRequestRow[] }) {
           </p>
         ) : (
           <ol className="mt-4 space-y-2">
-            {requests.map((r, i) => (
-              <li
-                key={r.request_id}
-                className="flex items-center gap-3 rounded-lg border border-border px-3 py-2"
-              >
-                <span className="font-display w-6 shrink-0 text-center text-xl text-primary">
-                  {i + 1}
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-medium">{r.game_name}</span>
-                  {r.status === "UNDER_REVIEW" && (
-                    <span className="text-xs uppercase text-primary">Sedang ditinjau</span>
+            {requests.map((r, i) => {
+              const pct = maxVotes > 0 ? Math.round((r.vote_count / maxVotes) * 100) : 0;
+              const top = i < 3;
+              return (
+                <li
+                  key={r.request_id}
+                  className={cn(
+                    "relative isolate overflow-hidden rounded-xl border p-3 transition-colors",
+                    top ? "border-primary/30 bg-primary/5" : "border-border",
                   )}
-                </span>
-                <span className="shrink-0 text-xs text-muted-foreground">{r.vote_count} vote</span>
-                <Button
-                  type="button"
-                  size="icon-sm"
-                  variant={voted[r.request_id] ? "secondary" : "outline"}
-                  disabled={busy || voted[r.request_id]}
-                  onClick={() => vote(r.request_id)}
-                  aria-label={`Vote ${r.game_name}`}
                 >
-                  <ThumbsUp aria-hidden className="size-4" />
-                </Button>
-              </li>
-            ))}
+                  {/* Bar proporsi vote, di belakang konten. */}
+                  <div
+                    aria-hidden
+                    className={cn("absolute inset-y-0 left-0 -z-10", top ? "bg-primary/15" : "bg-muted-foreground/10")}
+                    style={{ width: `${pct}%` }}
+                  />
+                  <div className="relative flex items-center gap-3">
+                    <span
+                      className={cn(
+                        "font-display grid size-7 shrink-0 place-items-center rounded-lg text-sm tabular-nums",
+                        top ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground",
+                      )}
+                    >
+                      {i + 1}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-medium">{r.game_name}</span>
+                      {r.status === "UNDER_REVIEW" && (
+                        <span className="text-[11px] uppercase text-primary">Sedang ditinjau</span>
+                      )}
+                    </span>
+                    <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 font-mono text-[11px] font-bold tabular-nums">
+                      {r.vote_count}
+                    </span>
+                    <Button
+                      type="button"
+                      size="icon-sm"
+                      variant={voted[r.request_id] ? "secondary" : "outline"}
+                      disabled={busy || voted[r.request_id]}
+                      onClick={() => vote(r.request_id)}
+                      aria-label={`Vote ${r.game_name}`}
+                    >
+                      <ThumbsUp aria-hidden className="size-4" />
+                    </Button>
+                  </div>
+                </li>
+              );
+            })}
           </ol>
         )}
       </div>

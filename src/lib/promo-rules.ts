@@ -19,6 +19,19 @@ export type PromoItem = {
   bonus_quantity?: number;
 };
 
+/** Human wording for each status, so the admin UI never shows a bare enum. */
+export const STATUS_META: Record<PromoStatus, { label: string; hint: string }> = {
+  DRAFT: { label: "Draf", hint: "Tersimpan di sini, belum terlihat pelanggan." },
+  ACTIVE: { label: "Tayang", hint: "Tampil di /promo dan bisa dipakai saat booking." },
+  ENDED: { label: "Berakhir", hint: "Diarsipkan. Tidak tampil, tapi harganya tetap tersimpan." },
+};
+
+/** Quick-pick durations for the editor chips (minutes). */
+export const DURATION_PRESETS = [60, 120, 180, 240, 300] as const;
+
+/** Upper bound for the free snack quantity on one package. */
+export const MAX_BONUS_QUANTITY = 20;
+
 /**
  * The only status the public page shows.
  *
@@ -95,6 +108,193 @@ export function sortItems<T extends PromoItem>(items: readonly T[]): T[] {
 }
 
 // ---------------------------------------------------------------------------
+// Admin editor rules: per-row validation, dirty tracking, formatting, preview.
+// ---------------------------------------------------------------------------
+
+export type ItemIssue = {
+  index: number;
+  field: "facility" | "duration" | "price" | "bonus" | "duplicate";
+  severity: "error" | "warning";
+  message: string;
+};
+
+/**
+ * Row-level validation, so the editor can point at the exact row that is wrong
+ * instead of one generic error at the top. Errors block the save; warnings do not
+ * (a Rp 0 package is legal, just usually a typo).
+ */
+export function validateItems(items: readonly PromoItem[]): ItemIssue[] {
+  const issues: ItemIssue[] = [];
+  const firstSeen = new Map<string, number>();
+
+  items.forEach((item, index) => {
+    if (!item.facility_type_id) {
+      issues.push({ index, field: "facility", severity: "error", message: "Pilih fasilitas dulu." });
+    }
+    if (!Number.isInteger(item.duration_minutes) || item.duration_minutes <= 0) {
+      issues.push({ index, field: "duration", severity: "error", message: "Durasi harus bilangan bulat > 0 menit." });
+    }
+    if (!Number.isFinite(item.price) || item.price < 0) {
+      issues.push({ index, field: "price", severity: "error", message: "Harga tidak boleh negatif." });
+    } else if (item.price === 0) {
+      issues.push({ index, field: "price", severity: "warning", message: "Harga Rp 0 — sengaja gratis?" });
+    }
+    if (item.bonus_snack_id) {
+      const q = item.bonus_quantity ?? 0;
+      if (!Number.isInteger(q) || q < 1 || q > MAX_BONUS_QUANTITY) {
+        issues.push({
+          index,
+          field: "bonus",
+          severity: "error",
+          message: `Jumlah bonus 1–${MAX_BONUS_QUANTITY} pcs.`,
+        });
+      }
+    }
+
+    if (item.facility_type_id && item.duration_minutes > 0) {
+      const key = `${item.facility_type_id}:${item.duration_minutes}`;
+      const first = firstSeen.get(key);
+      if (first === undefined) {
+        firstSeen.set(key, index);
+      } else {
+        issues.push({
+          index,
+          field: "duplicate",
+          severity: "error",
+          message: `Sama dengan baris ${first + 1} (fasilitas + durasi kembar).`,
+        });
+      }
+    }
+  });
+
+  return issues;
+}
+
+/**
+ * The single answer to "may this form be submitted?", with the reason when not,
+ * so the button and the message can never disagree.
+ */
+export function submitBlocker(args: {
+  name: string;
+  branchId: string;
+  status: string;
+  items: readonly PromoItem[];
+}): string | null {
+  if (!args.name.trim()) return "Isi nama promo dulu.";
+  if (!args.branchId) return "Pilih cabang tempat promo berlaku.";
+  if (!canPublish(args.status, args.items.length)) {
+    return "Promo tidak bisa ditayangkan tanpa minimal satu item harga.";
+  }
+  const firstError = validateItems(args.items).find((i) => i.severity === "error");
+  if (firstError) return `Baris ${firstError.index + 1}: ${firstError.message}`;
+  return null;
+}
+
+/** Cleans rows into what the API should receive: bonus fields consistent, order stable. */
+export function normalizeItems(items: readonly PromoItem[]): PromoItem[] {
+  return sortItems(
+    items.map((item) => {
+      const hasBonus = Boolean(item.bonus_snack_id);
+      return {
+        facility_type_id: item.facility_type_id,
+        duration_minutes: item.duration_minutes,
+        price: item.price,
+        bonus_snack_id: hasBonus ? item.bonus_snack_id! : null,
+        bonus_quantity: hasBonus ? Math.max(1, item.bonus_quantity ?? 1) : 0,
+      };
+    }),
+  );
+}
+
+/** Stable fingerprint of the editable fields; two equal strings mean "nothing changed". */
+export function promoSignature(fields: {
+  name: string;
+  branchId: string;
+  description: string;
+  sourceDate: string;
+  status: string;
+  items: readonly PromoItem[];
+}): string {
+  return JSON.stringify({
+    n: fields.name.trim(),
+    b: fields.branchId,
+    d: fields.description.trim(),
+    s: fields.sourceDate,
+    t: fields.status,
+    i: normalizeItems(fields.items),
+  });
+}
+
+/**
+ * First duration (stepping by an hour from `from`) not yet used for this facility,
+ * so "add row" and "duplicate row" never create the key clash by themselves.
+ */
+export function nextFreeDuration(
+  items: readonly PromoItem[],
+  facilityTypeId: string,
+  from: number = 60,
+): number {
+  const taken = new Set(items.filter((i) => i.facility_type_id === facilityTypeId).map((i) => i.duration_minutes));
+  let d = Math.max(60, from);
+  for (let guard = 0; guard < 200 && taken.has(d); guard++) d += 60;
+  return d;
+}
+
+/** "Rp 50.000" — id-ID grouping, no decimals. */
+export function formatRupiah(amount: number): string {
+  const safe = Number.isFinite(amount) ? Math.round(amount) : 0;
+  return `Rp ${new Intl.NumberFormat("id-ID").format(safe)}`;
+}
+
+/** 45 → "45 mnt", 60 → "1 jam", 90 → "1 jam 30 mnt". */
+export function formatDuration(minutes: number): string {
+  if (!Number.isFinite(minutes) || minutes <= 0) return "—";
+  if (minutes < 60) return `${minutes} mnt`;
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return m === 0 ? `${h} jam` : `${h} jam ${m} mnt`;
+}
+
+/** Cheapest and priciest valid row, or null when there is nothing quotable. */
+export function priceRange(items: readonly PromoItem[]): { min: number; max: number } | null {
+  const prices = items.filter((i) => i.facility_type_id && i.price >= 0).map((i) => i.price);
+  if (prices.length === 0) return null;
+  return { min: Math.min(...prices), max: Math.max(...prices) };
+}
+
+/** The "Mulai dari Rp X" line a promo card leads with, or null with no rows. */
+export function headlinePrice(items: readonly PromoItem[]): string | null {
+  const range = priceRange(items);
+  if (!range) return null;
+  return range.min === range.max ? formatRupiah(range.min) : `Mulai ${formatRupiah(range.min)}`;
+}
+
+/** Number of rows that carry a free snack. */
+export function bonusCount(items: readonly PromoItem[]): number {
+  return items.filter((i) => i.bonus_snack_id).length;
+}
+
+/**
+ * Where a promo stands, for the dashboard cards and the card badge:
+ *  live  → customers can see it
+ *  ready → draft with prices, one decision away from going live
+ *  empty → draft with no prices yet
+ *  ended → archived
+ */
+export type PromoReadiness = "live" | "ready" | "empty" | "ended";
+export function promoReadiness(status: string, itemCount: number): PromoReadiness {
+  if (status === "ACTIVE") return "live";
+  if (status === "ENDED") return "ended";
+  return itemCount > 0 ? "ready" : "empty";
+}
+
+/** Admin list order: live first, then drafts, then archived; A–Z inside each group. */
+export function sortPromos<T extends { status: string; name: string }>(promos: readonly T[]): T[] {
+  const rank = (s: string) => (s === "ACTIVE" ? 0 : s === "DRAFT" ? 1 : 2);
+  return [...promos].sort((a, b) => rank(a.status) - rank(b.status) || a.name.localeCompare(b.name));
+}
+
+// ---------------------------------------------------------------------------
 // The booking-side rules (migration 0029, R1-R8).
 //
 // Everything the customer sees about a promo — is it eligible, what does it save,
@@ -136,6 +336,12 @@ export function savingOf(offering: PromoOffering): number {
 /** R3: a promo that is not cheaper is a pricing mistake, and create_booking rejects it. */
 export function isWorthwhile(offering: PromoOffering): boolean {
   return offering.promo_price < offering.normal_price;
+}
+
+/** Whole-number "hemat 25%" figure; 0 when there is no saving or no normal price. */
+export function discountPercent(offering: PromoOffering): number {
+  if (offering.normal_price <= 0) return 0;
+  return Math.round((savingOf(offering) / offering.normal_price) * 100);
 }
 
 /**

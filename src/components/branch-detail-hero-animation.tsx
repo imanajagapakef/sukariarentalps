@@ -1,12 +1,12 @@
 const CSS = `
 .bh *{transform-box:fill-box}
-.bh-band{animation:bh-glow 2.4s ease-in-out infinite}
+.bh-band{filter:drop-shadow(0 0 8px rgba(97,224,106,.6));animation:bh-glow 2.4s ease-in-out infinite}
 .bh-cup{transform-origin:50% 50%;animation:bh-beat .8s ease-in-out infinite}
 .bh-ring{transform-origin:50% 50%;animation:bh-ring 2.4s ease-out infinite}
 .bh-bar{transform-origin:50% 100%;animation:bh-bar 1s ease-in-out infinite}
 .bh-note{animation:bh-note 3.6s ease-out infinite}
 .bh-led{animation:bh-blink 1s steps(2,end) infinite}
-@keyframes bh-glow{0%,100%{filter:drop-shadow(0 0 3px rgba(97,224,106,.35))}50%{filter:drop-shadow(0 0 11px rgba(97,224,106,.9))}}
+@keyframes bh-glow{0%,100%{opacity:.8}50%{opacity:1}}
 @keyframes bh-beat{0%,100%{transform:scale(1)}50%{transform:scale(1.06)}}
 @keyframes bh-ring{0%{opacity:.7;transform:scale(1)}100%{opacity:0;transform:scale(2.6)}}
 @keyframes bh-bar{0%,100%{transform:scaleY(.25)}50%{transform:scaleY(1)}}

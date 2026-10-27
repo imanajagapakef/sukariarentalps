@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getStaffUser } from "@/lib/authz";
-import { setStaffStatus } from "@/services/user-admin.service";
+import { setStaffStatus, deleteStaffUser } from "@/services/user-admin.service";
 import { audit } from "@/lib/audit";
 import { handleRouteError, jsonError } from "@/lib/api/response";
 import { staffPatchSchema } from "@/lib/validations/admin";
@@ -70,6 +70,61 @@ export async function PATCH(
       before: branchMoved ? { branch_id: target.branch_id } : undefined,
       after: parsed.data as never,
     });
+
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    return handleRouteError(error);
+  }
+}
+
+/**
+ * Permanently delete a staff account.
+ *
+ * Same authority ladder as PATCH: an OWNER may delete anyone but themselves and
+ * other OWNERs; an ADMIN only ever touches STAFF rows. The audit row is written
+ * *before* the delete because `before_data` has to capture the role while the
+ * profile still exists — and `entity_id` is plain text, so the trail keeps naming
+ * the account even after `actor_id` is nulled by the cascade.
+ */
+export async function DELETE(
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  try {
+    const actor = await getStaffUser(["ADMIN", "OWNER"]);
+    const { id } = await params;
+
+    if (id === actor.user_id) {
+      return jsonError("Tidak bisa menghapus akun sendiri", 400);
+    }
+
+    const db = createAdminClient();
+    const { data: target } = await db
+      .from("profiles")
+      .select("role, full_name, branch_id, active")
+      .eq("user_id", id)
+      .maybeSingle();
+    if (!target) return jsonError("Staff tidak ditemukan", 404);
+    if (target.role === "OWNER") return jsonError("Akun OWNER tidak bisa dihapus", 400);
+    if (actor.role === "ADMIN" && target.role !== "STAFF") {
+      return jsonError("ADMIN hanya boleh menghapus akun STAFF", 403);
+    }
+
+    await audit(db, {
+      actorId: actor.user_id,
+      actorRole: actor.role,
+      action: "staff_delete",
+      entityType: "profiles",
+      entityId: id,
+      before: {
+        role: target.role,
+        full_name: target.full_name,
+        branch_id: target.branch_id,
+        active: target.active,
+      } as never,
+    });
+
+    await deleteStaffUser(db, id);
 
     return NextResponse.json({ ok: true });
   } catch (error) {

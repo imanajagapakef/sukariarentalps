@@ -113,11 +113,11 @@ export function QrisCard({
 
       {/* Perforasi tiket bawah dengan sticker terpusat */}
       <div className="mt-6 pt-4 border-t border-dashed border-white/10 flex items-center justify-center gap-2">
-        <span className="h-[1px] flex-1 shrink-0 bg-white/20" />
+        <span className="h-px flex-1 shrink-0 bg-white/20" />
         <StickerTag variant="outline" className="text-[0.6rem]">
           TIKET
         </StickerTag>
-        <span className="h-[1px] flex-1 shrink-0 bg-white/20" />
+        <span className="h-px flex-1 shrink-0 bg-white/20" />
       </div>
     </div>
   );

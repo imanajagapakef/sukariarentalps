@@ -143,7 +143,7 @@ export function TournamentBracketAdmin({
                   key={m.match_id}
                   className="flex flex-wrap items-end gap-2 rounded-lg border border-border bg-card p-3"
                 >
-                  <span className="min-w-[180px] flex-1 text-sm">
+                  <span className="min-w-45 flex-1 text-sm">
                     {m.player_a_name} vs {m.player_b_name}
                   </span>
                   <Input

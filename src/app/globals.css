@@ -1,10 +1,25 @@
 @import "tailwindcss";
-@import "tw-animate-css";
 @import "shadcn/tailwind.css";
 /*
   ---break---
 */
 @custom-variant dark (&:is(.dark *));
+
+/*
+  The house transition for anything a finger can touch: colour feedback plus every
+  transform variant. The last three matter — Tailwind v4 writes `translate`, `scale`
+  and `rotate` as their own CSS properties rather than folding them into `transform`,
+  so a hand-written `transition-property: transform` silently drops a
+  `hover:-translate-y-*` or `active:scale-*` (v4's own `transition-transform` includes
+  them for exactly this reason). Timing comes from the motion tokens, so no control
+  has to pick its own duration.
+*/
+@utility transition-ui {
+  transition-property:
+    color, background-color, border-color, box-shadow, opacity, transform, translate, scale, rotate;
+  transition-timing-function: var(--ease-soft);
+  transition-duration: var(--dur-base);
+}
 
 /*
   Klub Sukaria Arcade & Lounge — design tokens
@@ -68,6 +83,23 @@
   --font-display: var(--font-anton), Impact, sans-serif;
   --font-sans: var(--font-jakarta), system-ui, sans-serif;
 
+  /*
+    Motion tokens. One scale decides how fast the app moves, so a new animation
+    never invents its own timing: `fast` for a state change on a control the
+    finger is already on, `base` for something appearing or leaving, `slow` for a
+    whole view arriving.
+
+    Tailwind has no `--duration-*` namespace, so durations are consumed as
+    `duration-[var(--dur-base)]` — or straight `var()` inside a component
+    stylesheet — while the easings are real utilities: `ease-out-quint` and
+    `ease-soft`.
+  */
+  --dur-fast: 150ms;
+  --dur-base: 220ms;
+  --dur-slow: 320ms;
+  --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-soft: cubic-bezier(0.4, 0, 0.2, 1);
+
   --radius-sm: 0.25rem;
   --radius-DEFAULT: 0.5rem;
   --radius-md: 0.75rem;
@@ -76,6 +108,7 @@
   /* Design system: "deep 32px corners (rounded-3xl for featured heroes)". */
   --radius-3xl: 2rem;
 
+  /* The marquee is the one animation the whole app shares (see Ticker). */
   --animate-marquee: marquee 30s linear infinite;
 
   @keyframes marquee {
@@ -84,58 +117,17 @@
     }
   }
 
-  --animate-bobbing: bobbing 2.4s ease-in-out infinite;
-  --animate-tv-glow: tv-glow 3.5s ease-in-out infinite;
-  --animate-blink: blink 1.2s ease-in-out infinite;
+  /*
+    Route arrival, worn by `template.tsx`. Deliberately tiny: 6px of rise reads
+    as "a new view" without making someone wait for a page they already asked
+    for. `both` matters — when reduced motion collapses this to a single 0.01ms
+    iteration, the end frame is what stays on screen.
+  */
+  --animate-page-in: page-in var(--dur-slow) var(--ease-out-quint) both;
 
-  @keyframes bobbing {
-    0%, 100% { transform: translateY(0) rotate(-1deg); }
-    50% { transform: translateY(-6px) rotate(1deg); }
-  }
-
-  @keyframes tv-glow {
-    0%, 100% { filter: drop-shadow(0 0 8px rgba(32,168,58,.45)); }
-    50% { filter: drop-shadow(0 0 24px rgba(32,168,58,.9)); }
-  }
-
-  @keyframes blink {
-    0%, 100% { opacity: 1; }
-    50% { opacity: .25; }
-  }
-
-  --animate-float: float 3s ease-in-out infinite;
-  --animate-steam: steam 2.5s ease-in-out infinite;
-  --animate-radar: radar 2.8s linear infinite;
-  --animate-coupon: coupon 2s ease-in-out infinite;
-  --animate-headset-glow: headset-glow 3s ease-in-out infinite;
-
-  @keyframes float {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-8px); }
-  }
-  @keyframes steam {
-    0% { transform: translateY(0); opacity: .8; }
-    100% { transform: translateY(-18px); opacity: 0; }
-  }
-  @keyframes radar {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-  }
-  @keyframes coupon {
-    0%, 100% { transform: rotate(-2deg) translateY(0); }
-    50% { transform: rotate(2deg) translateY(-6px); }
-  }
-  @keyframes headset-glow {
-    0%, 100% { filter: drop-shadow(0 0 6px rgba(97,224,106,.25)); }
-    50% { filter: drop-shadow(0 0 18px rgba(97,224,106,.7)); }
-  }
-
-  /* Bracket hero: the trophy-raising celebration shown above a bracket whose final is set. */
-  --animate-final-lift: final-lift 2.6s ease-in-out infinite;
-
-  @keyframes final-lift {
-    0%, 100% { transform: translateY(0) scale(1); }
-    50% { transform: translateY(-7px) scale(1.04); }
+  @keyframes page-in {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: none; }
   }
 }
 
@@ -198,6 +190,40 @@
   }
   * {
     @apply border-border outline-ring/50;
+  }
+
+  /*
+    Reduced motion, once, for the whole app.
+
+    The decorative heroes already switch themselves off in their own stylesheets,
+    but the Tailwind utilities (`animate-pulse`, `animate-ping`, `animate-bounce`)
+    and the marquee had no such guard — and those are precisely the ones that
+    never stop. Collapsing every animation to a single 0.01ms iteration parks it
+    on its end frame, so content that fades in stays visible and nothing is left
+    stranded at `opacity: 0`. Transitions collapse too, so nothing the finger
+    triggers animates either.
+  */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    ::before,
+    ::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+
+  /*
+    Background-tab park. The home page runs ~50 simultaneous animations; keeping
+    them ticking while the tab is hidden is pure battery. `MotionPause` toggles
+    this class on <html> from `visibilitychange`, which parks them without
+    resetting them — they pick up where they left off on return.
+  */
+  html.motion-paused *,
+  html.motion-paused *::before,
+  html.motion-paused *::after {
+    animation-play-state: paused !important;
   }
 }
 /*

@@ -157,17 +157,20 @@ describeDb("booking engine", () => {
     // 10-minute late tolerance, every start between HH:10 and HH:59 was refused as
     // 'waktu mulai sudah terlewat'. So this test is deliberately time-of-day
     // independent in intent but strict in effect — it fails if the floor ever returns.
-    const before = new Date();
+    // Compare against the DATABASE clock, not this machine's: a dev/CI host can drift
+    // from the server by minutes, which made a local `new Date()` comparison flaky.
+    const { rows: clock } = await db.query(`select now() as db_now`);
+    const dbNow = new Date(clock[0].db_now).getTime();
+
     const { rows } = await db.query(
       `select * from public.create_booking($1, $2, 'Walk-in Tester', $3, null, 60)`,
       [branchId, unitId, phone],
     );
-    const start = new Date(rows[0].scheduled_start_at);
-    const driftMs = Math.abs(start.getTime() - before.getTime());
+    const start = new Date(rows[0].scheduled_start_at).getTime();
 
     // Started when the call was made, not at the top of the hour and not in the past.
-    expect(driftMs).toBeLessThan(120_000);
-    expect(start.getTime()).toBeGreaterThanOrEqual(before.getTime() - 60_000);
+    expect(Math.abs(start - dbNow)).toBeLessThan(120_000);
+    expect(start).toBeGreaterThanOrEqual(dbNow - 60_000);
   });
 
   it("rejects a duration outside the configured bounds", async () => {

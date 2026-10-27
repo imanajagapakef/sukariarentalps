@@ -4,6 +4,7 @@ import { handleRouteError, jsonRateLimited } from "@/lib/api/response";
 import { rateLimit } from "@/lib/rate-limit";
 import { tournamentRegistrationSchema } from "@/lib/validations/tournament";
 import { registerForTournament } from "@/services/tournament.service";
+import { setTournamentAccessCookie } from "@/lib/tournament-access";
 
 /**
  * Public registration.
@@ -34,7 +35,11 @@ export async function POST(request: NextRequest) {
     const db = createAdminClient();
     const registration = await registerForTournament(db, parsed.data);
 
-    return NextResponse.json({ registration }, { status: 201 });
+    // The player just proved ownership by registering, so let them open their
+    // own ticket without a second round trip through /cek-turnamen.
+    const res = NextResponse.json({ registration }, { status: 201 });
+    setTournamentAccessCookie(res, registration.registration_code);
+    return res;
   } catch (error) {
     return handleRouteError(error);
   }

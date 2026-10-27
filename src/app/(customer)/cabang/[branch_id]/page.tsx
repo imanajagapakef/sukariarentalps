@@ -1,7 +1,9 @@
 import Link from "next/link";
 import Image from "next/image";
 import { notFound } from "next/navigation";
-import { Gamepad2, MapPin, Phone, Send, Star, Users, Wifi } from "lucide-react";
+import { Gamepad2, MapPin, Monitor, Phone, Send, Star, Tag, Zap } from "lucide-react";
+import { Breadcrumbs } from "@/components/breadcrumbs";
+import { StatCards } from "@/components/stat-cards";
 import {
   getBranches,
   getFacilityTypes,
@@ -82,15 +84,13 @@ export default async function BranchDetailPage({
     <div className="mx-auto max-w-7xl px-4 py-10 md:px-8">
       {/* BREADCRUMB */}
       <div className="flex flex-wrap items-center justify-between gap-3 pb-4 text-sm">
-        <nav aria-label="Breadcrumb" className="text-muted-foreground">
-          <ol className="flex flex-wrap items-center gap-2">
-            <li><Link href="/" className="hover:text-foreground">Home</Link></li>
-            <li aria-hidden>/</li>
-            <li><Link href="/tempat-main" className="hover:text-foreground">Tempat Main</Link></li>
-            <li aria-hidden>/</li>
-            <li aria-current="page" className="font-medium text-foreground">{branch.name}</li>
-          </ol>
-        </nav>
+        <Breadcrumbs
+          items={[
+            { label: "Home", href: "/" },
+            { label: "Tempat Main", href: "/tempat-main" },
+            { label: branch.name },
+          ]}
+        />
         <span className="inline-flex items-center gap-1.5 rounded-full bg-card px-3 py-1 text-xs font-bold uppercase text-primary">
           <span className="inline-flex h-2 w-2 rounded-full bg-primary animate-pulse" />
           Cabang Resmi {branch.operating_hours}
@@ -103,7 +103,7 @@ export default async function BranchDetailPage({
           {heroImage && (
             <Image src={heroImage} alt={branch.name} fill priority sizes="100vw" className="object-cover" />
           )}
-          <div className="absolute inset-0 bg-gradient-to-t from-card via-card/60 to-transparent" />
+          <div className="absolute inset-0 bg-linear-to-t from-card via-card/60 to-transparent" />
           <div className="absolute top-4 left-4 right-4 flex items-center justify-between gap-2">
             <span className="inline-flex items-center gap-1.5 rounded-full bg-background/90 px-3.5 py-1.5 text-xs font-bold uppercase tracking-wider text-primary shadow-lg backdrop-blur-md">
               <span className="inline-flex h-2.5 w-2.5 rounded-full bg-primary animate-ping" />
@@ -130,47 +130,39 @@ export default async function BranchDetailPage({
               </span>
               <span className="flex items-center gap-1.5 rounded-lg bg-card/80 px-3 py-1.5">
                 <MapPin aria-hidden className="size-4 text-primary" />
-                <span className="truncate max-w-[240px] sm:max-w-xs">{branch.address}</span>
+                <span className="truncate max-w-60 sm:max-w-xs">{branch.address}</span>
               </span>
             </div>
           </div>
-          <div className="absolute bottom-4 right-4 hidden w-[240px] md:block">
+          <div className="absolute bottom-4 right-4 hidden w-60 md:block">
             <BranchDetailHeroAnimation className="h-24 w-full md:h-28" />
           </div>
         </div>
       </section>
 
-      {/* LIVE STATS BAR */}
-      <section className="mt-6 grid grid-cols-2 gap-3 rounded-2xl bg-card p-4 shadow-md md:grid-cols-4">
-        <div className="flex items-center gap-3 rounded-xl bg-muted p-3">
-          <div className="grid size-12 place-items-center rounded-xl bg-primary/10 text-primary"><Gamepad2 className="size-6" /></div>
-          <div className="min-w-0">
-            <span className="block truncate text-xs text-muted-foreground">Total Unit Konsol</span>
-            <span className="font-display text-lg uppercase">{units.length} UNIT</span>
-          </div>
-        </div>
-        <div className="flex items-center gap-3 rounded-xl bg-muted p-3">
-          <div className="grid size-12 place-items-center rounded-xl bg-primary/20 text-primary"><Users className="size-6" /></div>
-          <div className="min-w-0">
-            <span className="block truncate text-xs text-primary">Tersedia Siap Main</span>
-            <span className="font-display text-lg uppercase text-primary">{readyCount} LIVE</span>
-          </div>
-        </div>
-        <div className="flex items-center gap-3 rounded-xl bg-muted p-3">
-          <div className="grid size-12 place-items-center rounded-xl bg-card"><Wifi className="size-6" /></div>
-          <div className="min-w-0">
-            <span className="block truncate text-xs text-muted-foreground">Gaming Wi-Fi</span>
-            <span className="font-display text-lg uppercase">200 MBPS</span>
-          </div>
-        </div>
-        <div className="flex items-center gap-3 rounded-xl bg-muted p-3">
-          <div className="grid size-12 place-items-center rounded-xl bg-card text-primary"><Users className="size-6" /></div>
-          <div className="min-w-0">
-            <span className="block truncate text-xs text-muted-foreground">Platform</span>
-            <span className="font-display text-lg uppercase">{platformCount} JENIS</span>
-          </div>
-        </div>
-      </section>
+      {/* LIVE STATS BAR — semua angka dari data cabang, bukan klaim hardcoded. */}
+      <StatCards
+        className="mt-6"
+        cards={[
+          { label: "Total unit konsol", value: `${units.length} unit`, icon: Gamepad2, hint: "di cabang ini" },
+          {
+            label: "Siap main",
+            value: `${readyCount} live`,
+            tone: readyCount > 0 ? "primary" : "muted",
+            icon: Zap,
+            hint: "bisa langsung gas",
+          },
+          { label: "Platform", value: `${platformCount} jenis`, icon: Monitor, hint: "konsol tersedia" },
+          {
+            label: "Game tersedia",
+            value: hereGames.length,
+            tone: "primary",
+            icon: Tag,
+            href: "/games",
+            hint: "judul bisa dimainkan",
+          },
+        ]}
+      />
 
       {/* TWO-COLUMN GRID */}
       <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-12">
@@ -187,7 +179,7 @@ export default async function BranchDetailPage({
                 {branchPhotos.map((p, i) => (
                   <figure
                     key={p.photo_id}
-                    className="relative aspect-[4/3] overflow-hidden rounded-xl border border-border bg-muted"
+                    className="relative aspect-4/3 overflow-hidden rounded-xl border border-border bg-muted"
                   >
                     <Image
                       src={p.image_url}
@@ -197,7 +189,7 @@ export default async function BranchDetailPage({
                       className="object-cover transition-transform duration-500 hover:scale-105"
                     />
                     {p.caption && (
-                      <figcaption className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-2 text-xs text-white">
+                      <figcaption className="absolute inset-x-0 bottom-0 bg-linear-to-t from-black/80 to-transparent p-2 text-xs text-white">
                         {p.caption}
                       </figcaption>
                     )}
@@ -237,14 +229,14 @@ export default async function BranchDetailPage({
                 <h2 className="font-display text-2xl uppercase">Status Unit Cabang Ini</h2>
               </div>
               <div className="flex flex-wrap gap-2">
-                <Link href={`/cabang/${branch.branch_id}`} className={`rounded-full border px-4 py-1.5 text-sm ${!type ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:text-foreground"}`}>
+                <Link href={`/cabang/${branch.branch_id}`} className={`rounded-full border px-4 py-1.5 text-sm ${!type ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground transition-colors hover:text-foreground"}`}>
                   Semua ({units.length})
                 </Link>
                 {facilityTypes
                   .map((f) => ({ ...f, n: units.filter((u) => u.facility_type_id === f.facility_type_id).length }))
                   .filter((f) => f.n > 0)
                   .map((f) => (
-                    <Link key={f.facility_type_id} href={`/cabang/${branch.branch_id}?type=${f.facility_type_id}`} className={`rounded-full border px-4 py-1.5 text-sm ${type === f.facility_type_id ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:text-foreground"}`}>
+                    <Link key={f.facility_type_id} href={`/cabang/${branch.branch_id}?type=${f.facility_type_id}`} className={`rounded-full border px-4 py-1.5 text-sm ${type === f.facility_type_id ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground transition-colors hover:text-foreground"}`}>
                       {f.name} ({f.n})
                     </Link>
                   ))}
@@ -319,7 +311,7 @@ export default async function BranchDetailPage({
               <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
                 {hereGames.slice(0, 6).map((g) => (
                   <Link key={g.game_id} href={`/games/${g.slug}`} className="group min-w-0 transition-transform duration-300 hover:-translate-y-1">
-                    <Cover seed={g.game_id} src={g.image_url} label={g.name} className="aspect-[3/4] w-full rounded-lg border border-border transition-transform duration-500 group-hover:scale-105" />
+                    <Cover seed={g.game_id} src={g.image_url} label={g.name} className="aspect-3/4 w-full rounded-lg border border-border transition-transform duration-500 group-hover:scale-105" />
                     <p className="mt-1.5 truncate font-display text-xs uppercase group-hover:text-primary">{g.name}</p>
                   </Link>
                 ))}
@@ -337,7 +329,7 @@ export default async function BranchDetailPage({
               <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
                 {snacks.slice(0, 6).map((s) => (
                   <div key={s.snack_id} className="rounded-xl border border-border bg-muted p-4 transition-all duration-300 hover:-translate-y-1 hover:border-primary/40">
-                    <Cover seed={s.snack_id} src={s.image_url} label={s.name} className="aspect-[4/3] w-full rounded-lg border border-border transition-transform duration-500 group-hover:scale-105" />
+                    <Cover seed={s.snack_id} src={s.image_url} label={s.name} className="aspect-4/3 w-full rounded-lg border border-border transition-transform duration-500 group-hover:scale-105" />
                     <p className="mt-2 truncate text-sm font-medium">{s.name}</p>
                     <p className="text-sm text-primary">{rp(s.price)}</p>
                   </div>

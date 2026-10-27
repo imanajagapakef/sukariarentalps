@@ -1,7 +1,9 @@
+import { PageHero } from "@/components/page-hero";
+import { MessageSquare, Star } from "lucide-react";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getStaffUser } from "@/lib/authz";
 import { fmtDateTime } from "@/lib/format";
-import { StatCards } from "@/components/admin/stat-cards";
+import { StatCards } from "@/components/stat-cards";
 
 export const dynamic = "force-dynamic";
 
@@ -22,7 +24,13 @@ export default async function AdminFeedbackPage() {
 
     return (
       <div>
-        <h1 className="font-display text-2xl uppercase">Feedback</h1>
+        <PageHero
+          size="admin"
+          title="Feedback"
+          titleIcon={MessageSquare}
+          eyebrow={{ icon: Star, label: `${rows.length} masukan` }}
+          description={`Skor rata-rata ${avg(rows.map((r) => r.rating))}/5 dari masukan terbaru.`}
+        />
         <StatCards
           cards={[
             { label: "Jumlah feedback", value: rows.length },

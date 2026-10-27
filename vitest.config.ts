@@ -18,6 +18,10 @@ export default defineConfig({
   },
   resolve: {
     alias: {
+      // `server-only` is a marker package that throws unless the `react-server`
+      // export condition is set. Vitest runs in plain Node, so point it at a
+      // no-op stub; the real guard still applies in the Next build.
+      "server-only": fileURLToPath(new URL("./tests/stubs/server-only.ts", import.meta.url)),
       "@": fileURLToPath(new URL("./src", import.meta.url)),
     },
   },

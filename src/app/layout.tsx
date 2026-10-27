@@ -3,6 +3,7 @@ import { Anton, Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 import { cn } from "@/lib/utils";
 import { WebVitals } from "@/components/web-vitals";
+import { MotionPause } from "@/components/motion-pause";
 
 const anton = Anton({
   weight: "400",
@@ -60,7 +61,9 @@ export default function RootLayout({
         >
           Lewati ke konten
         </a>
-        {children}<WebVitals />
+        {children}
+        <WebVitals />
+        <MotionPause />
       </body>
     </html>
   );

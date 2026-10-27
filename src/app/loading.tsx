@@ -197,14 +197,14 @@ export default function Loading() {
 
       {/* ---------- Bar HP / loading bersegmen ---------- */}
       <div aria-hidden className="relative w-56 md:w-72">
-        <div className="relative flex gap-[3px] overflow-hidden rounded-md border-2 border-[#3e4a3b] bg-[#131313] p-[3px]">
+        <div className="relative flex gap-0.75 overflow-hidden rounded-md border-2 border-[#3e4a3b] bg-[#131313] p-0.75">
           {SEGMENTS.map((i) => (
             <span
               key={i}
-              className="ls-seg relative block h-3 flex-1 rounded-[2px] bg-[rgba(97,224,106,.14)] md:h-3.5"
+              className="ls-seg relative block h-3 flex-1 rounded-xs bg-[rgba(97,224,106,.14)] md:h-3.5"
             >
               <i
-                className="absolute inset-0 block rounded-[2px] bg-primary"
+                className="absolute inset-0 block rounded-xs bg-primary"
                 style={{
                   boxShadow: "0 0 10px rgba(97,224,106,.7)",
                   animationDelay: `${i * 0.12}s`,
@@ -231,7 +231,7 @@ export default function Loading() {
           <li key={s.label} className="flex items-center gap-2">
             <span className="relative inline-block h-3.5 w-3.5">
               <i
-                className="ls-dot absolute inset-[3px] block bg-[#ffb84d]"
+                className="ls-dot absolute inset-0.75 block bg-[#ffb84d]"
                 style={{ animationDelay: s.delay }}
               />
               <svg
