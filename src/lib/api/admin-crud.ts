@@ -47,8 +47,8 @@ export function adminCrud(
   async function POST(req: NextRequest) {
     try {
       const { db, profile } = await staff();
-      const body = schema.parse(await req.json().catch(() => null));
-      const { data, error } = await db.from(table).insert(body).select().single();
+      const body = schema.parse(await req.json().catch(() => null)) as Record<string, unknown>;
+      const { data, error } = await db.from(table).insert(body as never).select().single();
       if (error) throw new AuthError(error.message, 500);
       await audit(db, {
         actorId: profile.user_id,
@@ -71,7 +71,7 @@ export function adminCrud(
       if (!raw || typeof raw.id !== "string") return jsonError("id wajib diisi", 400);
       const id = raw.id;
       delete raw.id;
-      const body = schema.partial().parse(raw);
+      const body = schema.partial().parse(raw) as Record<string, unknown>;
       // The PK is the WHERE clause, never a writable column. The base schema keeps it
       // required for POST (the insert needs it), so partial() must not let a stray
       // "snack_id"/"game_id"/"pricing_id" in a PATCH payload rewrite the row's key.
@@ -89,7 +89,7 @@ export function adminCrud(
 
       let after;
       if (Object.keys(patch).length > 0) {
-        const { data, error } = await db.from(table).update(patch).eq(pkOf(table), id).select().single();
+        const { data, error } = await db.from(table).update(patch as never).eq(pkOf(table), id).select().single();
         if (error) throw new AuthError(error.message, 500);
         after = data;
       } else if (beforeWrite) {

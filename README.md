@@ -118,4 +118,4 @@ scripts/             utilitas sekali-jalan (bootstrap owner, generator metadata)
 - `/admin` dan `/api/admin/*` dijaga middleware (login wall) dan setiap handler memanggil `getStaffUser()` sebagai lapisan kedua.
 - Service-role client ditandai `server-only`; tidak pernah masuk bundel browser.
 - Tiket booking & turnamen butuh verifikasi 4 digit terakhir nomor telepon sebelum menampilkan data pribadi (cookie HMAC httpOnly).
-- Endpoint publik dibatasi rate limit per IP (in-memory — lihat catatan di `src/lib/rate-limit.ts`).
+- Endpoint publik dibatasi rate limit per IP (in-memory — lihat catatan di `src/lib/rate-limit.ts`). Wajib berjalan di belakang proxy yang menimpa `X-Forwarded-For`; set `RATE_LIMIT_IP_HEADER=none` bila tidak ada proxy tepercaya.
