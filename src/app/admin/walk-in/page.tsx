@@ -74,7 +74,7 @@ export default async function AdminWalkInPage() {
   const freePct = usable ? Math.round((free / usable) * 100) : 0;
 
   return (
-    <div className="max-w-5xl space-y-6">
+    <div className="space-y-6">
       {/* ============================ HERO ============================ */}
       <PageHero
         size="admin"
