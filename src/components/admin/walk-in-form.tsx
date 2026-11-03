@@ -14,7 +14,10 @@ import {
   Landmark,
   Loader2,
   Lock,
+  MessageCircle,
   Phone,
+  Play,
+  Printer,
   QrCode,
   Tag,
   TriangleAlert,
@@ -40,7 +43,21 @@ type Unit = {
 };
 
 type PayMethod = "CASH" | "QRIS_MANUAL" | "TRANSFER_MANUAL";
-type Created = { code: string; total: number; status: string };
+type Created = {
+  code: string;
+  total: number;
+  status: string;
+  unitName: string;
+  branchName: string;
+  startAt: string;
+  endAt: string;
+  durationMinutes: number;
+  payLabel: string;
+  phone: string;
+  customerName: string;
+  /** Mode "Sekarang": aksi "Mulai sesi" masuk akal; walk-in terjadwal tidak. */
+  wasNow: boolean;
+};
 
 const DURATIONS = [60, 120, 180, 240, 300, 360];
 
@@ -72,6 +89,10 @@ const nextQuarterHour = () => Math.ceil(Date.now() / 900_000) * 900_000;
 const normalizePhone = (raw: string) => raw.replace(/[\s().-]/g, "");
 const phoneOk = (v: string) => /^\+?\d{8,15}$/.test(v);
 
+/** Escape untuk struk yang ditulis ke dokumen baru (nama pelanggan bisa mengandung tag). */
+const esc = (v: string) =>
+  v.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] ?? c);
+
 export function WalkInForm({
   branches,
   units,
@@ -97,6 +118,7 @@ export function WalkInForm({
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<Created | null>(null);
   const [copied, setCopied] = useState(false);
+  const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [touched, setTouched] = useState({ name: false, phone: false });
 
@@ -168,6 +190,95 @@ export function WalkInForm({
     }
   }
 
+  /** Mulai sesi langsung dari counter (status CONFIRMED → IN_USE). */
+  async function startSession() {
+    if (!result) return;
+    setStarting(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/admin/bookings/${encodeURIComponent(result.code)}/actions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "check_in" }),
+      });
+      const body = await res.json().catch(() => null);
+      if (!res.ok) {
+        setError(body?.error?.message ?? "Gagal memulai sesi. Coba dari halaman Bookings.");
+        return;
+      }
+      setResult((r) => (r ? { ...r, status: body?.status ?? "IN_USE" } : r));
+      router.refresh();
+    } catch {
+      setError("Koneksi terputus saat memulai sesi. Coba lagi.");
+    } finally {
+      setStarting(false);
+    }
+  }
+
+  /**
+   * Struk cetak, ditulis ke jendela baru supaya tidak ikut mencetak sidebar admin
+   * dan tidak perlu trik `body * { visibility: hidden }` di halaman ini.
+   */
+  function printReceipt() {
+    if (!result) return;
+    const w = window.open("", "_blank", "width=420,height=640");
+    if (!w) return;
+    const r = result;
+    const money = new Intl.NumberFormat("id-ID", {
+      style: "currency",
+      currency: "IDR",
+      maximumFractionDigits: 0,
+    }).format(r.total);
+    w.document.write(`<!doctype html><html lang="id"><head><meta charset="utf-8"><title>Struk ${esc(r.code)}</title>
+<style>
+@page{margin:6mm}
+*{box-sizing:border-box}
+body{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;color:#000;margin:0;padding:8px}
+h1{font-size:16px;text-align:center;margin:0 0 2px}
+.sub{text-align:center;font-size:10px;margin:0 0 10px}
+hr{border:0;border-top:1px dashed #888;margin:8px 0}
+.row{display:flex;justify-content:space-between;gap:12px;margin:3px 0}
+.row span:last-child{text-align:right}
+.total{font-size:15px;font-weight:700}
+.foot{text-align:center;font-size:10px;margin-top:10px}
+</style></head><body>
+<h1>KLUB SUKARIA</h1>
+<p class="sub">Walk-in · Lunas</p>
+<hr>
+<div class="row"><span>Kode</span><span>${esc(r.code)}</span></div>
+<div class="row"><span>Pelanggan</span><span>${esc(r.customerName || "—")}</span></div>
+<div class="row"><span>Unit</span><span>${esc(r.unitName)}</span></div>
+${r.branchName ? `<div class="row"><span>Cabang</span><span>${esc(r.branchName)}</span></div>` : ""}
+<div class="row"><span>Mulai</span><span>${esc(fmtDateTime(r.startAt))}</span></div>
+<div class="row"><span>Selesai</span><span>${esc(fmtDateTime(r.endAt))}</span></div>
+<div class="row"><span>Durasi</span><span>${r.durationMinutes / 60} jam</span></div>
+<div class="row"><span>Bayar</span><span>${esc(r.payLabel)}</span></div>
+<hr>
+<div class="row total"><span>TOTAL</span><span>${esc(money)}</span></div>
+<p class="foot">Terima kasih. Simpan struk ini.</p>
+</body></html>`);
+    w.document.close();
+    w.focus();
+    w.print();
+  }
+
+  /** Tautan WhatsApp untuk pelanggan — pelanggan tetap lewat verifikasi di /cek-booking. */
+  function waHref() {
+    if (!result) return "#";
+    const digits = result.phone.replace(/\D/g, "");
+    const to = digits.startsWith("0")
+      ? `62${digits.slice(1)}`
+      : digits.startsWith("62")
+        ? digits
+        : digits.startsWith("8")
+          ? `62${digits}`
+          : digits;
+    const origin = typeof window === "undefined" ? "" : window.location.origin;
+    const url = `${origin}/tiket/${encodeURIComponent(result.code)}`;
+    const text = `Tiket Klub Sukaria\nKode: ${result.code}\nUnit: ${result.unitName}\nMulai: ${fmtDateTime(result.startAt)}\nBuka tiket: ${url}`;
+    return `https://wa.me/${to}?text=${encodeURIComponent(text)}`;
+  }
+
   function showFeedback() {
     // The form is tall: without this the result lands below the fold on a tablet.
     requestAnimationFrame(() => feedbackRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }));
@@ -209,8 +320,22 @@ export function WalkInForm({
         showFeedback();
         return;
       }
-      setResult({ code: body.booking.booking_code, total: body.booking.total_amount, status: body.booking.status });
+      setResult({
+        code: body.booking.booking_code,
+        total: body.booking.total_amount,
+        status: body.booking.status,
+        unitName: selectedUnit?.name ?? "—",
+        branchName: branches.find((b) => b.id === branchId)?.name ?? "",
+        startAt: body.booking.scheduled_start_at,
+        endAt: body.booking.scheduled_end_at,
+        durationMinutes: duration,
+        payLabel: PAY.find((p) => p.value === payMethod)?.label ?? payMethod,
+        phone: cleanPhone,
+        customerName: name.trim(),
+        wasNow: mode === "now",
+      });
       setCopied(false);
+      setStarting(false);
       // Customer + unit are per-walk-in; branch, duration and payment method usually
       // repeat from one customer to the next, so they stay.
       setUnitId("");
@@ -265,39 +390,88 @@ export function WalkInForm({
         {result && (
           <section className="relative isolate overflow-hidden rounded-2xl border border-primary/40 bg-primary/10 p-4">
             <div aria-hidden className="absolute -left-10 top-0 -z-10 size-40 rounded-full bg-primary/20 blur-3xl" />
-            <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="flex items-start justify-between gap-3">
               <div className="flex items-center gap-3">
                 <span className="grid size-11 shrink-0 place-items-center rounded-full bg-primary/20 text-primary">
                   <CircleCheck aria-hidden className="size-6" />
                 </span>
                 <div>
-                  <p className="text-xs font-bold uppercase tracking-wide text-primary">Booking dibuat</p>
+                  <p className="text-xs font-bold uppercase tracking-wide text-primary">
+                    {result.status === "IN_USE" ? "Sesi berjalan" : "Walk-in tercatat · lunas"}
+                  </p>
                   <p className="font-display text-2xl uppercase leading-tight tracking-wide">{result.code}</p>
                   <p className="text-sm text-muted-foreground">
-                    <b className="tabular-nums text-foreground">{rp(result.total)}</b> · {result.status}
+                    {result.unitName} · <b className="tabular-nums text-foreground">{rp(result.total)}</b> · {result.payLabel}
                   </p>
                 </div>
               </div>
-              <div className="flex flex-wrap gap-2">
-                <Button type="button" size="sm" variant="secondary" onClick={copyCode} className="gap-1.5">
-                  {copied ? <Check aria-hidden className="size-3.5" /> : <Copy aria-hidden className="size-3.5" />}
-                  {copied ? "Tersalin" : "Salin kode"}
-                </Button>
-                <Button asChild size="sm" className="gap-1.5">
-                  <Link href={`/tiket/${result.code}`}>
-                    <ExternalLink aria-hidden className="size-3.5" /> Buka tiket
-                  </Link>
-                </Button>
-                <button
-                  type="button"
-                  onClick={() => setResult(null)}
-                  aria-label="Tutup"
-                  className="grid size-9 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-                >
-                  <X aria-hidden className="size-4" />
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={() => setResult(null)}
+                aria-label="Tutup"
+                className="grid size-9 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+              >
+                <X aria-hidden className="size-4" />
+              </button>
             </div>
+
+            {/* Ringkasan counter: yang dicek kasir sebelum pelanggan pergi. */}
+            <dl className="mt-4 grid grid-cols-1 gap-x-5 gap-y-1.5 rounded-xl border border-border bg-background/50 p-3 text-sm sm:grid-cols-2">
+              {[
+                ["Mulai", fmtDateTime(result.startAt)],
+                ["Selesai", fmtDateTime(result.endAt)],
+                ["Durasi", `${result.durationMinutes / 60} jam`],
+                ["Bayar", result.payLabel],
+              ].map(([k, v]) => (
+                <div key={k} className="flex items-baseline justify-between gap-3">
+                  <dt className="text-xs uppercase tracking-wider text-muted-foreground">{k}</dt>
+                  <dd className="text-right font-medium tabular-nums">{v}</dd>
+                </div>
+              ))}
+            </dl>
+
+            <div className="mt-4 flex flex-wrap gap-2">
+              {result.status === "CONFIRMED" && result.wasNow && (
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={startSession}
+                  disabled={starting}
+                  aria-busy={starting}
+                  className="gap-1.5 font-bold"
+                >
+                  {starting ? (
+                    <Loader2 aria-hidden className="size-3.5 animate-spin" />
+                  ) : (
+                    <Play aria-hidden className="size-3.5" />
+                  )}
+                  {starting ? "Memulai..." : "Mulai sesi"}
+                </Button>
+              )}
+              <Button type="button" size="sm" variant="secondary" onClick={copyCode} className="gap-1.5">
+                {copied ? <Check aria-hidden className="size-3.5" /> : <Copy aria-hidden className="size-3.5" />}
+                {copied ? "Tersalin" : "Salin kode"}
+              </Button>
+              <Button asChild size="sm" variant="secondary" className="gap-1.5">
+                <Link href={`/admin/bookings?q=${encodeURIComponent(result.code)}`}>
+                  <ExternalLink aria-hidden className="size-3.5" /> Lihat di Bookings
+                </Link>
+              </Button>
+              <Button type="button" size="sm" variant="secondary" onClick={printReceipt} className="gap-1.5">
+                <Printer aria-hidden className="size-3.5" /> Struk
+              </Button>
+              <Button asChild size="sm" variant="secondary" className="gap-1.5">
+                <a href={waHref()} target="_blank" rel="noreferrer noopener">
+                  <MessageCircle aria-hidden className="size-3.5" /> WhatsApp
+                </a>
+              </Button>
+            </div>
+
+            {result.status === "IN_USE" && (
+              <p className="mt-3 text-xs font-medium text-primary">
+                Sesi sudah berjalan — unit tercatat dipakai. Akhiri dari Bookings saat pelanggan selesai.
+              </p>
+            )}
           </section>
         )}
         {error && (

@@ -9,7 +9,7 @@ import { WalkInForm } from "@/components/admin/walk-in-form";
 
 export const dynamic = "force-dynamic";
 
-const SUBTITLE = "Customer datang langsung. Booking + bayar tunai/QRIS manual → langsung CONFIRMED.";
+const SUBTITLE = "Customer datang langsung. Booking + bayar tunai/QRIS manual → CONFIRMED (lunas), lalu tekan Mulai sesi.";
 
 export default async function AdminWalkInPage() {
   // Every active role can staff the counter, but the server already 403s walk-ins
