@@ -169,7 +169,7 @@ export default async function AdminLayout({ children }: Readonly<{ children: Rea
         className="pointer-events-none fixed inset-x-0 top-0 z-0 h-72 bg-[radial-gradient(60rem_16rem_at_70%_-4rem,--alpha(var(--color-primary)/12%),transparent)]"
       />
 
-      <aside className="sticky top-0 hidden h-dvh w-64 shrink-0 flex-col border-r border-border bg-surface-lowest md:flex">
+      <aside className="sticky top-0 hidden h-dvh w-64 shrink-0 flex-col border-r border-border bg-linear-to-b from-surface-lowest to-surface md:flex">
         <Link href="/" className="group flex items-center gap-2.5 px-5 pt-5">
           {/* eslint-disable-next-line @next/next/no-img-element -- static brand asset, sized by CSS */}
           <img

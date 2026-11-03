@@ -66,6 +66,12 @@
 
   --color-tertiary: #c7c6c6;
   --color-off-white: #f7f7f2;
+  /*
+    Wayfinding accent (taken from the brand's own loading palette, #8ab4ff).
+    It gives navigation sections a distinct hue without touching semantics: status
+    stays on warning/danger, so a blue section tint can never read as an alert.
+  */
+  --color-info: #8ab4ff;
   /* Muted Controller Gray — brand tertiary, see note above on `muted`. */
   --color-controller-gray: #6b6b6b;
   /* Warm Paper Off-White — brand secondary, see note above on `secondary`. */

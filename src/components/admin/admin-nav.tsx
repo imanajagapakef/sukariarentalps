@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useLayoutEffect, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   BarChart3,
   BadgePercent,
   CalendarDays,
+  ChevronDown,
   Gamepad2,
   LayoutGrid,
   MessageSquare,
@@ -41,7 +42,72 @@ function useHydrated() {
   return hydrated;
 }
 
+const COLLAPSE_KEY = "admin-nav-collapsed";
+
+/**
+ * Per-group collapse state for the sidebar.
+ *
+ * Deterministic on the server (first group open, the rest folded) so the first
+ * client render is byte-identical to the server's — the stored preference then
+ * overrides it in a layout effect, before paint, so nothing flickers. Persisted so
+ * a cashier who opens "Master Data" keeps it open.
+ */
+function useCollapsedGroups(groupLabels: string[]) {
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>(() =>
+    Object.fromEntries(groupLabels.map((label, i) => [label, i > 0])),
+  );
+
+  // A primitive key so the restore effect has a complete, stable dependency —
+  // `groupLabels` is a fresh array every render and would re-run it endlessly.
+  const groupKeys = groupLabels.join("|");
+
+  useIsoLayoutEffect(() => {
+    try {
+      const raw = localStorage.getItem(COLLAPSE_KEY);
+      if (!raw) return;
+      const stored = JSON.parse(raw) as Record<string, boolean>;
+      setCollapsed((prev) => {
+        const next = { ...prev };
+        for (const label of groupKeys ? groupKeys.split("|") : []) {
+          if (typeof stored[label] === "boolean") next[label] = stored[label];
+        }
+        return next;
+      });
+    } catch {
+      // storage can be blocked; the default state stands
+    }
+  }, [groupKeys]);
+
+  const toggle = useCallback((label: string) => {
+    setCollapsed((prev) => {
+      const next = { ...prev, [label]: !prev[label] };
+      try {
+        localStorage.setItem(COLLAPSE_KEY, JSON.stringify(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+  }, []);
+
+  return { collapsed, toggle };
+}
+
 export type AdminNavItem = { href: string; label: string; icon: LucideIcon };
+
+/** Wayfinding accent for a nav group — a section cue, never a status signal. */
+type GroupTone = "primary" | "info" | "tertiary";
+
+/*
+  Literal class strings (never interpolated) so Tailwind's scanner can see them.
+  `tertiary` reuses the brand off-white so the third section never borrows the
+  amber/red that mean "warning"/"error" everywhere else in the app.
+*/
+const GROUP_TONE: Record<GroupTone, { dot: string; rule: string; icon: string }> = {
+  primary: { dot: "bg-primary", rule: "from-primary/50", icon: "text-primary/75" },
+  info: { dot: "bg-info", rule: "from-info/50", icon: "text-info/75" },
+  tertiary: { dot: "bg-tertiary", rule: "from-tertiary/40", icon: "text-tertiary/75" },
+};
 
 /**
  * Grouped to match the design's three sidebar sections. The route list is the
@@ -49,9 +115,10 @@ export type AdminNavItem = { href: string; label: string; icon: LucideIcon };
  * "Payments" and "Settings", which have no page here, and a nav link that 404s is
  * worse than a missing one.
  */
-export const ADMIN_NAV: { label: string; items: AdminNavItem[] }[] = [
+export const ADMIN_NAV: { label: string; tone: GroupTone; items: AdminNavItem[] }[] = [
   {
     label: "Operasional",
+    tone: "primary",
     items: [
       { href: "/admin", label: "Dashboard", icon: LayoutGrid },
       { href: "/admin/bookings", label: "Booking", icon: CalendarDays },
@@ -64,6 +131,7 @@ export const ADMIN_NAV: { label: string; items: AdminNavItem[] }[] = [
   },
   {
     label: "Master Data",
+    tone: "info",
     items: [
       { href: "/admin/snacks", label: "Snack", icon: Sandwich },
       { href: "/admin/games", label: "Game", icon: Gamepad2 },
@@ -76,6 +144,7 @@ export const ADMIN_NAV: { label: string; items: AdminNavItem[] }[] = [
   },
   {
     label: "Laporan & Tim",
+    tone: "tertiary",
     items: [
     { href: "/admin/customers", label: "Pelanggan", icon: Users },
     { href: "/admin/reports", label: "Reports", icon: BarChart3 },
@@ -105,6 +174,7 @@ function useAdminNav(hidden: string[]) {
 export function AdminNav({ hidden = [], pendingCount = 0 }: { hidden?: string[]; pendingCount?: number }) {
   const { groups, pathname } = useAdminNav(hidden);
   const hydrated = useHydrated();
+  const { collapsed, toggle } = useCollapsedGroups(groups.map((g) => g.label));
 
   const badgeFor = (href: string) =>
     href === "/admin/bookings" && pendingCount > 0 ? (
@@ -120,40 +190,63 @@ export function AdminNav({ hidden = [], pendingCount = 0 }: { hidden?: string[];
     // min-h-0: without it a flex child refuses to shrink below its content, the
     // nav pushes the identity block off the bottom of a short viewport.
     <nav aria-label="Admin" className="min-h-0 flex-1 overflow-y-auto px-3">
-      {groups.map((group, gi) => (
-        <div key={group.label} className={gi === 0 ? "" : "mt-5 border-t border-border pt-5"}>
-          {/* The eyebrow above already names the first section; repeating it as
-              "Operasional" directly underneath read as a stutter. */}
-          {gi > 0 && (
-            <p className="px-3 pb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-              {group.label}
-            </p>
-          )}
-          <ul className="flex flex-col gap-0.5">
-            {group.items.map(({ href, label, icon: Icon }) => {
-              const active = hydrated && isActive(pathname, href);
-              return (
-                <li key={href}>
-                  <Link
-                    href={href}
-                    aria-current={active ? "page" : undefined}
-                    className={cn(
-                      "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors",
-                      active
-                        ? "bg-primary font-bold text-on-primary shadow-arcade-sm"
-                        : "text-on-surface-variant hover:bg-surface-high hover:text-foreground",
-                    )}
-                  >
-                    <Icon aria-hidden className="size-4 shrink-0" />
-                    {label}
-                    {badgeFor(href)}
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      ))}
+      {groups.map((group, gi) => {
+        const groupId = `admin-nav-group-${gi}`;
+        const hasActive = group.items.some((i) => hydrated && isActive(pathname, i.href));
+        // The counter group is always open; the rest fold away so the sidebar is not
+        // a wall of fifteen links — but the group holding the current page always
+        // opens, or the active row would be hidden inside a collapsed section.
+        const isCollapsed = gi === 0 ? false : !hasActive && (collapsed[group.label] ?? true);
+        return (
+          <div key={group.label} className={gi === 0 ? "" : "mt-5 border-t border-border pt-5"}>
+            {/* The eyebrow above already names the first section; repeating it as
+                "Operasional" directly underneath read as a stutter. */}
+            {gi > 0 && (
+              <button
+                type="button"
+                onClick={() => toggle(group.label)}
+                aria-expanded={!isCollapsed}
+                aria-controls={groupId}
+                className="flex w-full items-center gap-2 rounded-md px-3 pb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground transition-colors hover:text-foreground"
+              >
+                <span aria-hidden className={cn("size-1.5 shrink-0 rounded-full", GROUP_TONE[group.tone].dot)} />
+                {group.label}
+                <span aria-hidden className={cn("h-px flex-1 bg-linear-to-r to-transparent", GROUP_TONE[group.tone].rule)} />
+                <ChevronDown
+                  aria-hidden
+                  className={cn("size-3.5 transition-transform duration-200", isCollapsed ? "-rotate-90" : "rotate-0")}
+                />
+              </button>
+            )}
+            <ul id={groupId} hidden={isCollapsed} className="flex flex-col gap-0.5">
+              {group.items.map(({ href, label, icon: Icon }) => {
+                const active = hydrated && isActive(pathname, href);
+                return (
+                  <li key={href}>
+                    <Link
+                      href={href}
+                      aria-current={active ? "page" : undefined}
+                      className={cn(
+                        "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors",
+                        active
+                          ? "bg-primary font-bold text-on-primary shadow-arcade-sm"
+                          : "text-on-surface-variant hover:bg-surface-high hover:text-foreground",
+                      )}
+                    >
+                      <Icon
+                        aria-hidden
+                        className={cn("size-4 shrink-0", !active && GROUP_TONE[group.tone].icon)}
+                      />
+                      {label}
+                      {badgeFor(href)}
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        );
+      })}
     </nav>
   );
 }
@@ -172,6 +265,7 @@ export function AdminNavMobile({
 }) {
   const { groups } = useAdminNav(hidden);
   const pathname = usePathname() ?? "/admin";
+  const { collapsed, toggle } = useCollapsedGroups(groups.map((g) => g.label));
   const [open, setOpen] = useState(false);
   // Portal target only exists in the browser; gate the drawer behind a mounted flag so
   // the server render and the first client render stay identical.
@@ -261,7 +355,7 @@ export function AdminNavMobile({
               id="admin-mobile-nav"
               aria-label="Admin (ponsel)"
               className={cn(
-                "absolute inset-y-0 left-0 flex w-[min(19rem,85vw)] flex-col border-r border-border bg-surface shadow-2xl transition-all duration-300 motion-reduce:transition-none",
+                "absolute inset-y-0 left-0 flex w-[min(19rem,85vw)] flex-col border-r border-border bg-linear-to-b from-surface-lowest to-surface shadow-2xl transition-all duration-300 motion-reduce:transition-none",
                 open ? "translate-x-0 opacity-100 visible" : "-translate-x-full opacity-0 invisible",
               )}
             >
@@ -280,38 +374,58 @@ export function AdminNavMobile({
               {/* min-h-0 + overflow-y-auto: the list scrolls on short screens instead of being
                   clipped. */}
               <nav className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
-                {groups.map((group, gi) => (
-                  <div key={group.label} className={gi === 0 ? "" : "mt-5 border-t border-border pt-5"}>
-                    {gi > 0 && (
-                      <p className="px-3 pb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                        {group.label}
-                      </p>
-                    )}
-                    <ul className="flex flex-col gap-0.5">
-                      {group.items.map(({ href, label, icon: Icon }) => {
-                        const active = mounted && isActive(href);
-                        return (
-                          <li key={href}>
-                            <Link
-                              href={href}
-                              aria-current={active ? "page" : undefined}
-                              className={cn(
-                                "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors",
-                                active
-                                  ? "bg-primary font-bold text-on-primary shadow-arcade-sm"
-                                  : "text-on-surface-variant hover:bg-surface-high hover:text-foreground",
-                              )}
-                            >
-                              <Icon aria-hidden className="size-4 shrink-0" />
-                              {label}
-                              {badgeFor(href)}
-                            </Link>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  </div>
-                ))}
+                {groups.map((group, gi) => {
+                  const groupId = `admin-nav-mobile-group-${gi}`;
+                  const hasActive = group.items.some((i) => mounted && isActive(i.href));
+                  const isCollapsed = gi === 0 ? false : !hasActive && (collapsed[group.label] ?? true);
+                  return (
+                    <div key={group.label} className={gi === 0 ? "" : "mt-5 border-t border-border pt-5"}>
+                      {gi > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => toggle(group.label)}
+                          aria-expanded={!isCollapsed}
+                          aria-controls={groupId}
+                          className="flex w-full items-center gap-2 rounded-md px-3 pb-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground transition-colors hover:text-foreground"
+                        >
+                          <span aria-hidden className={cn("size-1.5 shrink-0 rounded-full", GROUP_TONE[group.tone].dot)} />
+                          {group.label}
+                          <span aria-hidden className={cn("h-px flex-1 bg-linear-to-r to-transparent", GROUP_TONE[group.tone].rule)} />
+                          <ChevronDown
+                            aria-hidden
+                            className={cn("size-3.5 transition-transform duration-200", isCollapsed ? "-rotate-90" : "rotate-0")}
+                          />
+                        </button>
+                      )}
+                      <ul id={groupId} hidden={isCollapsed} className="flex flex-col gap-0.5">
+                        {group.items.map(({ href, label, icon: Icon }) => {
+                          const active = mounted && isActive(href);
+                          return (
+                            <li key={href}>
+                              <Link
+                                href={href}
+                                aria-current={active ? "page" : undefined}
+                                className={cn(
+                                  "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors",
+                                  active
+                                    ? "bg-primary font-bold text-on-primary shadow-arcade-sm"
+                                    : "text-on-surface-variant hover:bg-surface-high hover:text-foreground",
+                                )}
+                              >
+                                <Icon
+                                  aria-hidden
+                                  className={cn("size-4 shrink-0", !active && GROUP_TONE[group.tone].icon)}
+                                />
+                                {label}
+                                {badgeFor(href)}
+                              </Link>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </div>
+                  );
+                })}
               </nav>
 
               {/* Footer stays put while the list scrolls: the identity and the logout button
