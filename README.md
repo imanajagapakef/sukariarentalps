@@ -109,9 +109,10 @@ scripts/             utilitas sekali-jalan (bootstrap owner, generator metadata)
 ## Deploy
 
 1. Deploy ke Vercel (atau Node.js apa pun).
-2. Set environment yang sama seperti `.env.local` di dashboard hosting.
-3. Build produksi **gagal cepat** jika `NEXT_PUBLIC_SUPABASE_URL` kosong/tidak valid (`next.config.ts`) — ini disengaja.
-4. `images.remotePatterns` dan CSP diturunkan dari host Supabase secara otomatis, jadi berpindah proyek cukup dengan mengganti env.
+2. **Set region fungsi ke `sin1` (Singapore)**. `vercel.json` di repo sudah menyetelnya; samakan juga di Vercel Dashboard → Settings → Functions → Region. Project Supabase ada di `ap-southeast-1` (Singapore), sedangkan default Vercel adalah `iad1` (Washington, D.C.) — selisih itu membuat setiap query DB menyeberang benua dan halaman admin terasa berdetik-detik.
+3. Set environment yang sama seperti `.env.local` di dashboard hosting.
+4. Build produksi **gagal cepat** jika `NEXT_PUBLIC_SUPABASE_URL` kosong/tidak valid (`next.config.ts`) — ini disengaja.
+5. `images.remotePatterns` dan CSP diturunkan dari host Supabase secara otomatis, jadi berpindah proyek cukup dengan mengganti env.
 
 ## Keamanan
 
