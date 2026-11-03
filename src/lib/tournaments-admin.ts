@@ -25,9 +25,13 @@ export async function getAdminTournaments(options?: {
   swept: number;
 }> {
   const db = createAdminClient();
-  const swept = await expireStaleRegistrations(db);
-  // Retention sweep: DONE tournaments older than a week are gone before the list is read.
-  await purgeFinishedTournaments(db);
+  // Two independent sweeps (expire unpaid seats, purge tournaments finished last week)
+  // touch different rows, so they go out together instead of one after the other on every
+  // list read — the page is otherwise latency-bound, not CPU-bound.
+  const [swept] = await Promise.all([
+    expireStaleRegistrations(db),
+    purgeFinishedTournaments(db),
+  ]);
 
   let listQuery = db
     .from("tournaments")

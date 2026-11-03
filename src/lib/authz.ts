@@ -21,15 +21,23 @@ export class AuthError extends Error {
 /** Logged-in user with an active staff profile, or throws 401/403. */
 const fetchStaffProfile = cache(async (): Promise<StaffProfile> => {
   const db = await createClient();
-  const {
-    data: { user },
-  } = await db.auth.getUser();
-  if (!user) throw new AuthError("Harus login dulu", 401);
+  /*
+    Identity is proved with `getClaims`, not `getUser`. Both verify the JWT
+    cryptographically; the difference is cost. With asymmetric signing keys
+    `getClaims` verifies the signature locally against the cached JWKS, so a page
+    navigation no longer pays a round trip to the Auth server — with the legacy
+    symmetric secret it falls back to exactly the server call `getUser` made, so it
+    is never slower. Middleware has already refreshed the session cookie before a
+    page renders, so this only has to establish *who* the caller is.
+  */
+  const { data: verified } = await db.auth.getClaims();
+  const userId = verified?.claims.sub;
+  if (!userId) throw new AuthError("Harus login dulu", 401);
 
   const { data: profile } = await db
     .from("profiles")
     .select("user_id, full_name, role, active, branch_id")
-    .eq("user_id", user.id)
+    .eq("user_id", userId)
     .maybeSingle();
 
   if (!profile || !profile.active) throw new AuthError("Akun staff tidak ditemukan / tidak aktif", 403);

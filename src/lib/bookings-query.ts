@@ -207,23 +207,32 @@ export async function listBookings(filters: BookingFilters): Promise<BookingRow[
 /**
  * One page of the admin table, with the exact size of the filtered set behind it.
  *
- * Count first, then clamp, then read the window. That ordering is not a preference:
- * PostgREST answers a window past the end with HTTP 416 "Requested range not
- * satisfiable", so a stale `?page=9` used to throw here instead of landing on the last
- * page. Two round trips buy a page number that can never fail.
+ * The window query itself carries `count: "exact"`, so the total arrives in the same
+ * response as the rows — one round trip answers the common case. Only a stale `?page=`
+ * past the end costs a second read: PostgREST answers that with HTTP 416 "Requested range
+ * not satisfiable" (code PGRST103), and the caller then clamps onto the last page rather
+ * than throwing. The old version paid a separate count query on every load to pre-empt
+ * that rare case.
  */
 export async function listBookingsPage(filters: BookingFilters, page: number): Promise<BookingPage> {
   const pageSize = BOOKING_PAGE_SIZE;
   const requested = Number.isFinite(page) && page >= 1 ? Math.floor(page) : 1;
 
-  const total = await countFiltered(filters);
-  const pageCount = Math.max(1, Math.ceil(total / pageSize));
-  const effective = Math.min(requested, pageCount);
+  // Resolve the search once — the window and its total come back from the same request.
+  const search = await resolveSearch(filters.q);
 
-  const query = filteredQuery(filters, await resolveSearch(filters.q));
-  const { data, error } = await query.range((effective - 1) * pageSize, effective * pageSize - 1);
-  if (error) throw new Error(error.message);
-  const rows = (data ?? []) as BookingRow[];
+  let res = await rangedPage(filters, search, requested);
+  let effective = requested;
+  if (res.pastEnd) {
+    const head = await rangedPage(filters, search, 1);
+    const pageCount = Math.max(1, Math.ceil(head.total / pageSize));
+    effective = Math.min(requested, pageCount);
+    res = effective === 1 ? head : await rangedPage(filters, search, effective);
+  }
+
+  const total = res.total;
+  const pageCount = Math.max(1, Math.ceil(total / pageSize));
+  const rows = res.rows;
 
   return {
     rows,
@@ -237,12 +246,22 @@ export async function listBookingsPage(filters: BookingFilters, page: number): P
 }
 
 /**
- * Exact size of the filtered set, through the same chain the rows use — one request,
- * one row of payload, no duplicated filter logic to drift.
+ * One ranged window, plus the exact total PostgREST returns alongside it. `pastEnd` marks
+ * the 416 ("range not satisfiable") a stale `?page=` produces, so the caller can clamp.
  */
-async function countFiltered(filters: BookingFilters): Promise<number> {
-  const query = filteredQuery(filters, await resolveSearch(filters.q));
-  const { count, error } = await query.limit(1);
-  if (error) throw new Error(error.message);
-  return count ?? 0;
+async function rangedPage(
+  filters: BookingFilters,
+  search: { term: string; ids: string[] },
+  page: number,
+): Promise<{ rows: BookingRow[]; total: number; pastEnd: boolean }> {
+  const query = filteredQuery(filters, search);
+  const { data, error, count } = await query.range(
+    (page - 1) * BOOKING_PAGE_SIZE,
+    page * BOOKING_PAGE_SIZE - 1,
+  );
+  if (error) {
+    if ((error as { code?: string }).code === "PGRST103") return { rows: [], total: 0, pastEnd: true };
+    throw new Error(error.message);
+  }
+  return { rows: (data ?? []) as BookingRow[], total: count ?? 0, pastEnd: false };
 }

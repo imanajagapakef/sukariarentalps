@@ -178,19 +178,25 @@ export default async function AdminBookingsPage({
   // this view alone — letting it through would export one page as if it were the book.
   const filterParams = { status, q, date };
 
-  const { rows, total, page, pageCount, from, to } = await listBookingsPage(
-    { ...filterParams, branchId: me?.branch_id },
-    Number(filters.page ?? "1"),
-  );
-
-  // Exact counts rather than arithmetic over the rows on screen. Four head-count
-  // queries, no rows over the wire.
-  const [waitingCount, activeCount, inUseCount, cancelledCount] = await Promise.all([
-    countByStatus("WAITING_PAYMENT", me?.branch_id),
-    countByStatus("CONFIRMED", me?.branch_id),
-    countByStatus("IN_USE", me?.branch_id),
-    countByStatus("CANCELLED", me?.branch_id),
-  ]).catch(() => [0, 0, 0, 0] as [number, number, number, number]);
+  // The page window and the four status counts are independent reads, so they go out in
+  // one wave instead of the page waiting on the window and only then asking for counts.
+  const [
+    { rows, total, page, pageCount, from, to },
+    [waitingCount, activeCount, inUseCount, cancelledCount],
+  ] = await Promise.all([
+    listBookingsPage(
+      { ...filterParams, branchId: me?.branch_id },
+      Number(filters.page ?? "1"),
+    ),
+    // Exact counts rather than arithmetic over the rows on screen. Four head-count
+    // queries, no rows over the wire.
+    Promise.all([
+      countByStatus("WAITING_PAYMENT", me?.branch_id),
+      countByStatus("CONFIRMED", me?.branch_id),
+      countByStatus("IN_USE", me?.branch_id),
+      countByStatus("CANCELLED", me?.branch_id),
+    ]).catch(() => [0, 0, 0, 0] as [number, number, number, number]),
+  ]);
 
   // Money for the rows on screen only. Reports is where revenue counts.
   const pageRevenue = rows

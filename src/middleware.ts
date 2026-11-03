@@ -10,9 +10,11 @@ import { getPublicEnv } from "@/lib/env";
  *
  * /api/admin/* is included so a route handler that forgets its own
  * `getStaffUser()` check is still stopped at the edge (defense in depth), and
- * so the session cookie is refreshed on API traffic too. Authenticated calls
- * still pay a second `getUser()` inside the route; admin routes are
- * `force-dynamic` and low-traffic, so the extra round trip is acceptable.
+ * so the session cookie is refreshed on API traffic too. Verification uses
+ * `getClaims` rather than `getUser`: this project signs JWTs with an asymmetric
+ * (ES256) key, so the signature is checked locally against the cached JWKS instead
+ * of asking the Auth server about every request — and an about-to-expire session
+ * is still refreshed first, which is the other job this middleware has.
  */
 export async function middleware(request: NextRequest) {
   const path = request.nextUrl.pathname;
@@ -41,25 +43,24 @@ export async function middleware(request: NextRequest) {
     },
   );
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { data: verified } = await supabase.auth.getClaims();
+  const signedIn = Boolean(verified?.claims.sub);
 
-  if (!user && isApi) {
+  if (!signedIn && isApi) {
     // API callers expect JSON, not a redirect to /login.
     return NextResponse.json(
       { error: { message: "Harus login dulu", code: "UNAUTHENTICATED" } },
       { status: 401 },
     );
   }
-  if (!user && path.startsWith("/admin")) {
+  if (!signedIn && path.startsWith("/admin")) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     url.search = "";
     url.searchParams.set("next", path);
     return NextResponse.redirect(url);
   }
-  if (user && path.startsWith("/login")) {
+  if (signedIn && path.startsWith("/login")) {
     const url = request.nextUrl.clone();
     url.pathname = "/admin";
     url.search = "";

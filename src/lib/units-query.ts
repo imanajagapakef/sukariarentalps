@@ -80,10 +80,23 @@ export async function listUnits(filters: UnitFilters): Promise<UnitRow[]> {
   return (data ?? []) as unknown as UnitRow[];
 }
 
-async function countUnits(filters: UnitFilters): Promise<number> {
-  const { count, error } = await filteredQuery(filters).limit(1);
-  if (error) throw new Error(error.message);
-  return count ?? 0;
+/**
+ * One ranged window, plus the exact total PostgREST returns alongside it. `pastEnd` marks
+ * the 416 ("range not satisfiable") a stale `?page=` produces, so the caller can clamp.
+ */
+async function rangedUnitsPage(
+  filters: UnitFilters,
+  page: number,
+): Promise<{ rows: UnitRow[]; total: number; pastEnd: boolean }> {
+  const { data, error, count } = await filteredQuery(filters).range(
+    (page - 1) * UNIT_PAGE_SIZE,
+    page * UNIT_PAGE_SIZE - 1,
+  );
+  if (error) {
+    if ((error as { code?: string }).code === "PGRST103") return { rows: [], total: 0, pastEnd: true };
+    throw new Error(error.message);
+  }
+  return { rows: (data ?? []) as unknown as UnitRow[], total: count ?? 0, pastEnd: false };
 }
 
 export type UnitPage = {
@@ -102,23 +115,26 @@ export type UnitPage = {
 /**
  * One page of the admin unit table, with the exact size of the filtered set behind it.
  *
- * Count first, then clamp, then read the window: PostgREST answers a range past the end
- * with HTTP 416, so a stale `?page=9` must land on the last page instead of throwing.
+ * The window query carries `count: "exact"`, so the total comes back with the rows in one
+ * request. A stale `?page=` past the end (PostgREST 416 / PGRST103) costs one extra read
+ * and then lands on the last page instead of throwing.
  */
 export async function listUnitsPage(filters: UnitFilters, page: number): Promise<UnitPage> {
   const pageSize = UNIT_PAGE_SIZE;
   const requested = Number.isFinite(page) && page >= 1 ? Math.floor(page) : 1;
 
-  const total = await countUnits(filters);
-  const pageCount = Math.max(1, Math.ceil(total / pageSize));
-  const effective = Math.min(requested, pageCount);
+  let res = await rangedUnitsPage(filters, requested);
+  let effective = requested;
+  if (res.pastEnd) {
+    const head = await rangedUnitsPage(filters, 1);
+    const pageCount = Math.max(1, Math.ceil(head.total / pageSize));
+    effective = Math.min(requested, pageCount);
+    res = effective === 1 ? head : await rangedUnitsPage(filters, effective);
+  }
 
-  const { data, error } = await filteredQuery(filters).range(
-    (effective - 1) * pageSize,
-    effective * pageSize - 1,
-  );
-  if (error) throw new Error(error.message);
-  const rows = (data ?? []) as unknown as UnitRow[];
+  const total = res.total;
+  const pageCount = Math.max(1, Math.ceil(total / pageSize));
+  const rows = res.rows;
 
   return {
     rows,

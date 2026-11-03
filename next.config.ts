@@ -58,6 +58,14 @@ const nextConfig: NextConfig = {
     // its download after 7 s by default (TimeoutError -> /_next/image 500).
     // Raise the limit so slow/cold CDN downloads still complete and get cached.
     imgOptTimeoutInSeconds: 30,
+    // Router Cache. Next 15 dropped the client-side cache for dynamic routes to 0,
+    // so every revisit to an admin page re-ran the server component — the main
+    // reason switching back and forth between menu items felt slow. 30s restores
+    // the old "instant back-and-forth", while LiveRefresh still calls
+    // router.refresh() every 60s, which bypasses this cache and keeps live data
+    // (the payment queue, unit status) fresh. Lower `dynamic` if a cashier ever
+    // sees a stale queue figure within the window.
+    staleTimes: { dynamic: 30, static: 180 },
   },
   async headers() {
     const headers: Array<{ key: string; value: string }> = [

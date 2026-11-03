@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { PageHero } from "@/components/page-hero";
 import { CalendarDays, BarChart3 } from "lucide-react";
 import Link from "next/link";
@@ -49,6 +50,22 @@ const RING = [
   { key: "EXPIRED", label: "Expired Timer" },
   { key: "NO_SHOW", label: "No Show" },
 ] as const;
+
+/**
+ * Placeholder for one report section while its queries run.
+ *
+ * Each section is wrapped in its own `Suspense`, so the page shell and Section 1 render as
+ * soon as the window query returns, and the heavier sections stream in as they finish
+ * instead of holding the whole page on the skeleton until the slowest query lands.
+ */
+function SectionFallback() {
+  return (
+    <div aria-hidden className="mt-8 space-y-3">
+      <div className="h-6 w-56 animate-pulse rounded bg-surface-container" />
+      <div className="h-32 animate-pulse rounded-xl border border-border bg-card" />
+    </div>
+  );
+}
 
 export default async function AdminReportsPage({
   searchParams,
@@ -185,10 +202,18 @@ export default async function AdminReportsPage({
           />
 
           <BookingSection report={report} transactions={transactions} />
-          <RevenueSection rows={rows} />
-          <OccupancySection rows={rows} filters={filters} />
-          <GameRequestSection />
-          <GuestSection rows={rows} />
+          <Suspense fallback={<SectionFallback />}>
+            <RevenueSection rows={rows} />
+          </Suspense>
+          <Suspense fallback={<SectionFallback />}>
+            <OccupancySection rows={rows} filters={filters} />
+          </Suspense>
+          <Suspense fallback={<SectionFallback />}>
+            <GameRequestSection />
+          </Suspense>
+          <Suspense fallback={<SectionFallback />}>
+            <GuestSection rows={rows} />
+          </Suspense>
         </>
       )}
     </div>
