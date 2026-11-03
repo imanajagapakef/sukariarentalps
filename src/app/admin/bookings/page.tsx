@@ -609,7 +609,15 @@ export default async function AdminBookingsPage({
                   <th scope="col" className={cn(th, "hidden md:table-cell")}>Bukti Bayar</th>
                 )}
                 <th scope="col" className={cn(th, "hidden md:table-cell")}>Sumber</th>
-                <th scope="col" className={cn(th, "text-right")}>Aksi</th>
+                <th
+                  scope="col"
+                  className={cn(
+                    th,
+                    "text-right md:sticky md:right-0 md:bg-surface-container md:shadow-[-8px_0_8px_-8px_rgba(0,0,0,0.25)]",
+                  )}
+                >
+                  Aksi
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -729,7 +737,7 @@ export default async function AdminBookingsPage({
                     <td className="hidden px-4 py-3 md:table-cell">
                       <span
                         className={cn(
-                          "inline-flex rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide",
+                          "inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-bold uppercase tracking-wide",
                           isWalkIn
                             ? "border-amber/40 bg-amber/10 text-amber"
                             : "border-border text-muted-foreground",
@@ -738,7 +746,7 @@ export default async function AdminBookingsPage({
                         {b.source ?? "—"}
                       </span>
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3 md:sticky md:right-0 md:bg-card md:shadow-[-8px_0_8px_-8px_rgba(0,0,0,0.25)]">
                       <div className="flex justify-end">
                         {hasBookingActions(b.status) ? (
                           <ActionButtons code={b.booking_code} status={b.status} />

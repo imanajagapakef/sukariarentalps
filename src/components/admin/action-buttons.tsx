@@ -145,7 +145,10 @@ export function ActionButtons({ code, status }: { code: string; status: string }
   const primaryAction = buttons.find((b) => !b.danger)?.action;
 
   return (
-    <div className="flex shrink-0 flex-col items-end gap-1.5">
+    // `min-w-max` matters: the button row wraps, so its min-content width is a single
+    // button. Without a real minimum the table lays out a narrow Aksi column and the
+    // shrink-0 row spills left over Durasi/Total instead of widening the column.
+    <div className="flex min-w-max shrink-0 flex-col items-end gap-1.5">
       <div className="flex flex-wrap justify-end gap-2" role="group" aria-label={`Aksi untuk ${code}`}>
         {buttons.map((b) => {
           const Icon = ACTION_ICON[b.action];
