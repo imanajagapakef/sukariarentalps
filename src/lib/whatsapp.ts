@@ -23,7 +23,9 @@ export type WaTemplate =
   | "TOURNAMENT_EXPIRED"
   | "TOURNAMENT_CANCELLED"
   | "TOURNAMENT_REMINDER"
-  | "TOURNAMENT_BRACKET_READY";
+  | "TOURNAMENT_BRACKET_READY"
+  | "BOOKING_PAYMENT_REMINDER"
+  | "BOOKING_START_REMINDER";
 
 export type WaMessage = { to: string; body: string };
 
@@ -60,6 +62,15 @@ const MESSAGES: Record<WaTemplate, (p: Record<string, string | number>) => strin
   TOURNAMENT_BRACKET_READY: (p) =>
     `Bracket ${p.tournament_title} sudah keluar!\n${p.seed ? `Kamu seed ${p.seed}.` : ""}\n` +
     `Ceklawanan kamu: ${p.site}/turnamen/${p.tournament_slug}`,
+
+  BOOKING_PAYMENT_REMINDER: (p) =>
+    `Halo ${p.name}! Booking ${p.booking_code} (${p.starts_at} di ${p.branch_name}) ` +
+    `belum dibayar dan akan kedaluwarsa ${p.deadline}.\n\n` +
+    `Selesaikan pembayaran di ${p.site}/payment/${p.booking_code} sebelum batas itu.`,
+
+  BOOKING_START_REMINDER: (p) =>
+    `Halo ${p.name}! Sesi ${p.booking_code} mulai ${p.starts_at} di ${p.branch_name}.\n` +
+    `Tunjukkan kode ini di kasir. Sampai jumpa!`,
 };
 
 /** Public site origin, read per request like the ticket page's QR origin. */

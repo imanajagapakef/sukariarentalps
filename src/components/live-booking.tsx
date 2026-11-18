@@ -2,7 +2,6 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
 import { bookingChannel } from "@/lib/booking-actions";
 
 /**
@@ -47,7 +46,11 @@ export function LiveBooking({
 
   useEffect(() => {
     if (!live) return;
+    let disposed = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
+    let timer2: ReturnType<typeof setInterval> | null = null;
+    let cleanupChannel: (() => void) | null = null;
+
     const refresh = () => {
       if (timer) return; // debounce: a burst of pings costs one refresh
       timer = setTimeout(() => {
@@ -56,13 +59,22 @@ export function LiveBooking({
       }, 400);
     };
 
-    const db = createClient();
-    const channel = db
-      .channel(bookingChannel(code))
-      .on("broadcast", { event: "status" }, refresh)
-      .subscribe();
+    // Supabase diimpor dinamis: socket-nya tidak diperlukan sampai jam ini, dan
+    // import statis menaruh ~250 KB ke bundle awal halaman tiket.
+    void (async () => {
+      const { createClient } = await import("@/lib/supabase/client");
+      if (disposed) return;
+      const db = createClient();
+      const channel = db
+        .channel(bookingChannel(code))
+        .on("broadcast", { event: "status" }, refresh)
+        .subscribe();
+      cleanupChannel = () => {
+        void db.removeChannel(channel);
+      };
+    })();
 
-    const timer2 = setInterval(() => {
+    timer2 = setInterval(() => {
       if (document.visibilityState === "visible") refresh();
     }, intervalMs);
 
@@ -71,10 +83,11 @@ export function LiveBooking({
     document.addEventListener("visibilitychange", refresh);
 
     return () => {
-      clearInterval(timer2);
+      disposed = true;
+      if (timer2) clearInterval(timer2);
       if (timer) clearTimeout(timer);
       document.removeEventListener("visibilitychange", refresh);
-      db.removeChannel(channel);
+      cleanupChannel?.();
     };
   }, [router, live, code, intervalMs]);
 

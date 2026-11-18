@@ -10,22 +10,6 @@ export type AvailableUnit = {
   status: Database["public"]["Enums"]["unit_status"];
 };
 
-export async function getAvailableUnits(
-  db: DB,
-  branchId: string,
-  startAt: string,
-  endAt: string,
-): Promise<AvailableUnit[]> {
-  const { data, error } = await db.rpc("get_available_units", {
-    p_branch_id: branchId,
-    p_start: startAt,
-    p_end: endAt,
-  });
-
-  if (error) throw new Error(error.message);
-  return (data ?? []) as AvailableUnit[];
-}
-
 export async function nextAvailable(
   db: DB,
   unitId: string,

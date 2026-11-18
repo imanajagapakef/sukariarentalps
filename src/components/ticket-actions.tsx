@@ -1,7 +1,8 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { formatRemaining } from "@/lib/countdown";
 
@@ -87,90 +88,58 @@ export function CopyCodeButton({ code }: { code: string }) {
   );
 }
 
-export function PayButton({ code, className }: { code: string; className?: string }) {
-  const router = useRouter();
-  return (
-    <Button className={className} onClick={() => router.push(`/payment/${code}`)}>
-      Bayar Sekarang
-    </Button>
-  );
-}
-
-export function StartPaymentButton({
-  code,
-  method,
-  className,
-  label,
-}: {
-  code: string;
-  method?: string;
-  className?: string;
-  label?: string;
-}) {
-  const [busy, setBusy] = useState(false);
-  const [snapUrl, setSnapUrl] = useState<string | null>(null);
-  const [failure, setFailure] = useState<string | null>(null);
-
-  async function start() {
-    setBusy(true);
-    setFailure(null);
-    const res = await fetch("/api/payments", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ booking_code: code, ...(method ? { method } : {}) }),
-    });
-    const body = await res.json().catch(() => null);
-    setBusy(false);
-    if (!res.ok) {
-      setFailure(body?.error?.message ?? "Gagal membuat pembayaran");
-      return;
-    }
-    setSnapUrl(body.payment.redirect_url);
-  }
-
-  if (snapUrl) return <SnapRedirect url={snapUrl} />;
-  return (
-    <div className={className}>
-      <Button className="w-full" disabled={busy} onClick={start}>
-        {busy ? "Membuka pembayaran…" : (label ?? "Bayar Sekarang")}
-      </Button>
-      {failure && <p className="mt-2 text-sm text-danger">{failure}</p>}
-    </div>
-  );
-}
-
-/** Lands on the Snap hosted page; manual link in case auto-redirect is blocked. */
-function SnapRedirect({ url }: { url: string }) {
-  useEffect(() => {
-    window.location.href = url;
-  }, [url]);
-  return (
-    <a href={url} className="text-sm text-primary underline">
-      Tidak otomatis teralihkan? Klik di sini
-    </a>
-  );
-}
-
 export function CancelButton({ code }: { code: string }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function cancel() {
-    if (!confirm("Batalkan booking ini?")) return;
     setBusy(true);
-    const res = await fetch(`/api/bookings/${code}/cancel`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ reason: "dibatalkan customer" }),
-    });
-    setBusy(false);
-    if (res.ok) router.refresh();
-    else alert("Gagal membatalkan booking");
+    setError(null);
+    try {
+      const res = await fetch(`/api/bookings/${code}/cancel`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason: "dibatalkan customer" }),
+      });
+      const body = await res.json().catch(() => null);
+      if (res.ok) {
+        setOpen(false);
+        router.refresh();
+      } else {
+        setError(body?.error?.message ?? "Gagal membatalkan booking");
+      }
+    } catch {
+      setError("Gagal membatalkan booking â€” periksa jaringan lalu coba lagi");
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
-    <Button variant="destructive" size="sm" disabled={busy} onClick={cancel}>
-      {busy ? "Membatalkan…" : "Batalkan"}
-    </Button>
+    <>
+      <Button variant="destructive" size="sm" disabled={busy} onClick={() => setOpen(true)}>
+        Batalkan
+      </Button>
+      {error && (
+        <p role="alert" className="mt-2 text-sm text-danger">
+          {error}
+        </p>
+      )}
+      <ConfirmDialog
+        open={open}
+        onOpenChange={setOpen}
+        title="Batalkan booking ini?"
+        description={
+          "Pembatalan mandiri hanya bisa sampai 6 jam sebelum sesi dimulai.\n\n" +
+          "Jika sudah lewat batas itu, hubungi kasir untuk refund lewat counter.\n" +
+          "Pembayaran yang sudah masuk akan direfund dan slot dilepas."
+        }
+        confirmLabel="Ya, batalkan"
+        onConfirm={() => void cancel()}
+        busy={busy}
+      />
+    </>
   );
 }

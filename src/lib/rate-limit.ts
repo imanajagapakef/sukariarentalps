@@ -1,18 +1,17 @@
 import type { NextRequest } from "next/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 /**
- * In-memory fixed-window rate limiter. Zero dependencies, shared per server
- * process — the honest trade-off for a single-region deployment: it holds on
- * one node, and egress behind a shared proxy collapses everyone into one
- * bucket (fail-closed for abuse, fail-closed for a school computer lab too,
- * which is acceptable while the frontend scales).
+ * Rate limiter. In-memory fixed-window tetap dipertahankan untuk kind
+ * non-sensitif (vitest + fallback), tetapi rute sensitif
+ * (bookingRead / bookingCancel / verifikasi tiket) memakai
+ * `rateLimitDb()` yang counter-nya di Postgres (migrasi 0040) sehingga
+ * konsisten lintas instance serverless di Vercel.
  *
  * IMPORTANT: the key is the client IP taken from `x-forwarded-for` /
  * `x-real-ip`. That is only trustworthy when the app sits behind a proxy that
  * OVERWRITES those headers (Vercel/Cloudflare/nginx all do). If the Node server
  * is exposed directly, a caller can rotate the header and bypass every limit.
- * A shared store (Upstash/Redis) is the next step when the app scales past one
- * instance; until then, keep the origin private and behind a proxy.
  */
 
 type KindConfig = { limit: number; windowSeconds: number };
@@ -99,6 +98,69 @@ export function rateLimit(
     };
   }
   return { allowed: true, retryAfterSeconds: 0 };
+}
+
+/**
+ * Tot: rate limit persisten di Postgres (migrasi 0040). Dipakai rute sensitif
+ * agar tidak bypass via ganti IP/instance — Map in-memory tiap serverless
+ * instance punya counter sendiri.
+ * Fail-open hanya bila DB down (dengan log), supaya tidak memblokir semua.
+ */
+export async function rateLimitDb(
+  kind: RateLimitKind,
+  req: NextRequest,
+  extra?: string,
+): Promise<{ allowed: boolean; retryAfterSeconds: number }> {
+  const cfg = CONFIG[kind];
+  const key = `${kind}|${clientIp(req)}${extra ? `|${extra.toLowerCase()}` : ""}`;
+  try {
+    const db = createAdminClient();
+    const { data, error } = await db.rpc("rate_limit_hit", {
+      p_key: key,
+      p_limit: cfg.limit,
+      p_window_seconds: cfg.windowSeconds,
+    });
+    if (error || !data?.[0]) throw error ?? new Error("rate_limit_hit empty");
+    return { allowed: data[0].allowed, retryAfterSeconds: data[0].retry_after_seconds };
+  } catch (e) {
+    console.error("[rateLimitDb] fallback in-memory:", e instanceof Error ? e.message : e);
+    return rateLimit(kind, req, extra);
+  }
+}
+
+/** Lockout brute-force last-4 per kode: 5 salah → kunci 15 menit (migrasi 0040). */
+export async function bookingAccessIsLocked(
+  bookingCode: string,
+): Promise<{ locked: boolean; retryAfterSeconds: number }> {
+  try {
+    const db = createAdminClient();
+    const { data, error } = await db.rpc("booking_access_is_locked", {
+      p_booking_code: bookingCode.trim().toUpperCase(),
+    });
+    if (error || !data?.[0]) throw error ?? new Error("booking_access_is_locked empty");
+    return { locked: data[0].locked, retryAfterSeconds: data[0].retry_after_seconds };
+  } catch (e) {
+    console.error("[bookingAccessIsLocked] fail-open:", e instanceof Error ? e.message : e);
+    return { locked: false, retryAfterSeconds: 0 };
+  }
+}
+
+export async function bookingAccessLockout(
+  bookingCode: string,
+  success: boolean,
+): Promise<{ locked: boolean; retryAfterSeconds: number }> {
+  try {
+    const db = createAdminClient();
+    const { data, error } = await db.rpc("booking_access_record", {
+      p_booking_code: bookingCode.trim().toUpperCase(),
+      p_success: success,
+    });
+    if (error || !data?.[0]) throw error ?? new Error("booking_access_record empty");
+    return { locked: data[0].locked, retryAfterSeconds: data[0].retry_after_seconds };
+  } catch (e) {
+    console.error("[bookingAccessLockout] fail-open:", e instanceof Error ? e.message : e);
+    return { locked: false, retryAfterSeconds: 0 };
+  }
 }
 
 /** Clears every window; vitest isolation only. */

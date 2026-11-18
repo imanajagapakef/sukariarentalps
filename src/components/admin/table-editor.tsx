@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowDown,
@@ -23,7 +23,6 @@ import { ImageUploader } from "@/components/admin/image-uploader";
 import { SelectField } from "@/components/ui/select-field";
 import { isRowDirty, normalizeCell, pageWindow, paginate, withSaved } from "@/lib/table-edit-state";
 import { deleteImage, orphanedImageUrl } from "@/lib/media";
-import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 
 export type Column = {
@@ -94,7 +93,6 @@ export function TableEditor({
   pageSize?: number;
 }) {
   const router = useRouter();
-  const client = useMemo(() => createClient(), []);
   const [draft, setDraft] = useState<Row>({});
   const [edits, setEdits] = useState<Record<string, Row>>({});
   const [saved, setSaved] = useState<Record<string, Row>>({});
@@ -247,7 +245,9 @@ export function TableEditor({
    */
   async function purgeImage(previousUrl: string) {
     try {
-      await deleteImage(client, previousUrl);
+      // Dimuat saat dibutuhkan saja: sebagian besar sesi editor tidak menghapus foto.
+      const { createClient } = await import("@/lib/supabase/client");
+      await deleteImage(createClient(), previousUrl);
     } catch {
       /* orphaned object, not a dangling reference */
     }

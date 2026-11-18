@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   Ban,
   CircleCheck,
+  Clock,
   Flag,
   Loader2,
   LogIn,
@@ -14,8 +15,8 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ExtendDialog } from "@/components/admin/extend-dialog";
 import { BOOKING_ACTIONS, bookingChannel } from "@/lib/booking-actions";
-import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 
 const ACTION_ICON: Record<string, LucideIcon> = {
@@ -25,6 +26,7 @@ const ACTION_ICON: Record<string, LucideIcon> = {
   no_show: UserX,
   complete: Flag,
   mark_ready: Sparkles,
+  extend: Clock,
 };
 
 /** Aksi destruktif wajib konfirmasi dua langkah. */
@@ -51,6 +53,7 @@ const SUBSCRIBE_TIMEOUT_MS = 3_000;
  * here is not worth surfacing and must never hold the cashier's UI hostage.
  */
 async function broadcastStatus(code: string, status: string): Promise<void> {
+  const { createClient } = await import("@/lib/supabase/client");
   const db = createClient();
   const channel = db.channel(bookingChannel(code));
   try {
@@ -79,6 +82,7 @@ export function ActionButtons({ code, status }: { code: string; status: string }
   const [busy, setBusy] = useState<string | null>(null);
   const [armed, setArmed] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [extendOpen, setExtendOpen] = useState(false);
   const [pending, startTransition] = useTransition();
   const awaitingRefresh = useRef(false);
   const buttons = BOOKING_ACTIONS[status] ?? [];
@@ -130,6 +134,13 @@ export function ActionButtons({ code, status }: { code: string; status: string }
   }
 
   function onPress(action: string) {
+    // Perpanjangan butuh pilihan durasi, jadi membuka dialog alih-alih
+    // langsung POST seperti aksi lain.
+    if (action === "extend") {
+      setError(null);
+      setExtendOpen(true);
+      return;
+    }
     if (NEEDS_CONFIRM.has(action) && armed !== action) {
       setError(null);
       setArmed(action);
@@ -219,6 +230,17 @@ export function ActionButtons({ code, status }: { code: string; status: string }
           <span>{error}</span>
         </p>
       )}
+
+      <ExtendDialog
+        code={code}
+        open={extendOpen}
+        onOpenChange={setExtendOpen}
+        onDone={() => {
+          // Halaman pelanggan mendengar channel ini; tabel kasir di-refresh.
+          void broadcastStatus(code, status);
+          startTransition(() => router.refresh());
+        }}
+      />
     </div>
   );
 }

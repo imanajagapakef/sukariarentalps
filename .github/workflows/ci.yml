@@ -18,6 +18,46 @@ jobs:
       - run: npm run lint
       - run: npm run typecheck
 
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install Supabase CLI
+        run: |
+          npm install -g supabase@2
+          supabase --version
+      - run: npm ci
+      - name: Start local Supabase (test project — bukan produksi)
+        run: |
+          supabase init || true
+          supabase link --project-ref "$SB_REF" || true
+          supabase start --db-only || true
+        env:
+          SB_REF: ${{ secrets.SB_TEST_PROJECT_REF }}
+      - run: npm run test
+        env:
+          TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+          NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SB_TEST_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SB_TEST_SERVICE_ROLE_KEY }}
+
   lighthouse:
     runs-on: ubuntu-latest
     needs: build-and-test

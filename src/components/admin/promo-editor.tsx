@@ -18,6 +18,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { SelectField } from "@/components/ui/select-field";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -94,6 +95,8 @@ export function PromoEditor({
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [open, setOpen] = useState(true);
+  const [confirmPublish, setConfirmPublish] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const isNew = !promoId;
 
@@ -150,19 +153,18 @@ export function PromoEditor({
     setNotice(null);
   }
 
-  async function save() {
+  async function save(confirmedPublish = false) {
     setError(null);
     setNotice(null);
     if (blocker) {
       setError(blocker);
       return;
     }
-    if (status === "ACTIVE" && savedStatus !== "ACTIVE") {
-      const ok = confirm(
-        `Tayangkan "${name.trim()}" sekarang? Pelanggan langsung bisa melihat dan memakai promo ini.`,
-      );
-      if (!ok) return;
+    if (status === "ACTIVE" && savedStatus !== "ACTIVE" && !confirmedPublish) {
+      setConfirmPublish(true);
+      return;
     }
+    setConfirmPublish(false);
 
     setBusy(true);
     const payload = {
@@ -208,9 +210,13 @@ export function PromoEditor({
     }
   }
 
-  async function remove() {
+  async function remove(confirmed = false) {
     if (!promoId) return;
-    if (!confirm(`Hapus promo "${name}"? Daftar harganya ikut terhapus.`)) return;
+    if (!confirmed) {
+      setConfirmDelete(true);
+      return;
+    }
+    setConfirmDelete(false);
     setBusy(true);
     setError(null);
     try {
@@ -343,6 +349,25 @@ export function PromoEditor({
             )}
           </div>
         </div>
+
+        <ConfirmDialog
+          open={confirmPublish}
+          onOpenChange={setConfirmPublish}
+          title="Tayangkan promo sekarang?"
+          description={`"${name.trim()}" akan langsung bisa dilihat dan dipakai pelanggan.`}
+          confirmLabel="Ya, tayangkan"
+          onConfirm={() => void save(true)}
+          busy={busy}
+        />
+        <ConfirmDialog
+          open={confirmDelete}
+          onOpenChange={setConfirmDelete}
+          title="Hapus promo?"
+          description={`Hapus promo "${name}"? Daftar harganya ikut terhapus.`}
+          confirmLabel="Ya, hapus"
+          onConfirm={() => void remove(true)}
+          busy={busy}
+        />
 
         {error && (
           <p role="alert" className="mt-3 flex items-start gap-1.5 text-sm text-danger">

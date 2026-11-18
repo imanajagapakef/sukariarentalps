@@ -35,7 +35,6 @@ Lighthouse (desktop): skor categories 100 kecuali a11y 96 di /.
 
 ## Ditunda
 
-- /booking: full catalog masih di-serialize ke client (BookingForm); potong per-step butuh refactor besar.
 - globals.css duplikasi token :root/.dark.
 - QR toDataURL per request (minor).
 - shadcn dipindah ke devDeps dibatalkan: globals.css meng-import `shadcn/tailwind.css`.
@@ -47,6 +46,66 @@ Lighthouse (desktop): skor categories 100 kecuali a11y 96 di /.
 - /booking HTML 130 KB → 100 KB: props BookingForm dipangkas ke field yang dirender saja (FormBranch/FormUnit/FormGame/FormSnack).
 - CI: `lighthouserc.json` (budget LCP ≤2500ms, CLS ≤0.1, TBT ≤300ms, perf ≥0.9) + `.github/workflows/ci.yml`.
 - globals.css: blok `.dark` (dead, palet identik dengan :root, tak pernah diterapkan) dihapus.
+
+## Tahap 5 (2026-11-11) — realtime admin, pembayaran menyatu, dan pemangkasan bundle
+
+Diukur dengan Chrome DevTools terhadap **build produksi** (`next start`), bukan dev.
+
+### Angka sebelum → sesudah (First Load JS, gzip)
+
+| Route | Sebelum | Sesudah |
+|---|---|---|
+| `/tiket/[code]` | 214 kB | **145 kB** |
+| `/booking` | 204 kB | **135 kB** |
+| `/extension` | 204 kB | **135 kB** |
+| `/tempat-main` | 195 kB | **125 kB** |
+| `/admin/units` | 196 kB | **126 kB** |
+| `/admin/bookings` | 130 kB | **124 kB** |
+| shared by all | 103 kB | 103 kB |
+
+Penyebab utama: `@supabase/supabase-js` (~250 KB decoded, dua chunk) diimpor
+**statis** oleh komponen realtime (`LiveUnits`, `LiveBooking`, `AdminLive`,
+`ActionButtons`, `BookingForm`, `ImageUploader`, `UnitPhoto`, `TableEditor`),
+sehingga ia ikut di bundle awal hampir setiap halaman. Sekarang semuanya
+`await import("@/lib/supabase/client")` di dalam effect/handler, dan yang
+non-kritis (`LiveUnits`, `AdminLive`) menunggu `requestIdleCallback` supaya
+tidak bersaing dengan render pertama.
+
+### Realtime (menggantikan polling)
+
+- `LiveRefresh` (60 detik `router.refresh()` di seluruh halaman admin) **dihapus**.
+  Ia menjalankan ulang semua server component — termasuk `/admin/reports` yang
+  berat — enam kali per menit per tab, dan tetap bisa telat satu menit.
+- Pengganti: `AdminLive` mendengarkan **broadcast** `admin:data`. Route yang
+  menulis data memanggil `notifyAdminChanged()` (satu POST ke REST Realtime,
+  fire-and-forget), klien lalu `router.refresh()` sekali. Fallback 5 menit +
+  refresh saat tab kembali aktif, karena WebSocket bisa mati.
+- `postgres_changes` untuk `bookings`/`payment_proofs` tetap dipasang sebagai
+  bonus, tetapi **tidak diandalkan**: sudah diuji, INSERT maupun UPDATE tidak
+  sampai ke klien staf (event dipakai hanya kalau kebetulan aktif).
+- Halaman pelanggan (`LiveBooking`) tetap broadcast + polling 8 detik; ia sudah
+  bekerja sejak migrasi 0022.
+
+### Yang diukur (produksi lokal, tanpa throttling)
+
+| Halaman | TTFB | FCP | HTML | JS (decoded) |
+|---|---|---|---|---|
+| `/` | 6 ms | 172 ms | 249 kB | 755 kB |
+| `/booking` | 16 ms | 128 ms | 144 kB | 793 kB |
+| `/admin/bookings` | 22 ms | 108 ms | 201 kB | — |
+| `/admin/units` | 21 ms | 84 ms | 227 kB | — |
+| `/admin/turnamen` | 19 ms | 76 ms | 131 kB | — |
+
+TTFB admin ~20 ms → server dan middleware bukan penyebab "lemot pindah menu".
+Sisa biaya ada di HTML (RSC payload + markup) dan JS. HTML `/` 255 kB: 126 kB
+dari situ adalah payload Flight (data + pohon yang dirender); memangkasnya
+berarti mengurangi isi halaman, bukan sekadar refactor.
+
+### Catatan lain
+
+- `distDir` bisa diarahkan lewat `NEXT_DIST_DIR` supaya build pengukuran tidak
+  menimpa folder `.next` dev server yang sedang jalan.
+- `.next-build` masuk `.gitignore` dan `eslint` ignores.
 
 ## Budget
 
@@ -152,3 +211,39 @@ revenue + journal tidak menduplikasi query payments/items.
 secara default, jadi aplikasi dan DB terpisah satu benua — inilah penyebab utama latensi
 per-query di produksi. Perbaikan: `vercel.json` → `regions: ["sin1"]` (dan samakan di
 Dashboard → Settings → Functions → Region).
+
+## Tahap 4 (2026-11-10) — hardening keamanan + potong form per-step
+
+Rangkaian perubahan dari review keamanan. Yang menyentuh performa:
+
+- **`BookingForm` dipecah per langkah.** `src/components/booking-form.tsx` (1022 baris,
+  satu komponen client) kini hanya orkestrator state; markup tiap langkah pindah ke
+  `src/components/booking/step-place.tsx`, `step-time.tsx`, `step-details.tsx`, dan
+  tipe/helper bersama ke `form-types.ts`. Item "potong per-step" yang tertunda di
+  bagian Ditunda sudah dikerjakan.
+- **`SlotPicker` dimuat lazy** (`next/dynamic`, `ssr: false`) — grid jam adalah bagian
+  terberat di langkah 2, dan halaman `/booking` sekarang tidak membawanya di bundle
+  awal.
+- **A11y grid slot jam**: grup radiogroup sekarang mengaitkan catatan ketersediaan
+  lewat `aria-describedby`, jumlah jam kosong diumumkan (`role="status"` +
+  `aria-live="polite"`), dan legenda status diberi label. Per-group period ditandai
+  `aria-hidden` (pengelompokan visual, bukan grup ARIA terpisah).
+- **Pesan error form** (`booking-form.tsx`, `step-details.tsx`) memakai `role="alert"`.
+- **`scrollIntoView` walk-in** menghormati `prefers-reduced-motion` — CSS global tidak
+  menjangkau perilaku smooth yang dipanggil dari JavaScript.
+- **Rate limiter pindah ke Postgres** (`rate_limit_hit`), jadi konsisten lintas instance
+  serverless Vercel; `Map` in-memory tetap untuk kind non-sensitif sebagai fallback.
+
+Belum diverifikasi di browser (dev server dijalankan manual oleh pemilik repo);
+typecheck + lint + 265 test hijau.
+
+## Catatan database (2026-11-10)
+
+Migrasi 0038–0042 diterapkan ke project aktif. Karena `.env.test` menunjuk project yang
+sama dengan aplikasi, `npm test` menulis ke database yang sama — 118 customer fixture
+tanpa booking tertinggal dan sudah dibersihkan oleh
+`node scripts/cleanup-test-data.mjs --apply` (dry-run default). Data yang punya
+booking tidak disentuh.
+
+Disarankan: project Supabase terpisah untuk test (`SB_TEST_*` di CI sudah disiapkan),
+agar `npm test` lokal tidak lagi menyentuh database aplikasi.

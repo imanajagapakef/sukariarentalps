@@ -1,8 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { Image as ImageIcon, Trash2, Upload } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
 import { uploadImage } from "@/lib/media";
 import { downscaleImage } from "@/lib/image-downscale";
 import { Button } from "@/components/ui/button";
@@ -34,7 +33,6 @@ export function ImageUploader({
   onChange: (url: string | null) => void;
   label?: string;
 }) {
-  const db = useMemo(() => createClient(), []);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -44,7 +42,9 @@ export function ImageUploader({
     setBusy(true);
     try {
       const optimized = await downscaleImage(file);
-      const { publicUrl } = await uploadImage(db, entity, rowId, optimized);
+      // Supabase client dimuat saat upload pertama, bukan saat halaman dibuka.
+      const { createClient } = await import("@/lib/supabase/client");
+      const { publicUrl } = await uploadImage(createClient(), entity, rowId, optimized);
       // No router.refresh() here: this component never writes the row, so there is
       // nothing new to re-read. Refreshing anyway re-rendered the whole page mid-edit
       // and made it look like the change had already been saved. The caller persists

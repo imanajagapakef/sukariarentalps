@@ -44,7 +44,7 @@ describeDb("availability engine", () => {
     );
     await db.query(
       `insert into customers (customer_id, name, phone)
-       values ($1, 'Test Customer', '0800000000')
+       values ($1, 'Test Customer', '62800000000')
        on conflict (customer_id) do nothing`,
       [customerId],
     );
@@ -163,9 +163,43 @@ describeDb("availability engine", () => {
       `select public.latest_extendable($1) as boundary`,
       [`T-BK2-${suffix}`],
     );
-    expect(new Date(rows[0].boundary).toISOString()).toBe(
-      new Date(at("14:00")).toISOString(),
+    // 0045: tidak ada reservasi berikutnya -> NULL (unit bebas), bukan jam
+    // selesai booking itu sendiri yang dulu dibaca halaman sebagai "ruang 0".
+    expect(rows[0].boundary).toBeNull();
+  });
+
+  it("reports the busy range and kind so the picker can show who occupies a slot and when it frees up", async () => {
+    const { rows } = await db.query(
+      `select slot_start, state, busy_from, busy_until, busy_kind
+         from public.slot_availability($1, $2, $3::date, 60)
+        where slot_start >= $4::timestamptz and slot_start < $5::timestamptz
+        order by slot_start`,
+      [branchId, unitId, day, at("10:00"), at("15:00")],
     );
+
+    const byTime = Object.fromEntries(
+      rows.map((r) => [new Date(r.slot_start).toISOString(), r]),
+    );
+    const at10 = byTime[new Date(at("10:00")).toISOString()];
+    const at12 = byTime[new Date(at("12:00")).toISOString()];
+    const at14 = byTime[new Date(at("14:00")).toISOString()];
+
+    expect(at10.state).toBe("BOOKED");
+    expect(at10.busy_kind).toBe("BOOKING");
+    expect(new Date(at10.busy_from).toISOString()).toBe(new Date(at("10:00")).toISOString());
+    expect(new Date(at10.busy_until).toISOString()).toBe(new Date(at("12:00")).toISOString());
+
+    // Blok berikutnya (BK2) punya rentang sendiri, bukan menyambung BK1.
+    expect(at12.state).toBe("BOOKED");
+    expect(new Date(at12.busy_from).toISOString()).toBe(new Date(at("12:00")).toISOString());
+    expect(new Date(at12.busy_until).toISOString()).toBe(new Date(at("14:00")).toISOString());
+
+    // Jendela pembersihan punya kind dan batas sendiri, supaya pemilih jam bisa
+    // membedakan "dipesan" dari "dibersihkan".
+    expect(at14.state).toBe("CLEANING");
+    expect(at14.busy_kind).toBe("CLEANING");
+    expect(new Date(at14.busy_from).toISOString()).toBe(new Date(at("14:00")).toISOString());
+    expect(new Date(at14.busy_until).toISOString()).toBe(new Date(at("14:10")).toISOString());
   });
 
   it("prices an exact package and a package-plus-hourly remainder", async () => {

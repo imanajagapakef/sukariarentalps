@@ -30,7 +30,8 @@ describeDb("promo application", () => {
   const shortPromoId = `PROMO-SHORT-${suffix}`;
   const dearPromoId = `PROMO-DEAR-${suffix}`;
   const bonusPromoId = `PROMO-BONUS-${suffix}`;
-  const phone = `0877${suffix}`;
+  // Nomor HP harus angka saja (base36 bisa memuat huruf; nomor dinormalisasi ke 62…).
+  const phone = `0877${String(Date.now()).slice(-8)}`;
   const startStock = 10;
 
   const duration = 120;

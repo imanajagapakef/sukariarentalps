@@ -63,35 +63,6 @@ export async function createBooking(
   return data as CreateBookingResult;
 }
 
-export type WalkInInput = CreateBookingInput & {
-  payMethod: Extract<Database["public"]["Enums"]["payment_method"], "CASH" | "QRIS_MANUAL" | "TRANSFER_MANUAL">;
-};
-
-/**
- * Walk-in = same atomic create, then staff collects money at the counter:
- * confirmed immediately + a manual payment row, all in the caller's session.
- */
-export async function createWalkInBooking(
-  db: DB,
-  input: WalkInInput,
-  actor: { userId: string },
-): Promise<CreateBookingResult & { status: BookingStatus; payment_status: string }> {
-  const booking = await createBooking(db, input, { source: "WALK_IN", createdBy: actor.userId });
-  const status = await confirmBooking(db, booking.booking_id);
-
-  const { error: payError } = await db.from("payments").insert({
-    booking_id: booking.booking_id,
-    provider: input.payMethod === "CASH" ? "CASH" : "MANUAL",
-    method: input.payMethod,
-    status: "PAID",
-    gross_amount: booking.total_amount,
-    paid_at: new Date().toISOString(),
-  });
-  if (payError) throw wrap(payError);
-
-  return { ...booking, status, payment_status: "PAID" };
-}
-
 export async function confirmBooking(db: DB, bookingId: string): Promise<BookingStatus> {
   const { data, error } = await db.rpc("confirm_booking", { p_booking_id: bookingId });
   if (error) throw wrap(error);
@@ -114,10 +85,12 @@ export async function cancelBooking(
   db: DB,
   bookingId: string,
   reason?: string,
+  opts?: { enforceWindow?: boolean },
 ): Promise<BookingStatus> {
   const { data, error } = await db.rpc("cancel_booking", {
     p_booking_id: bookingId,
     p_reason: reason,
+    p_enforce_window: opts?.enforceWindow ?? false,
   });
   if (error) throw wrap(error);
   return data as BookingStatus;

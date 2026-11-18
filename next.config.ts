@@ -2,24 +2,23 @@ import type { NextConfig } from "next";
 
 // The only external origin the app talks to is Supabase (auth, database, and
 // image storage). Parse the host from the public URL env var at build time.
-// A missing/malformed value fails the production build instead of silently
-// pinning CSP and image allowlists to a stale project; dev keeps the known
-// host so a fresh clone still boots.
-const SUPABASE_HOST_FALLBACK = "siqjyxawzlkybvkkfhny.supabase.co";
-
+// Host wajib dari env di semua mode — tanpa fallback hardcoded ke project
+// lama — agar CSP/allowlist tidak menunjuk ke host basi.
+// TODO (lanjutan): nonce via middleware untuk menghilangkan 'unsafe-inline'
+// dari script-src. Perlu perubahan middleware + App Router.
 function getSupabaseHost(): string {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  if (url) {
-    try {
-      return new URL(url).hostname;
-    } catch {
-      throw new Error(`NEXT_PUBLIC_SUPABASE_URL bukan URL yang valid: ${url}`);
-    }
+  if (!url) {
+    throw new Error(
+      "NEXT_PUBLIC_SUPABASE_URL wajib diisi saat build. " +
+        "Isi dengan URL project Supabase aktif (lihat .env.example).",
+    );
   }
-  if (process.env.NODE_ENV === "production") {
-    throw new Error("NEXT_PUBLIC_SUPABASE_URL wajib diisi saat build produksi");
+  try {
+    return new URL(url).hostname;
+  } catch {
+    throw new Error(`NEXT_PUBLIC_SUPABASE_URL bukan URL yang valid: ${url}`);
   }
-  return SUPABASE_HOST_FALLBACK;
 }
 
 const supabaseHost = getSupabaseHost();
@@ -47,6 +46,9 @@ const nextConfig: NextConfig = {
   // Pin workspace root so the dev watcher doesn't scan the C:\ drive root
   // (prevents "Watchpack Error: EINVAL lstat C:\pagefile.sys" noise on Windows).
   outputFileTracingRoot: __dirname,
+  // Bisa diarahkan ke folder lain (mis. saat mengukur build produksi sementara
+  // `next dev` masih jalan). Default tetap `.next`.
+  distDir: process.env.NEXT_DIST_DIR ?? ".next",
   images: {
     remotePatterns: [
       { protocol: "https", hostname: supabaseHost },

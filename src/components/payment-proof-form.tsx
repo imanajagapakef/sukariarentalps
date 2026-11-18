@@ -20,11 +20,14 @@ export function PaymentProofForm({
   code,
   total,
   used,
+  maxProofs,
 }: {
   code: string;
   /** What the club is expecting, so the customer does not have to remember. */
   total: number;
   used: number;
+  /** Batas unggahan, dari konstanta server supaya dua layar tidak berbeda angka. */
+  maxProofs?: number;
 }) {
   const router = useRouter();
   const [nominal, setNominal] = useState(String(total));
@@ -33,7 +36,8 @@ export function PaymentProofForm({
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
 
-  const remaining = MAX_PROOFS_PER_BOOKING - used;
+  const limit = maxProofs ?? MAX_PROOFS_PER_BOOKING;
+  const remaining = limit - used;
 
   async function submit(file: File | undefined) {
     if (!file) return;
@@ -72,7 +76,7 @@ export function PaymentProofForm({
         </p>
       ) : remaining <= 0 ? (
         <p className="mt-3 text-sm text-muted-foreground">
-          Bukti sudah terkirim {MAX_PROOFS_PER_BOOKING} kali. Kalau masih bermasalah, hubungi
+          Bukti sudah terkirim {limit} kali. Kalau masih bermasalah, hubungi
           kasir lewat WhatsApp.
         </p>
       ) : (
@@ -86,7 +90,7 @@ export function PaymentProofForm({
         >
           <p className="text-sm text-muted-foreground">
             Kirim screenshot bukti transfer supaya kasir tahu nominal yang kamu kirim.
-            <span className="block text-xs">Ini tidak otomatis deemed lunas — kasir tetap
+            <span className="block text-xs">Ini tidak otomatis dianggap lunas — kasir tetap
             perlu mencocokkan dengan mutasi rekening klub.</span>
           </p>
 

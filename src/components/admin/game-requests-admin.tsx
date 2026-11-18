@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Trash2 } from "lucide-react";
 import type { GameRequestRow } from "@/lib/catalog";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { SelectField } from "@/components/ui/select-field";
 import { cn } from "@/lib/utils";
 
@@ -27,6 +28,7 @@ export function GameRequestsAdmin({ requests }: { requests: GameRequestRow[] }) 
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
 
   async function call(method: "PATCH" | "DELETE", id: string, body?: unknown) {
     setBusy(true);
@@ -58,7 +60,7 @@ export function GameRequestsAdmin({ requests }: { requests: GameRequestRow[] }) 
 
   return (
     <div className="mt-4 space-y-2">
-      {error && <p className="text-sm text-danger">{error}</p>}
+      {error && <p role="alert" className="text-sm text-danger">{error}</p>}
       {requests.map((r) => {
         const meta = STATUS.find((s) => s.value === r.status) ?? STATUS[0];
         return (
@@ -99,17 +101,29 @@ export function GameRequestsAdmin({ requests }: { requests: GameRequestRow[] }) 
               variant="destructive"
               disabled={busy}
               title="Hapus request"
-              onClick={() => {
-                if (confirm(`Hapus request "${r.game_name}"?\n\nVote yang masuk ke request ini ikut terhapus.`)) {
-                  void call("DELETE", r.request_id);
-                }
-              }}
+              onClick={() => setDeleteTarget({ id: r.request_id, name: r.game_name })}
             >
               <Trash2 aria-hidden className="size-3.5" /> Hapus
             </Button>
           </div>
         );
       })}
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        onOpenChange={(o) => {
+          if (!o) setDeleteTarget(null);
+        }}
+        title="Hapus request?"
+        description={`Hapus request "${deleteTarget?.name ?? ""}"?\n\nVote yang masuk ke request ini ikut terhapus.`}
+        confirmLabel="Ya, hapus"
+        busy={busy}
+        onConfirm={() => {
+          if (!deleteTarget) return;
+          const id = deleteTarget.id;
+          setDeleteTarget(null);
+          void call("DELETE", id);
+        }}
+      />
     </div>
   );
 }

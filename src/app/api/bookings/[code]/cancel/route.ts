@@ -5,6 +5,7 @@ import { cancelBooking, getBookingByCode } from "@/services/booking.service";
 import { handleRouteError, jsonError, jsonRateLimited } from "@/lib/api/response";
 import { hasBookingAccess } from "@/lib/booking-access";
 import { rateLimit } from "@/lib/rate-limit";
+import { notifyAdminChanged } from "@/lib/realtime-notify";
 
 /**
  * Cancel is destructive, so it is gated twice: the httpOnly access cookie
@@ -38,7 +39,8 @@ export async function POST(
       );
     }
 
-    const status = await cancelBooking(db, existing.booking_id, parsed.data.reason);
+    const status = await cancelBooking(db, existing.booking_id, parsed.data.reason, { enforceWindow: true });
+    notifyAdminChanged();
     return NextResponse.json({ status });
   } catch (error) {
     return handleRouteError(error);

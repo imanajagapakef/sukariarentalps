@@ -1,16 +1,23 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createPublicClient } from "@/lib/supabase/public";
 import { slotQuerySchema, type Slot } from "@/lib/validations/booking";
-import { handleRouteError, jsonError } from "@/lib/api/response";
+import { handleRouteError, jsonError, jsonRateLimited } from "@/lib/api/response";
+import { rateLimit } from "@/lib/rate-limit";
 
 /**
  * Per-unit slot grid for one day, so the booking form can show why a slot is
  * unavailable and when it frees up instead of offering bare HH:MM options.
  * Backs public.slot_availability(), which reads the same unit_reservations rows
  * the overlap constraint guards.
+ *
+ * RPC-nya sudah di-GRANT ke anon, jadi pakai client publik (bukan
+ * service-role) + cache pendek.
  */
 export async function GET(request: NextRequest) {
   try {
+    const limit = rateLimit("tournamentRead", request);
+    if (!limit.allowed) return jsonRateLimited(limit.retryAfterSeconds);
+
     const params = request.nextUrl.searchParams;
     const parsed = slotQuerySchema.safeParse({
       branch_id: params.get("branch_id"),
@@ -23,7 +30,7 @@ export async function GET(request: NextRequest) {
       return jsonError("Parameter slot tidak valid", 400);
     }
 
-    const db = createAdminClient();
+    const db = createPublicClient({ revalidate: 30 });
     const { data, error } = await db.rpc("slot_availability", {
       p_branch_id: parsed.data.branch_id,
       p_unit_id: parsed.data.unit_id,
@@ -40,7 +47,10 @@ export async function GET(request: NextRequest) {
       throw new Error(error.message);
     }
 
-    return NextResponse.json({ slots: (data ?? []) as Slot[] });
+    return NextResponse.json(
+      { slots: (data ?? []) as Slot[] },
+      { headers: { "Cache-Control": "public, s-maxage=30, stale-while-revalidate=60" } },
+    );
   } catch (error) {
     return handleRouteError(error);
   }

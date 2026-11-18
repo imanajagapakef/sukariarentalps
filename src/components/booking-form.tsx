@@ -1,18 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "cn";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
-import { EmptyState } from "@/components/empty-state";
-import { SlotPicker, UnitStatusChip, isUnitBlocked } from "@/components/booking/availability-ui";
-import { createClient } from "@/lib/supabase/client";
 import { fmtDate, fmtDuration, fmtISODay, fmtTime, rp } from "@/lib/format";
-import { stockStatus } from "@/lib/snack-stock";
-import { phoneRegex, type Slot } from "@/lib/validations/booking";
+import type { Slot } from "@/lib/validations/booking";
 import {
   eligibleOfferings,
   keepsEligibility,
@@ -21,57 +14,35 @@ import {
   type PromoOffering,
 } from "@/lib/promo-rules";
 import { isSlotPreset, pickSlotStart, presetDay } from "@/lib/slot-preset";
+import {
+  durationOptions,
+  nameError,
+  phoneError,
+  type BookingConfig,
+  type FormBranch,
+  type FormGame,
+  type FormSnack,
+  type FormUnit,
+} from "@/components/booking/form-types";
+import { StepPlace } from "@/components/booking/step-place";
+import { StepTime } from "@/components/booking/step-time";
+import { StepDetails, type Customer, type FieldError } from "@/components/booking/step-details";
 
-/** Minimal shapes: only the fields the form renders ride in the RSC payload. */
-export type FormBranch = { branch_id: string; name: string };
-export type FormUnit = {
-  unit_id: string;
-  name: string;
-  status: string;
-  branch_id: string;
-  facility_type_id: string;
-  facility_types: { name: string; category: string } | null;
-};
-export type FormGame = {
-  game_id: string;
-  name: string;
-  game_availability: { branch_id: string | null; available: boolean }[];
-};
-export type FormSnack = { snack_id: string; name: string; price: number; stock: number; min_stock: number };
-import { SelectField } from "@/components/ui/select-field";
+export type {
+  FormBranch,
+  FormGame,
+  FormSnack,
+  FormUnit,
+} from "@/components/booking/form-types";
 
-type BookingConfig = {
-  minimum_duration_minutes: number;
-  maximum_duration_minutes: number;
-  booking_interval_minutes: number;
-  payment_deadline_minutes: number;
-  advance_booking_days: number;
-};
-
-function durationOptions(cfg: BookingConfig | null) {
-  const min = cfg?.minimum_duration_minutes ?? 60;
-  const max = cfg?.maximum_duration_minutes ?? 360;
-  // Fallback 60, bukan 30: satu jam adalah satu-satunya durasi yang bisa dipilih
-  // sejak opsi 30 menit dihapus (migrasi 0021).
-  const step = cfg?.booking_interval_minutes ?? 60;
-  const out: number[] = [];
-  for (let d = min; d <= max; d += step) out.push(d);
-  return out;
-}
-
-/** Same rules the server applies, so a mistake is reported on the field itself instead
- *  of arriving as a generic "Data booking tidak valid" after the POST. */
-function nameError(value: string): string | undefined {
-  return value.trim().length < 2 ? "Nama wajib diisi (minimal 2 huruf)." : undefined;
-}
-
-function phoneError(value: string): string | undefined {
-  const phone = value.trim();
-  if (!phone) return "Nomor WhatsApp wajib diisi.";
-  if (!phoneRegex.test(phone)) return "Nomor WhatsApp tidak valid (6–20 karakter angka).";
-  return undefined;
-}
-
+/**
+ * Form booking tiga langkah.
+ *
+ * Orpure ini memegang semua state; markup tiap langkah hidup di modulnya
+ * sendiri (`components/booking/step-*.tsx`) supaya file ini tidak lagi
+ * menuat seluruh form — PERF.md menandai "potong per-step" sebagai pekerjaan
+ * yang tertunda, dan ini/nginx itu.
+ */
 function Stepper({ step }: { step: number }) {
   const labels = ["Tempat", "Waktu", "Data Diri"];
   return (
@@ -81,18 +52,13 @@ function Stepper({ step }: { step: number }) {
         return (
           <li key={l} className="flex items-center gap-2">
             <span
+              className={
+                step === n ? "font-medium text-foreground" : "text-muted-foreground"
+              }
               aria-current={step === n ? "step" : undefined}
-              className={`grid size-6 place-items-center rounded-full text-xs font-semibold ${
-                step === n
-                  ? "bg-primary text-primary-foreground"
-                  : step > n
-                    ? "bg-primary/20 text-primary"
-                    : "bg-muted text-muted-foreground"
-              }`}
             >
-              {step > n ? "✓" : n}
+              {l}
             </span>
-            <span className={step === n ? "font-medium text-foreground" : "text-muted-foreground"}>{l}</span>
             {n < labels.length && <span aria-hidden className="mx-1 w-6 border-t border-border" />}
           </li>
         );
@@ -131,8 +97,17 @@ export function BookingForm({
   /** Duration (minutes) that came with the deep link. */
   initialDuration?: number;
 }) {
-  const router = useRouter();
-  const db = useMemo(() => createClient(), []);
+  const dbRef = useRef<Awaited<ReturnType<typeof import("@/lib/supabase/client")["createClient"]>> | null>(null);
+  /** Supabase browser client, dimuat saat RPC pertama dibutuhkan.
+   *  Import statis menaruh ~250 KB @supabase/supabase-js di bundle awal /booking,
+   *  padahal form hanya memakainya untuk dua RPC kecil. */
+  const getDb = useCallback(async () => {
+    if (!dbRef.current) {
+      const { createClient } = await import("@/lib/supabase/client");
+      dbRef.current = createClient();
+    }
+    return dbRef.current;
+  }, []);
 
   const preset = isSlotPreset(initialSlot) ? initialSlot : null;
 
@@ -155,13 +130,13 @@ export function BookingForm({
   const [price, setPrice] = useState<number | null>(null);
   const [gameId, setGameId] = useState("");
   const [pickedSnacks, setPickedSnacks] = useState<Record<string, number>>({});
-  const [customer, setCustomer] = useState({ name: "", phone: "", email: "" });
+  const [customer, setCustomer] = useState<Customer>({ name: "", phone: "", email: "" });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Error per-field untuk step 3. Server sudah menolak nama/nomor kosong
   // (createBookingSchema), tapi tombol yang mati sendiri tidak menjelaskan apa pun —
   // pengguna perlu diberi tahu kolom mana yang wajib.
-  const [fieldError, setFieldError] = useState<{ name?: string; phone?: string }>({});
+  const [fieldError, setFieldError] = useState<FieldError>({});
 
   // Slot grid for the chosen unit/day/duration, so the picker can say why a
   // slot is unavailable and when it frees up rather than listing bare times.
@@ -247,6 +222,7 @@ export function BookingForm({
     if (!branchId) return;
     let alive = true;
     void (async () => {
+      const db = await getDb();
       const { data: c } = await db.rpc("get_booking_config", { p_branch_id: branchId });
       if (!alive || !c) return;
       setCfg(c as BookingConfig);
@@ -254,7 +230,7 @@ export function BookingForm({
     return () => {
       alive = false;
     };
-  }, [db, branchId]);
+  }, [getDb, branchId]);
 
   // A rental's price is a function of branch, room type and duration — never of the day.
   // Keyed on the room type rather than the unit list, so a re-render that rebuilds
@@ -268,6 +244,7 @@ export function BookingForm({
     if (duration < cfg.minimum_duration_minutes || duration > cfg.maximum_duration_minutes) return;
     let alive = true;
     void (async () => {
+      const db = await getDb();
       const { data: p } = await db.rpc("calculate_price", {
         p_branch_id: branchId,
         p_facility_type_id: facilityTypeId,
@@ -278,7 +255,7 @@ export function BookingForm({
     return () => {
       alive = false;
     };
-  }, [db, branchId, facilityTypeId, duration, cfg]);
+  }, [getDb, branchId, facilityTypeId, duration, cfg]);
 
   // Efek 1: saat unit, tanggal, durasi, atau konfigurasi berubah — reset grid dan
   // tandai bahwa slot baru harus dipilih saat data tiba. Grid lama tidak dihapus
@@ -392,7 +369,8 @@ export function BookingForm({
    *  disagree by a rounding step. */
   const grandTotal = rentalTotal + snackTotal;
 
-  const timeValid = startIso != null && slots?.some((s) => s.slot_start === startIso && s.state === "AVAILABLE");
+  const timeValid =
+    startIso != null && (slots?.some((s) => s.slot_start === startIso && s.state === "AVAILABLE") ?? false);
 
   /** One reason for the primary button being dead, computed once and reused as `disabled`,
    *  the hint under it, and its `aria-describedby`. Two separate conditions is how the
@@ -438,11 +416,38 @@ export function BookingForm({
     setDuration(options[0] ?? duration);
   }, [cfg, duration, promotionId, initialDuration, activePromo]);
 
+  function onBranchChange(nextBranch: string) {
+    setBranchId(nextBranch);
+    setUnitId("");
+    // Jam yang dipilih milik unit lama, jadi harus ikut hilang; membiarkannya
+    // berarti ringkasan di langkah berikutnya mengutip unit berbeda pada
+    // tanggal lama.
+    setStartIso(null);
+    setSlots(null);
+    // Game adalah ketersediaan per cabang — yang valid untuk cabang lama belum
+    // tentu ada di yang baru.
+    setGameId("");
+    // Tipe dari widget hanya dibuang kalau memang tidak ada unit bertipe itu
+    // di cabang baru. Mengosongkannya tanpa syarat akan membuang filter yang
+    // masih relevan.
+    if (typeId && !units.some((u) => u.branch_id === nextBranch && u.facility_type_id === typeId)) {
+      setTypeId("");
+    }
+  }
+
+  function onPromotionChange(next: string | null) {
+    setPromotionId(next);
+    // Snap the duration to the package (R4) rather than silently
+    // dropping a promo the customer just picked.
+    const picked = next ? promoOptions.find((o) => o.promotion_id === next) : null;
+    if (picked) setDuration(picked.duration_minutes);
+  }
+
   async function submit() {
     // Wajib diisi: nama (minimal 2 huruf, sama seperti batas server) dan nomor
     // WhatsApp. Dicek sebelum fetch supaya pesannya menyebut kolomnya, bukan
     // "Data booking tidak valid" generik dari API.
-    const missing: { name?: string; phone?: string } = {};
+    const missing: FieldError = {};
     const n = nameError(customer.name);
     if (n) missing.name = n;
     const p = phoneError(customer.phone);
@@ -468,16 +473,13 @@ export function BookingForm({
         body: JSON.stringify({
           branch_id: branchId,
           unit_id: unitId,
-          customer_name: customer.name,
-          customer_phone: customer.phone,
-          ...(customer.email ? { customer_email: customer.email } : {}),
-          // Only ever sent when it still matches the context — see the guard in submit().
-          ...(activePromo ? { promotion_id: activePromo.promotion_id } : {}),
-          start_at: startIso,
+          customer_name: customer.name.trim(),
+          customer_phone: customer.phone.trim(),
+          customer_email: customer.email.trim() || undefined,
           duration_minutes: duration,
-          ...(gameId ? { game_id: gameId } : {}),
+          game_id: gameId || undefined,
+          start_at: startIso ?? undefined,
           snacks: Object.entries(pickedSnacks)
-            .filter(([, q]) => q > 0)
             // A quantity can outlive the availability that allowed it: the form stays
             // open while someone else buys the last one. Clamp against the stock this
             // render knows about instead of sending a number that is already known to be
@@ -487,6 +489,8 @@ export function BookingForm({
               return { snack_id, quantity: known ? Math.min(quantity, known.stock) : 0 };
             })
             .filter((s) => s.quantity > 0),
+          notes: undefined,
+          promotion_id: promotionId ?? undefined,
         }),
       });
       const body = await res.json().catch(() => null);
@@ -495,7 +499,9 @@ export function BookingForm({
         (err as { code?: string }).code = body?.error?.code;
         throw err;
       }
-      router.push(`/tiket/${body.booking.booking_code}`);
+      // Navigasi penuh: cookie akses tiket baru saja diset oleh response POST
+      // ini, dan tiket harus langsung terbuka tanpa mampir ke /cek-booking.
+      window.location.assign(`/tiket/${body.booking.booking_code}`);
     } catch (e) {
       // Only a failure re-enables the form. On success the router is already navigating
       // away, and flipping the button back to "Buat Booking" invites a second submit of
@@ -529,443 +535,95 @@ export function BookingForm({
         >
           <Stepper step={step} />
 
-        {error && (
-          <p role="alert" className="rounded-lg bg-danger/15 p-3 text-sm text-danger">
-            {error}
-          </p>
-        )}
-
-        {step === 1 && (
-          <div className="space-y-5">
-            <h2 ref={stepHeadingRef} tabIndex={-1} className="font-display text-lg uppercase scroll-mt-28">
-              Tempat
-            </h2>
-            <div className="space-y-2">
-              <Label htmlFor="branch">Cabang</Label>
-              <SelectField
-                id="branch"
-                value={branchId}
-                onChange={(e) => {
-                  const nextBranch = e.target.value;
-                  setBranchId(nextBranch);
-                  setUnitId("");
-                  // Jam yang dipilih milik unit lama, jadi harus ikut hilang; membiarkannya
-                  // berarti ringkasan di langkah berikutnya mengutip unit berbeda pada
-                  // tanggal lama.
-                  setStartIso(null);
-                  setSlots(null);
-                  // Game adalah ketersediaan per cabang — yang valid untuk cabang lama belum
-                  // tentu ada di yang baru.
-                  setGameId("");
-                  // Tipe dari widget hanya dibuang kalau memang tidak ada unit bertipe itu
-                  // di cabang baru. Mengosongkannya tanpa syarat akan membuang filter yang
-                  // masih relevan.
-                  if (typeId && !units.some((u) => u.branch_id === nextBranch && u.facility_type_id === typeId)) {
-                    setTypeId("");
-                  }
-                }}
-              >
-                {branches.map((b) => (
-                  <option key={b.branch_id} value={b.branch_id}>
-                    {b.name}
-                  </option>
-                ))}
-              </SelectField>
-            </div>
-
-            {typeId && (
-              <p className="flex items-center justify-between gap-2 rounded-lg bg-primary/10 px-3 py-2 text-sm">
-                <span>
-                  Disaring ke{" "}
-                  <strong className="font-medium">
-                    {rentalUnits.find((u) => u.facility_type_id === typeId)?.facility_types?.name ??
-                      "tipe konsol"}
-                  </strong>
-                  {hiddenByType > 0 && ` · ${hiddenByType} unit disembunyikan`}
-                </span>
-                <Button type="button" size="sm" variant="ghost" onClick={() => setTypeId("")}>
-                  Semua tipe
-                </Button>
-              </p>
-            )}
-
-            {branchUnits.length === 0 ? (
-              <EmptyState
-                title={typeId ? "Tidak ada unit tipe ini di cabang ini" : "Belum ada unit di cabang ini"}
-              />
-            ) : (
-              <div role="radiogroup" aria-label="Pilih unit" className="grid gap-2 md:grid-cols-2">
-                {branchUnits.map((u) => (
-                  <button
-                    key={u.unit_id}
-                    type="button"
-                    role="radio"
-                    aria-checked={unitId === u.unit_id}
-                    aria-disabled={isUnitBlocked(u.status)}
-                    disabled={isUnitBlocked(u.status)}
-                    onClick={() => setUnitId(u.unit_id)}
-                    className={`flex items-center justify-between gap-2 rounded-lg border p-3 text-left text-sm transition-colors ${
-                      unitId === u.unit_id
-                        ? "border-primary bg-primary/10"
-                        : isUnitBlocked(u.status)
-                          ? "border-border/50 bg-muted/40 text-muted-foreground cursor-not-allowed"
-                          : "border-border hover:border-primary/60"
-                    }`}
-                  >
-                    <span>
-                      <span className="font-display block">{u.name}</span>
-                      <span className="text-muted-foreground">{u.facility_types?.name}</span>
-                    </span>
-                    <UnitStatusChip status={u.status} />
-                  </button>
-                ))}
-              </div>
-            )}
-
-            <div className="space-y-2">
-              <Button
-                type="button"
-                className="w-full"
-                disabled={!!blockReason}
-                aria-describedby={blockReason ? "unit-hint" : undefined}
-                onClick={() => setStep(2)}
-              >
-                Pilih Waktu →
-              </Button>
-              {blockReason && (
-                <p id="unit-hint" className="text-center text-xs text-warning">
-                  {blockReason}
-                </p>
-              )}
-            </div>
-          </div>
-        )}
-
-        {step === 2 && (
-          <div className="space-y-5">
-            <h2 ref={stepHeadingRef} tabIndex={-1} className="font-display text-lg uppercase scroll-mt-28">
-              Waktu
-            </h2>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="date">Tanggal</Label>
-                <Input id="date" type="date" min={minDate} max={maxDate} value={date} onChange={(e) => setDate(e.target.value)} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="duration">Durasi</Label>
-                <SelectField
-                  id="duration"
-                  // R4: a promo is a package for one duration, so while it is active the
-                  // duration is pinned instead of freely changeable. Dropping the promo
-                  // is the explicit way to pick another length.
-                  disabled={!!activePromo}
-                  value={duration}
-                  onChange={(e) => setDuration(Number(e.target.value))}
-                >
-                  {durationOptions(cfg).map((d) => (
-                    <option key={d} value={d}>
-                      {d / 60} Jam
-                    </option>
-                  ))}
-                </SelectField>
-              </div>
-            </div>
-
-            {/* ---------- slot grid ---------- */}
-            <fieldset className="space-y-2">
-              <legend className="text-sm font-medium">Jam Mulai</legend>
-
-              {!unitId ? (
-                <p className="text-sm text-muted-foreground">Pilih unit dulu di langkah sebelumnya.</p>
-              ) : (
-                <SlotPicker
-                  slots={slots}
-                  error={slotsError}
-                  startIso={startIso}
-                  onPick={setStartIso}
-                  durationMinutes={duration}
-                  onRefresh={() => setSlotsNonce((n) => n + 1)}
-                  refreshedAt={refreshedAt}
-                  onNextDay={() => {
-                    const next = new Date(Date.parse(date + "T00:00:00+07:00") + 86_400_000);
-                    const nextDay = fmtISODay(next);
-                    if (nextDay <= maxDate) setDate(nextDay);
-                  }}
-                />
-              )}
-            </fieldset>
-
-            {!timeValid && slots && freeSlots.length > 0 && (
-              <p className="text-sm text-warning">Pilih satu jam mulai yang tersedia.</p>
-            )}
-
-            <p className="text-sm text-muted-foreground">
-              {price === null ? "Menunggu harga…" : `Harga sewa: ${rp(rentalTotal)}`}
-              {promoDiscount > 0 && price !== null && (
-                <span className="text-primary">
-                  {" "}
-                  · hemat {rp(promoDiscount)} dari {rp(price)}
-                </span>
-              )}
-              {snackTotal > 0 && ` · snack ${rp(snackTotal)}`}
+          {error && (
+            <p role="alert" className="rounded-lg bg-danger/15 p-3 text-sm text-danger">
+              {error}
             </p>
+          )}
 
-            {/* ---------- promo ---------- */}
-            {/* Only offered once there is a unit, because eligibility is per room type
-                (R2). The list is what the server will actually accept: same branch, same
-                facility type, exactly this duration, and cheaper than the normal price. */}
-            {selectedUnit && promoOfferings.length > 0 && (
-              <div className="space-y-2 rounded-lg border border-primary/30 bg-primary/5 p-4">
-                <div className="space-y-2">
-                  <Label htmlFor="promo">Promo</Label>
-                  <SelectField
-                    id="promo"
-                    value={activePromo?.promotion_id ?? ""}
-                    onChange={(e) => {
-                      const next = e.target.value || null;
-                      setPromotionId(next);
-                      // Snap the duration to the package (R4) rather than silently
-                      // dropping a promo the customer just picked.
-                      const picked = next ? promoOptions.find((o) => o.promotion_id === next) : null;
-                      if (picked) setDuration(picked.duration_minutes);
-                    }}
-                  >
-                    <option value="">Tanpa promo</option>
-                    {promoOptions.map((o) => (
-                      <option key={o.promotion_id} value={o.promotion_id}>
-                        {o.name} — {o.facility_name} {o.duration_minutes / 60} jam · hemat {rp(savingOf(o))}
-                      </option>
-                    ))}
-                  </SelectField>
-                </div>
+          {step === 1 && (
+            <StepPlace
+              branches={branches}
+              branchId={branchId}
+              onBranchChange={onBranchChange}
+              branchUnits={branchUnits}
+              rentalUnits={rentalUnits}
+              typeId={typeId}
+              onClearType={() => setTypeId("")}
+              hiddenByType={hiddenByType}
+              unitId={unitId}
+              onUnitChange={setUnitId}
+              onNext={() => setStep(2)}
+              blockReason={blockReason}
+              headingRef={stepHeadingRef}
+            />
+          )}
 
-                {activePromo ? (
-                  <div className="space-y-1 text-sm">
-                    <p className="font-medium text-primary">
-                      {activePromo.name}: {rp(activePromo.promo_price)} untuk {activePromo.duration_minutes / 60} jam{" "}
-                      {activePromo.facility_name}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      Harga normal {rp(activePromo.normal_price)} · hemat {rp(savingOf(activePromo))}
-                      {activePromo.bonus_snack_name &&
-                        ` · bonus ${activePromo.bonus_quantity}× ${activePromo.bonus_snack_name} (selama stok)`}
-                    </p>
-                    <button
-                      type="button"
-                      className="text-xs font-bold text-muted-foreground hover:text-foreground hover:underline"
-                      onClick={() => setPromotionId(null)}
-                    >
-                      Lepas promo
-                    </button>
-                  </div>
-                ) : promoOptions.length === 0 ? (
-                  <p className="text-xs text-muted-foreground">
-                    Tidak ada promo untuk tipe unit & durasi ini.
-                  </p>
-                ) : (
-                  <p className="text-xs text-muted-foreground">Pilih promo untuk harga paket.</p>
-                )}
-              </div>
-            )}
+          {step === 2 && (
+            <StepTime
+              cfg={cfg}
+              minDate={minDate}
+              maxDate={maxDate}
+              date={date}
+              onDateChange={setDate}
+              duration={duration}
+              onDurationChange={setDuration}
+              unitId={unitId}
+              slots={slots}
+              slotsError={slotsError}
+              startIso={startIso}
+              onPick={setStartIso}
+              durationMinutes={duration}
+              onRefresh={() => setSlotsNonce((n) => n + 1)}
+              refreshedAt={refreshedAt}
+              onNextDay={() => {
+                const next = new Date(Date.parse(`${date}T00:00:00+07:00`) + 86_400_000);
+                const nextDayIso = fmtISODay(next);
+                if (nextDayIso <= maxDate) setDate(nextDayIso);
+              }}
+              timeValid={timeValid}
+              freeSlotCount={freeSlots.length}
+              price={price}
+              rentalTotal={rentalTotal}
+              promoDiscount={promoDiscount}
+              snackTotal={snackTotal}
+              promoOfferings={promoOfferings}
+              promoOptions={promoOptions}
+              activePromo={activePromo}
+              onPromotionChange={onPromotionChange}
+              onClearPromo={() => setPromotionId(null)}
+              headingRef={stepHeadingRef}
+            />
+          )}
 
-            </div>
-        )}
-
-        {step === 3 && (
-          <div className="space-y-5">
-            <h2 ref={stepHeadingRef} tabIndex={-1} className="font-display text-lg uppercase scroll-mt-28">
-              Data Diri
-            </h2>
-            {/* One required-marker style: `*` next to the label means required, "opsional"
-                in the label means not. A legend explaining the asterisk only duplicates
-                that in a second place to keep in sync. */}
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="name">
-                  Nama <span className="text-danger">*</span>
-                </Label>
-                <Input
-                  id="name"
-                  required
-                  autoComplete="name"
-                  enterKeyHint="next"
-                  aria-invalid={fieldError.name ? true : undefined}
-                  aria-describedby={fieldError.name ? "name-error" : undefined}
-                  value={customer.name}
-                  maxLength={80}
-                  onChange={(e) => {
-                    setCustomer({ ...customer, name: e.target.value });
-                    if (fieldError.name) setFieldError({ ...fieldError, name: undefined });
-                  }}
-                  onBlur={(e) => {
-                    const message = nameError(e.target.value);
-                    if (message !== fieldError.name) setFieldError({ ...fieldError, name: message });
-                  }}
-                />
-                {fieldError.name && (
-                  <p id="name-error" className="text-xs text-danger">
-                    {fieldError.name}
-                  </p>
-                )}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="phone">
-                  Nomor WhatsApp <span className="text-danger">*</span>
-                </Label>
-                <Input
-                  id="phone"
-                  required
-                  inputMode="tel"
-                  autoComplete="tel"
-                  enterKeyHint="next"
-                  placeholder="08xx xxxx xxxx"
-                  aria-invalid={fieldError.phone ? true : undefined}
-                  aria-describedby={fieldError.phone ? "phone-error" : undefined}
-                  value={customer.phone}
-                  onChange={(e) => {
-                    setCustomer({ ...customer, phone: e.target.value });
-                    if (fieldError.phone) setFieldError({ ...fieldError, phone: undefined });
-                  }}
-                  onBlur={(e) => {
-                    const message = phoneError(e.target.value);
-                    if (message !== fieldError.phone) setFieldError({ ...fieldError, phone: message });
-                  }}
-                />
-                {fieldError.phone && (
-                  <p id="phone-error" className="text-xs text-danger">
-                    {fieldError.phone}
-                  </p>
-                )}
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="email">Email (opsional)</Label>
-              <Input
-                id="email"
-                type="email"
-                autoComplete="email"
-                enterKeyHint="next"
-                value={customer.email}
-                onChange={(e) => setCustomer({ ...customer, email: e.target.value })}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="game">Game (opsional)</Label>
-              <SelectField
-                id="game"
-                value={gameId}
-                onChange={(e) => setGameId(e.target.value)}
-              >
-                <option value="">Tanpa game tertentu</option>
-                {branchGames.map((g) => (
-                  <option key={g.game_id} value={g.game_id}>
-                    {g.name}
-                  </option>
-                ))}
-              </SelectField>
-            </div>
-
-            <div className="space-y-2">
-              <Label id="snacks-label">Snacks (opsional)</Label>
-              <div role="group" aria-labelledby="snacks-label" className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                {snacks.map((s) => {
-                  const status = stockStatus(s);
-                  const soldOut = status === "out";
-                  // A convenience, not the guard. Stock can move between this render and
-                  // the submit, so the trigger on inventory_movements stays the thing that
-                  // actually refuses an oversell — this only stops the form offering a
-                  // number the shelf cannot honour.
-                  const cap = Math.min(20, s.stock);
-                  return (
-                  <div
-                    key={s.snack_id}
-                    className={cn(
-                      "flex items-center justify-between gap-2 rounded-lg border border-border p-2 text-sm",
-                      soldOut && "opacity-60",
-                    )}
-                  >
-                    <span className="min-w-0 truncate">
-                      {s.name} · {rp(s.price)}
-                      {/* Same rule as the menu, and for the same reason: the old
-                          `stock <= min_stock` test labelled a sold-out item "stok tipis"
-                          and never said it was gone. */}
-                      {status !== "ok" && (
-                        <span
-                          className={cn(
-                            "ml-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium",
-                            soldOut ? "bg-danger/15 text-error" : "bg-warning/15 text-warning",
-                          )}
-                        >
-                          {soldOut ? "Habis" : "Stok tipis"}
-                        </span>
-                      )}
-                    </span>
-                    <input
-                      type="number"
-                      min={0}
-                      max={cap}
-                      disabled={soldOut}
-                      aria-label={`Jumlah ${s.name}`}
-                      value={soldOut ? 0 : pickedSnacks[s.snack_id] ?? 0}
-                      onChange={(e) =>
-                        setPickedSnacks({
-                          ...pickedSnacks,
-                          [s.snack_id]: Math.max(0, Math.min(cap, Number(e.target.value) || 0)),
-                        })
-                      }
-                      className="w-16 rounded-md border border-input bg-card px-2 py-1 text-right disabled:cursor-not-allowed"
-                    />
-                  </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="rounded-lg bg-surface-low p-4 text-sm">
-              <p className="flex justify-between">
-                <span>
-                  Sewa {date} {startIso ? fmtTime(startIso) : "—"} · {fmtDuration(duration)}
-                  {activePromo && price !== null && (
-                    <span className="text-muted-foreground"> (normal {rp(price)})</span>
-                  )}
-                </span>
-                <span>{price === null ? "—" : rp(rentalTotal)}</span>
-              </p>
-              {/* The saving is stated, not subtracted: "Sewa" above already shows the promo
-                  price, so a minus here would read as a second discount that the total
-                  does not contain. */}
-              {activePromo && (
-                <p className="flex justify-between text-primary">
-                  <span>Promo {activePromo.name} · hemat</span>
-                  <span>{rp(promoDiscount)}</span>
-                </p>
-              )}
-              <p className="flex justify-between">
-                <span>Snacks</span>
-                <span>{rp(snackTotal)}</span>
-              </p>
-              {activePromo?.bonus_snack_name && (
-                <p className="flex justify-between text-xs text-muted-foreground">
-                  <span>Bonus dari promo</span>
-                  <span>
-                    {activePromo.bonus_quantity}× {activePromo.bonus_snack_name}
-                  </span>
-                </p>
-              )}
-              <p className="font-display mt-2 flex justify-between border-t border-border pt-2 text-base">
-                <span>Total</span>
-                <span>{price === null ? "—" : rp(grandTotal)}</span>
-              </p>
-              {cfg && (
-                <p className="mt-2 text-xs text-warning">
-                  Bayar dalam {cfg.payment_deadline_minutes} menit setelah booking dibuat.
-                </p>
-              )}
-            </div>
-          </div>
-        )}
-      </CardContent>
+          {step === 3 && (
+            <StepDetails
+              customer={customer}
+              onCustomerChange={setCustomer}
+              fieldError={fieldError}
+              onFieldError={setFieldError}
+              branchGames={branchGames}
+              gameId={gameId}
+              onGameChange={setGameId}
+              snacks={snacks}
+              pickedSnacks={pickedSnacks}
+              onPickSnack={(snackId, quantity) =>
+                setPickedSnacks({ ...pickedSnacks, [snackId]: quantity })
+              }
+              date={date}
+              startIso={startIso}
+              duration={duration}
+              rentalTotal={rentalTotal}
+              promoDiscount={promoDiscount}
+              snackTotal={snackTotal}
+              grandTotal={grandTotal}
+              price={price}
+              activePromo={activePromo}
+              paymentDeadlineMinutes={cfg?.payment_deadline_minutes ?? null}
+              headingRef={stepHeadingRef}
+            />
+          )}
+        </CardContent>
       </Card>
 
       {/* Docked summary + the one primary button for this step. It sits outside the Card
@@ -1007,7 +665,7 @@ export function BookingForm({
             )}
           </div>
           {step === 2 && blockReason && (
-            <p id="next-hint" className="mt-2 text-xs text-warning">
+            <p id="next-hint" role="status" className="mt-2 text-xs text-warning">
               {blockReason}
             </p>
           )}

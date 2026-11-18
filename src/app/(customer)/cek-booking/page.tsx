@@ -3,7 +3,6 @@
 import { PageHero } from "@/components/page-hero";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import {
   ArrowRight,
   Check,
@@ -63,7 +62,6 @@ const FAQ: { q: string; a: string }[] = [
  * access cookie that unlocks `/tiket/[code]`.
  */
 export default function CekBookingPage() {
-  const router = useRouter();
   const [code, setCode] = useState("");
   const [digits, setDigits] = useState<string[]>(["", "", "", ""]);
   const [phase, setPhase] = useState<Phase>("idle");
@@ -75,6 +73,8 @@ export default function CekBookingPage() {
   const [fromUrl, setFromUrl] = useState(false);
   const [lockUntil, setLockUntil] = useState(0);
   const [now, setNow] = useState(0);
+  /** Halaman tujuan setelah verifikasi (internal saja). */
+  const [nextPath, setNextPath] = useState<string | null>(null);
 
   const boxes = useRef<(HTMLInputElement | null)[]>([]);
   const codeRef = useRef<HTMLInputElement>(null);
@@ -90,8 +90,15 @@ export default function CekBookingPage() {
 
   // Tiket redirects here with ?code=… whenever the access cookie is missing or
   // stale — so the visitor never retypes the code. Land the cursor on the digits.
+  // ?next=… dipakai untuk kembali ke halaman tujuan setelah verifikasi
+  // (mis. /payment/<kode>), karena gate akses juga berlaku di sana.
   useEffect(() => {
-    const fromQuery = new URLSearchParams(window.location.search).get("code");
+    const params = new URLSearchParams(window.location.search);
+    const fromQuery = params.get("code");
+    const next = params.get("next");
+    if (next && next.startsWith("/") && !next.startsWith("//")) {
+      setNextPath(next);
+    }
     if (!fromQuery) return;
     const c = normalizeCode(fromQuery);
     setCode(c);
@@ -189,11 +196,19 @@ export default function CekBookingPage() {
       });
 
       if (res.ok) {
-        // Stay locked on success: re-enabling the button while router.push is still
+        // Stay locked on success: re-enabling the button while navigation is still
         // resolving is how one customer ends up verifying twice.
         navigating = true;
         setPhase("success");
-        router.push(`/tiket/${encodeURIComponent(code)}`);
+        // Kembali ke tujuan semula (mis. halaman pembayaran) kalau ada;
+        // selain itu ke tiket.
+        //
+        // Navigasi PENUH, bukan router.push: cookie akses baru saja diset oleh
+        // response fetch ini, dan Router Cache Next bisa menyajikan hasil lama
+        // (redirect balik ke /cek-booking) dari kunjungan sebelumnya. Itu gejala
+        // "data sudah benar tapi tidak pindah ke tiket". `location.assign`
+        // memaksa request baru yang membawa cookie terbaru.
+        window.location.assign(nextPath ?? `/tiket/${encodeURIComponent(code)}`);
         // If navigation stalls, give the form back rather than strand the customer.
         stallTimer.current = setTimeout(() => {
           setPhase("idle");

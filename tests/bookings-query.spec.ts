@@ -17,7 +17,8 @@ const describeLive = connectionString && hasSupabase ? describe : describe.skip;
 describeLive("admin bookings query", () => {
   const suffix = Date.now().toString(36).toUpperCase();
   const branchId = "BR-B5";
-  const phone = `0898${suffix}`;
+  // Nomor HP harus angka saja (base36 bisa memuat huruf; nomor dinormalisasi ke 62…).
+  const phone = `0898${String(Date.now()).slice(-8)}`;
   // Customer names are attacker-controllable, so this stands in for the worst case a
   // search box can be handed: filter syntax and a formula prefix at once.
   const hostileName = `=),(${suffix}`;

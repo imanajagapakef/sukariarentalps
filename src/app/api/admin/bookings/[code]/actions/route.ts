@@ -14,6 +14,7 @@ import {
 import { audit } from "@/lib/audit";
 import { handleRouteError, jsonError } from "@/lib/api/response";
 import { bookingActionSchema } from "@/lib/validations/admin";
+import { notifyAdminChanged } from "@/lib/realtime-notify";
 
 /** Staff lifecycle actions on a booking, dispatched to the guarded RPCs. */
 export async function POST(
@@ -66,11 +67,34 @@ export async function POST(
       switch (action) {
         case "confirm":
           await confirmBooking(db, booking.booking_id);
-          await db
-            .from("payments")
-            .update({ status: "PAID", paid_at: new Date().toISOString() })
-            .eq("booking_id", booking.booking_id)
-            .eq("status", "PENDING");
+          // Ada DUA jalur masuk pembayaran: QRIS (pelanggan membuat baris PENDING
+          // lewat /payment) dan transfer manual (tidak ada baris sampai kasir
+          // memverifikasi). Kalau baris PENDING tidak ada, buat satu baris PAID
+          // di sini — tanpa itu laporan pendapatan kehilangan uang yang sudah
+          // benar-benar diterima kasir.
+          {
+            const { data: pending } = await db
+              .from("payments")
+              .select("payment_id")
+              .eq("booking_id", booking.booking_id)
+              .in("status", ["PENDING", "PAID"])
+              .maybeSingle();
+            if (pending) {
+              await db
+                .from("payments")
+                .update({ status: "PAID", paid_at: new Date().toISOString() })
+                .eq("payment_id", pending.payment_id);
+            } else {
+              await db.from("payments").insert({
+                booking_id: booking.booking_id,
+                provider: "MANUAL",
+                method: "TRANSFER_MANUAL",
+                status: "PAID",
+                gross_amount: booking.total_amount,
+                paid_at: new Date().toISOString(),
+              });
+            }
+          }
           break;
         case "check_in":
           await checkIn(db, booking.booking_id);
@@ -95,6 +119,9 @@ export async function POST(
       entityId: code,
       reason,
     });
+
+    // Kasir lain di layar berbeda ikut melihat status baru tanpa refresh.
+    notifyAdminChanged();
 
     const booking = await getBookingByCode(db, code);
     return NextResponse.json({ status: booking?.status ?? "UNKNOWN" });

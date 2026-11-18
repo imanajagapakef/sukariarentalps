@@ -14,7 +14,11 @@ const describeDb = connectionString ? describe : describe.skip;
  */
 describeDb("tournament engine", () => {
   const S = Date.now().toString(36).toUpperCase();
-  const phone = (n: string) => `0877${S.slice(-5)}${n}`;
+  // Nomor HP harus angka saja (base36 bisa memuat huruf; nomor dinormalisasi ke 62…).
+  const PHONE_BASE = `0877${String(Date.now()).slice(-5)}`;
+  /** Bentuk tersimpan di customers.phone setelah normalisasi ke 62…. */
+  const NORMALIZED_PHONE_BASE = `62${PHONE_BASE.slice(1)}`;
+  const phone = (n: string) => `${PHONE_BASE}${n}`;
   const starts = new Date(Date.now() + 7 * 864e5).toISOString();
 
   let db: Client;
@@ -92,13 +96,18 @@ describeDb("tournament engine", () => {
       await db.query(`delete from tournament_registrations where tournament_id = $1`, [id]);
       await db.query(`delete from tournaments where tournament_id = $1`, [id]);
     }
-    await db.query(`delete from notifications where recipient_ref like $1`, [`0877${S.slice(-5)}%`]);
-    await db.query(`delete from customers where phone like $1`, [`0877${S.slice(-5)}%`]);
+    await db.query(`delete from notifications where recipient_ref like $1`, [`${PHONE_BASE}%`]);
+    // customers.phone disimpan dalam format ternormalisasi (62…), jadi pola
+    // lokal ("0877…") tidak lagi cocok — hapus keduanya.
+    await db.query(
+      `delete from customers where phone like $1 or phone like $2`,
+      [`${PHONE_BASE}%`, [`${NORMALIZED_PHONE_BASE}%`]],
+    );
     await db.end();
   });
 
   beforeEach(async () => {
-    await db.query(`delete from notifications where recipient_ref like $1`, [`0877${S.slice(-5)}%`]);
+    await db.query(`delete from notifications where recipient_ref like $1`, [`${PHONE_BASE}%`]);
   });
 
   describe("seed order (T8)", () => {

@@ -24,8 +24,12 @@ import { hasBookingAccess } from "@/lib/booking-access";
 import { BookingStatusPill } from "@/components/status-pill";
 import { Cover } from "@/components/cover";
 import { Button } from "@/components/ui/button";
-import { PayButton, CancelButton, Countdown, CopyCodeButton } from "@/components/ticket-actions";
+import { CancelButton, Countdown, CopyCodeButton } from "@/components/ticket-actions";
+import { TicketPaymentPanel } from "@/components/payment/ticket-payment-panel";
+import { PaymentConfirmedCelebration } from "@/components/payment/payment-confirmed-celebration";
 import { LiveBooking } from "@/components/live-booking";
+import { dynamicQrisDataUrl } from "@/lib/qris";
+import { MAX_PROOFS_PER_BOOKING } from "@/lib/payment-proofs";
 import { fmtDateTime, fmtDuration, fmtISODay, fmtTime, rp } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -114,13 +118,19 @@ async function siteOrigin() {
   return `${proto}://${host}`;
 }
 
+/**
+ * QRIS dinamis dipakai juga oleh halaman perpanjangan; implementasinya tinggal
+ * di `lib/qris.ts` supaya dua layar tidak menghasilkan QR yang berbeda.
+ */
 // The ticket exposes the customer's phone and totals, so the code alone must
 // not grant access. The gate is checked before any query: a visitor without
 // the cookie never reaches the database at all.
 export default async function TicketPage({ params }: { params: Promise<{ code: string }> }) {
   const { code } = await params;
   if (!(await hasBookingAccess(code))) {
-    redirect(`/cek-booking?code=${encodeURIComponent(code)}`);
+    redirect(
+      `/cek-booking?code=${encodeURIComponent(code)}&next=${encodeURIComponent(`/tiket/${code}`)}`,
+    );
   }
   const db = createAdminClient();
   const booking = await getBookingByCode(db, code);
@@ -145,6 +155,27 @@ export default async function TicketPage({ params }: { params: Promise<{ code: s
       ? QRCode.toDataURL(ticketUrl, { width: 512, margin: 1, errorCorrectionLevel: "M" })
       : Promise.resolve(null),
   ]);
+
+  // Panel pembayaran hanya relevan selagi booking menunggu pembayaran.
+  const paying = status === "WAITING_PAYMENT";
+  const proofCount = paying
+    ? (
+        await db
+          .from("payment_proofs")
+          .select("proof_id", { count: "exact", head: true })
+          .eq("booking_id", booking.booking_id)
+      ).count ?? 0
+    : 0;
+  const qrisDataUrl = paying ? await dynamicQrisDataUrl(booking.total_amount) : null;
+
+  /** Rekening tujuan transfer. Kosong = panel menampilkan "hubungi kasir". */
+  const bank = process.env.BANK_NAME && process.env.BANK_ACCOUNT_NUMBER
+    ? {
+        bank: process.env.BANK_NAME,
+        accountNumber: process.env.BANK_ACCOUNT_NUMBER,
+        accountHolder: process.env.BANK_ACCOUNT_HOLDER ?? "Klub Sukaria",
+      }
+    : null;
 
   const unitName = unit?.name ?? "Unit";
   const branchName = unit?.branches?.short_name ?? unit?.branches?.name ?? "";
@@ -182,9 +213,30 @@ export default async function TicketPage({ params }: { params: Promise<{ code: s
         style={{ backgroundImage: "radial-gradient(currentColor 1px, transparent 1px)", backgroundSize: "20px 20px" }}
       />
 
-      <div className="mx-auto max-w-3xl space-y-5 px-4 py-10 md:px-8">
+      <div
+        className={cn(
+          "mx-auto space-y-4 px-4 py-10 md:px-8",
+          // Saat menunggu bayar, kolom kanan 360px menemani tiket. Setelah
+          // pembayaran dikonfirmasi panel itu hilang, jadi kontainer menyempit
+          // ke satu kolom yang LEBIH LEBAR dan terpusat — bukan menyisakan
+          // lubang kosong di kanan seperti grid dua kolom tanpa anak kedua.
+          paying ? "max-w-5xl" : "max-w-4xl",
+        )}
+      >
         <LiveBooking code={booking.booking_code} status={booking.status} />
 
+        <PaymentConfirmedCelebration
+          status={booking.status}
+          code={booking.booking_code}
+          total={booking.total_amount}
+          scheduledStartAt={booking.scheduled_start_at}
+          unitName={unitName}
+        />
+
+        {/* Grid dua kolom hanya saat ada panel pembayaran. Tanpa itu, tiket
+            memakai lebar penuh kontainer. */}
+        <div className={cn("grid gap-5 lg:items-start", paying && "lg:grid-cols-[minmax(0,1fr)_360px]")}>
+          <div className="min-w-0 space-y-5">
         {/* ============================ HEADER ============================ */}
         <header className="flex items-start justify-between gap-3">
           <div className="min-w-0">
@@ -207,7 +259,10 @@ export default async function TicketPage({ params }: { params: Promise<{ code: s
             </p>
             <p className="mt-1 text-sm text-warning">Selesaikan pembayaran sebelum:</p>
             <Countdown deadline={booking.payment_deadline_at} />
-            <PayButton code={booking.booking_code} className="mt-3 w-full" />
+            <p className="mt-2 text-xs text-muted-foreground">
+              Pilih cara bayar di panel sebelah — QRIS atau transfer bank — lalu unggah buktinya.
+              Kasir mengonfirmasi manual.
+            </p>
           </section>
         )}
 
@@ -489,6 +544,23 @@ export default async function TicketPage({ params }: { params: Promise<{ code: s
             </a>
           </Button>
         </section>
+          </div>
+
+          {/* Panel pembayaran — sticky di desktop supaya tetap terlihat saat
+              pelanggan menggulir rincian/ketentuan di kolom kiri. */}
+          {paying && (
+            <aside className="lg:sticky lg:top-24">
+              <TicketPaymentPanel
+                code={booking.booking_code}
+                total={booking.total_amount}
+                qrDataUrl={qrisDataUrl}
+                bank={bank}
+                usedProofs={proofCount}
+                maxProofs={MAX_PROOFS_PER_BOOKING}
+              />
+            </aside>
+          )}
+        </div>
       </div>
     </div>
   );

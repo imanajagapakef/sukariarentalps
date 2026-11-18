@@ -1,9 +1,13 @@
 import { NextResponse } from "next/server";
+import { randomUUID } from "node:crypto";
 import { ZodError } from "zod";
 import { AuthError } from "@/lib/authz";
 
-export function jsonError(message: string, status: number, code?: string) {
-  return NextResponse.json({ error: { message, code } }, { status });
+export function jsonError(message: string, status: number, code?: string, correlationId?: string) {
+  return NextResponse.json(
+    { error: { message, code, ...(correlationId ? { correlationId } : {}) } },
+    { status, ...(correlationId ? { headers: { "x-correlation-id": correlationId } } : {}) },
+  );
 }
 
 /** Map a thrown error to an HTTP response, treating domain errors as 4xx. */
@@ -31,7 +35,11 @@ export function handleRouteError(error: unknown) {
     const code = "code" in error ? ((error as { code?: string }).code ?? undefined) : undefined;
 
     if (isClient) return jsonError(error.message, 400, code);
-    return jsonError(error.message, 500, code);
+    // 5xx: pesan mentah (termasuk config seperti "QRIS_STATIC_STRING belum diisi")
+    // tidak boleh bocor ke endpoint publik. Detail hanya di log server.
+    const correlationId = randomUUID();
+    console.error(`[route:${correlationId}]`, error);
+    return jsonError("Terjadi kesalahan. Coba lagi nanti.", 500, "INTERNAL_ERROR", correlationId);
   }
   return jsonError("Terjadi kesalahan tak terduga", 500);
 }

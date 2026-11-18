@@ -2,8 +2,9 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { verifyBookingAccessByCode } from "@/services/booking.service";
 import { handleRouteError, jsonError, jsonRateLimited } from "@/lib/api/response";
-import { setBookingAccessCookie } from "@/lib/booking-access";
-import { rateLimit } from "@/lib/rate-limit";
+import { BOOKING_ACCESS_COOKIE, setBookingAccessCookie } from "@/lib/booking-access";
+import { rateLimitDb, bookingAccessIsLocked, bookingAccessLockout } from "@/lib/rate-limit";
+import { cookies } from "next/headers";
 
 /**
  * Booking-verification endpoint. Knowing the code is no longer enough: the
@@ -18,8 +19,13 @@ export async function GET(
   try {
     const { code } = await params;
 
-    const limit = rateLimit("bookingRead", request, code);
+    const limit = await rateLimitDb("bookingRead", request, code);
     if (!limit.allowed) return jsonRateLimited(limit.retryAfterSeconds);
+
+    const lock = await bookingAccessIsLocked(code);
+    if (lock.locked) {
+      return jsonError(`Terlalu banyak percobaan verifikasi. Coba lagi dalam ${lock.retryAfterSeconds} detik.`, 429);
+    }
 
     const last4 = request.nextUrl.searchParams.get("last4")?.trim() ?? "";
     if (!/^\d{4}$/.test(last4)) {
@@ -30,17 +36,20 @@ export async function GET(
     const result = await verifyBookingAccessByCode(db, code, last4);
 
     if (!result.ok) {
+      await bookingAccessLockout(code, false);
       return result.state === "not_found"
         ? jsonError("Booking tidak ditemukan", 404)
         : jsonError("4 digit terakhir tidak cocok", 401);
     }
+    await bookingAccessLockout(code, true);
 
     // Deliberately minimal: never echo customer PII back over this endpoint.
     const res = NextResponse.json({
       booking_code: result.booking.booking_code,
       status: result.booking.status,
     });
-    setBookingAccessCookie(res, code);
+    const jar = await cookies();
+    setBookingAccessCookie(res, code, jar.get(BOOKING_ACCESS_COOKIE)?.value);
     return res;
   } catch (error) {
     return handleRouteError(error);

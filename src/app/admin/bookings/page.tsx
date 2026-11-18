@@ -1,18 +1,18 @@
 import { PageHero } from "@/components/page-hero";
 import Link from "next/link";
 import {
+  BadgeCheck,
+  Building2,
   CalendarDays,
   CircleCheck,
   CircleSlash,
   Download,
   Filter,
   Hourglass,
-  Plus,
   RotateCcw,
   Search,
   Ticket,
   TriangleAlert,
-  BadgeCheck,
   Wallet,
   Zap,
   X,
@@ -295,12 +295,6 @@ export default async function AdminBookingsPage({
         }
         actions={
           <>
-            <Link
-              href="/admin/walk-in"
-              className="inline-flex h-10 items-center gap-2 rounded-full bg-primary px-4 text-sm font-bold text-primary-foreground transition-transform hover:scale-105"
-            >
-              <Plus className="size-4" /> Walk-in
-            </Link>
             <Link
               href={exportHref}
               prefetch={false}
@@ -676,8 +670,16 @@ export default async function AdminBookingsPage({
                       </div>
                     </td>
                     <td className="px-4 py-3">
-                      <span className="inline-flex items-center gap-1.5 rounded-md bg-muted px-2 py-1 text-xs font-medium">
-                        {b.units?.name ?? "—"}
+                      <span className="inline-flex flex-col gap-1">
+                        <span className="inline-flex items-center gap-1.5 rounded-md bg-muted px-2 py-1 text-xs font-medium">
+                          {b.units?.name ?? "—"}
+                        </span>
+                        {b.units?.branches && (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-wide text-primary">
+                            <Building2 aria-hidden className="size-3" />
+                            {b.units.branches.short_name ?? b.units.branches.name}
+                          </span>
+                        )}
                       </span>
                     </td>
                     <td className="whitespace-nowrap px-4 py-3">

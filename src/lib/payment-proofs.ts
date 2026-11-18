@@ -91,6 +91,8 @@ export async function createPaymentProof(
   nominal: number,
   file: File,
   note?: string,
+  /** Diisi kalau bukti ini untuk pembayaran perpanjangan, bukan booking. */
+  extensionId?: string | null,
 ): Promise<PaymentProof> {
   const problem = await checkProofFile(file);
   if (problem) throw new ProofError(problem);
@@ -117,7 +119,13 @@ export async function createPaymentProof(
 
   const { data, error } = await db
     .from("payment_proofs")
-    .insert({ booking_id: bookingId, nominal, note: note?.trim() || null, object_path: objectPath })
+    .insert({
+      booking_id: bookingId,
+      extension_id: extensionId ?? null,
+      nominal,
+      note: note?.trim() || null,
+      object_path: objectPath,
+    })
     .select()
     .single();
   if (error || !data) {
@@ -138,7 +146,7 @@ export async function listPaymentProofs(
 
   const { data, error } = await db
     .from("payment_proofs")
-    .select("proof_id, booking_id, nominal, note, object_path, created_at, tournament_registration_id")
+    .select("proof_id, booking_id, extension_id, nominal, note, object_path, created_at, tournament_registration_id")
     .in("booking_id", bookingIds)
     .order("created_at", { ascending: false });
   if (error) throw new Error(error.message);

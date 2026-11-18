@@ -5,10 +5,13 @@ import { createPaymentForBooking } from "@/services/payment.service";
 import { POST as bookingActions } from "@/app/api/admin/bookings/[code]/actions/route";
 import { callRoute, canAuthenticate, signInAsOwner, signOut } from "./admin-harness";
 
-process.env.QRIS_STATIC_STRING = "00020101021126650013ID.CO.BTN.WWW011893600200117210000202154051101721000020303UMI51440014ID.CO.QRIS.WWW0215ID10265958817190303UMI5204721053033605802ID5911Dedi Kaisar6014TANJUNG PINANG61052912562070703A016304CA3B";
-
 const connectionString = process.env.TEST_DATABASE_URL;
-const describeDb = connectionString ? describe : describe.skip;
+const hasSupabaseEnv = Boolean(
+  process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+);
+const describeDb = connectionString && hasSupabaseEnv ? describe : describe.skip;
+
+process.env.QRIS_STATIC_STRING = "00020101021126650013ID.CO.BTN.WWW011893600200117210000202154051101721000020303UMI51440014ID.CO.QRIS.WWW0215ID10265958817190303UMI5204721053033605802ID5911Dedi Kaisar6014TANJUNG PINANG61052912562070703A016304CA3B";
 
 /**
  * Payment lifecycle with no gateway.
@@ -24,7 +27,8 @@ describeDb("payment service", () => {
   const unitId = `P-UNIT-${suffix}`;
   const facilityId = `P-FAC-${suffix}`;
   const branchId = "BR-GANET";
-  const phone = `0877${suffix}`;
+  // Nomor HP harus angka saja (base36 bisa memuat huruf; nomor dinormalisasi ke 62…).
+  const phone = `0877${String(Date.now()).slice(-8)}`;
 
   let db: Client;
   let admin: ReturnType<typeof createAdminClient>;

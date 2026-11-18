@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
-import { Check, Gamepad2, Lock, PowerOff, RefreshCcw, Sparkles, Wrench } from "lucide-react";
+import { Check, Clock, Gamepad2, Lock, PowerOff, RefreshCcw, Sparkles, Wrench } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { fmtDuration, fmtISODay, fmtTime } from "@/lib/format";
 import type { Slot } from "@/lib/validations/booking";
@@ -44,10 +44,70 @@ const SLOT_UI: Record<string, { label: string; Icon: LucideIcon }> = {
   BOOKED: { label: "Dipesan", Icon: Lock },
   IN_USE: { label: "Dipakai", Icon: Gamepad2 },
   CLEANING: { label: "Dibersihkan", Icon: Sparkles },
+  PAST: { label: "Lewat", Icon: Clock },
+  OUT_OF_SERVICE: { label: "Nonaktif", Icon: PowerOff },
 };
 
 const STRIPES =
   "bg-[repeating-linear-gradient(135deg,transparent_0_7px,rgb(255_255_255/0.05)_7px_14px)]";
+
+/** Satu blok pemakaian: rentang waktu yang ditempati booking atau pembersihan. */
+type BusyInfo = { kind: "BOOKING" | "CLEANING"; from: string; until: string };
+/** Blok untuk ringkasan; `freeAt` sudah memperhitungkan pembersihan setelahnya. */
+type BusyBlock = BusyInfo & { freeAt: string };
+
+/**
+ * Mengubah deretan slot menjadi blok-blok.
+ *
+ * Server (migrasi 0045) mengirim `busy_from`/`busy_until` per slot; slot-slot
+ * yang berurutan dalam blok yang sama membawa nilai identik, jadi cukup
+ * dilewati. Tanpa langkah ini, blok 18.00–20.00 akan tampil sebagai empat
+ * entri terpisah di ringkasan.
+ */
+function busyEntries(list: Slot[]) {
+  const bySlot = new Map<string, BusyInfo>();
+  const blocks: BusyInfo[] = [];
+  let prevKey = "";
+
+  for (const s of list) {
+    if (!s.busy_from || !s.busy_until) continue;
+    const kind: BusyInfo["kind"] =
+      s.busy_kind === "CLEANING" || s.state === "CLEANING" ? "CLEANING" : "BOOKING";
+    const info: BusyInfo = { kind, from: s.busy_from, until: s.busy_until };
+    bySlot.set(s.slot_start, info);
+
+    const key = `${kind}|${info.from}|${info.until}`;
+    if (key !== prevKey) {
+      blocks.push(info);
+      prevKey = key;
+    }
+  }
+
+  return { bySlot, blocks };
+}
+
+/**
+ * Booking yang langsung disusul pembersihan digabung jadi satu baris:
+ * "18.00–20.00 dipesan · kosong 20.30". Tanpa ini orang membaca "kosong
+ * 20.00" lalu kecewa karena 30 menit berikutnya justru dibersihkan.
+ */
+function mergeCleaning(blocks: BusyInfo[]): BusyBlock[] {
+  const out: BusyBlock[] = [];
+  for (let i = 0; i < blocks.length; i++) {
+    const b = blocks[i];
+    const next = blocks[i + 1];
+    if (b.kind === "BOOKING" && next?.kind === "CLEANING" && Date.parse(next.from) === Date.parse(b.until)) {
+      out.push({ ...b, freeAt: next.until });
+      i++; // pembersihannya sudah diwakili baris ini
+    } else {
+      out.push({ ...b, freeAt: b.until });
+    }
+  }
+  return out;
+}
+
+/** Berapa blok yang ditampilkan sebelum diringkas jadi "+N lagi". */
+const MAX_SUMMARY = 4;
 
 /** Jam dan menit dalam WIB untuk sebuah ISO string. */
 function wibParts(iso: string): { hour: number; minute: number } {
@@ -134,6 +194,12 @@ export function SlotPicker({
   }, [visible]);
 
   const presentStates = useMemo(() => Array.from(new Set(list.map((s) => s.state))), [list]);
+
+  // Rentang blok untuk ringkasan + catatan per kotak. Dihitung dari `list`
+  // (semua slot), bukan `visible`, supaya jadwal tetap utuh walau filter
+  // "Hanya yang kosong" dinyalakan.
+  const { bySlot: busyBySlot, blocks: busyBlockInfo } = useMemo(() => busyEntries(list), [list]);
+  const blocks = useMemo(() => mergeCleaning(busyBlockInfo), [busyBlockInfo]);
 
   // Roving tabindex: satu tab stop untuk seluruh grid.
   const tabStop = free.find((s) => s.slot_start === startIso)?.slot_start ?? free[0]?.slot_start;
@@ -222,12 +288,19 @@ export function SlotPicker({
     : null;
   const crossesMidnight =
     picked && endIso ? fmtISODay(new Date(endIso)) !== fmtISODay(new Date(picked.slot_start)) : false;
+  // Blok yang mulai tepat saat sesi pilihan berakhir — dipakai untuk menjawab
+  // "setelah main ini, unit dipakai/dibersihkan sampai kapan".
+  const nextBusy = endIso
+    ? blocks.find((b) => Date.parse(b.from) === Date.parse(endIso))
+    : undefined;
 
   return (
     <div className="space-y-3">
-      {/* Ringkasan: jawaban cepat sebelum orang memindai 24 kotak. */}
+      {/* Ringkasan: jawaban cepat sebelum orang memindai 24 kotak.
+          `aria-live` supaya screen readermemberi tahu ketika hitungan berubah
+          (unit/durasi baru dimuat) — tanpa itu, perubahan hanya terlihat. */}
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm">
+        <p role="status" aria-live="polite" className="text-sm">
           <span className="font-medium text-primary">{free.length}</span>{" "}
           <span className="text-muted-foreground"> dari {list.length} jam kosong</span>
         </p>
@@ -262,10 +335,66 @@ export function SlotPicker({
         </div>
       </div>
 
-      <div role="radiogroup" aria-label="Pilih jam mulai" onKeyDown={onKeyDown} className="space-y-4">
+      {/* Ringkasan jadwal unit hari ini. Menjawab "jam sekian sampai sekian
+          sudah dipesan, kapan kosongnya, kapan dibersihkannya" tanpa harus
+          menebak dari kotak bertanda garis miring. */}
+      {blocks.length > 0 && (
+        <div className="rounded-lg border border-border bg-surface-low px-3 py-2.5">
+          <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+            Jadwal unit ini
+          </p>
+          <ul className="mt-1.5 flex flex-wrap gap-1.5 text-xs">
+            {blocks.slice(0, MAX_SUMMARY).map((b) => {
+              const Icon = b.kind === "CLEANING" ? Sparkles : Lock;
+              return (
+                <li
+                  key={`${b.kind}-${b.from}`}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-2.5 py-1"
+                >
+                  <Icon aria-hidden className="size-3 shrink-0 text-muted-foreground" />
+                  <span className="font-medium tabular-nums">
+                    {fmtTime(b.from)}–{fmtTime(b.until)}
+                  </span>
+                  <span className="text-muted-foreground">
+                    {b.kind === "CLEANING" ? "dibersihkan" : "dipesan"}
+                  </span>
+                  {b.freeAt !== b.until && (
+                    <>
+                      <span aria-hidden className="text-muted-foreground/50">·</span>
+                      <span className="text-muted-foreground">
+                        kosong <span className="font-medium tabular-nums text-foreground">{fmtTime(b.freeAt)}</span>
+                      </span>
+                    </>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+          {blocks.length > MAX_SUMMARY && (
+            <p className="mt-1.5 text-xs text-muted-foreground">
+              +{blocks.length - MAX_SUMMARY} jadwal lain hari ini (di bawah).
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* Grup radiogroup: satu container untuk seluruh jam, dengan
+          aria-describedby yang menunjuk ke catatan ketersediaan — jadi
+          pengguna screen reader tahu ketersediaan bisa berubah.
+          Per-period hanya pengelompokan visual, bukan grup ARIA terpisah:
+          screen reader tetap membaca daftar jam sebagai satu pilihan. */}
+      <div
+        role="radiogroup"
+        aria-label="Pilih jam mulai"
+        aria-describedby="slot-availability-hint"
+        onKeyDown={onKeyDown}
+        className="space-y-4"
+      >
         {groups.map((g) => (
           <div key={g.period}>
-            <p className="mb-1.5 text-xs font-medium text-muted-foreground">{g.period}</p>
+            <p aria-hidden className="mb-1.5 text-xs font-medium text-muted-foreground">
+              {g.period}
+            </p>
             <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
               {g.items.map((s) => {
                 const open = isFree(s);
@@ -274,13 +403,19 @@ export function SlotPicker({
                 const ui = SLOT_UI[s.state] ?? { label: s.state.toLowerCase(), Icon: Lock };
                 const Icon = ui.Icon;
                 const time = fmtTime(s.slot_start);
+                const busy = busyBySlot.get(s.slot_start);
+                // Kotak yang terpakai menyebut kapan bloknya selesai, bukan
+                // sekadar "Dipesan": itu yang dicari orang saat memilih jam.
                 const note = isPicked
                   ? "Dipilih"
                   : isCovered
-                    ? `${ui.label} · ikut terpakai`
-                    : s.ready_at
-                      ? `${ui.label}, ${s.state === "CLEANING" ? "siap" : "selesai"} ${fmtTime(s.ready_at)}`
+                    ? "Ikut terpakai"
+                    : busy
+                      ? `${busy.kind === "CLEANING" ? "bersih" : "s/d"} ${fmtTime(busy.until)}`
                       : ui.label;
+                const detail = busy
+                  ? `${fmtTime(busy.from)}–${fmtTime(busy.until)} ${busy.kind === "CLEANING" ? "dibersihkan" : "dipesan"}`
+                  : note;
 
                 return (
                   <button
@@ -293,7 +428,8 @@ export function SlotPicker({
                     role="radio"
                     aria-checked={isPicked}
                     aria-disabled={!open}
-                    aria-label={`${time}, ${isCovered ? "ikut terpakai" : note}`}
+                    aria-label={`${time}, ${isCovered ? "ikut terpakai" : detail}`}
+                    title={detail}
                     tabIndex={open && s.slot_start === tabStop ? 0 : -1}
                     onClick={() => {
                       if (open) onPick(s.slot_start);
@@ -325,8 +461,12 @@ export function SlotPicker({
         ))}
       </div>
 
-      {/* Legenda hanya untuk status yang benar-benar muncul, dengan bentuk yang sama seperti kotaknya. */}
-      <ul className="flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-muted-foreground">
+      {/* Legenda hanya untuk status yang benar-benar muncul, dengan bentuk yang sama
+          seperti kotaknya. Dibaca screen reader sebagai daftar keterangan status. */}
+      <ul
+        aria-label="Keterangan status jam"
+        className="flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-muted-foreground"
+      >
         {presentStates.map((k) => {
           const ui = SLOT_UI[k] ?? { label: k.toLowerCase(), Icon: Lock };
           const Icon = ui.Icon;
@@ -347,14 +487,28 @@ export function SlotPicker({
       </ul>
 
       {picked && endIso && (
-        <p role="status" className="rounded-lg bg-primary/10 px-3 py-2 text-sm">
-          Kamu main <span className="font-medium">{fmtTime(picked.slot_start)}</span> sampai{" "}
-          <span className="font-medium">{fmtTime(endIso)}</span>
-          {crossesMidnight ? " (hari berikutnya)" : ""}, {fmtDuration(durationMinutes)}.
-        </p>
+        <div role="status" aria-live="polite" className="space-y-1 rounded-lg bg-primary/10 px-3 py-2 text-sm">
+          <p>
+            Kamu main <span className="font-medium">{fmtTime(picked.slot_start)}</span> sampai{" "}
+            <span className="font-medium">{fmtTime(endIso)}</span>
+            {crossesMidnight ? " (hari berikutnya)" : ""}, {fmtDuration(durationMinutes)}.
+          </p>
+          {nextBusy && (
+            <p className="text-xs text-muted-foreground">
+              Setelah itu unit{" "}
+              {nextBusy.kind === "CLEANING"
+                ? `dibersihkan sampai ${fmtTime(nextBusy.until)}`
+                : `sudah dipesan ${fmtTime(nextBusy.from)}–${fmtTime(nextBusy.until)}`}
+              {nextBusy.freeAt !== nextBusy.until ? `, kosong lagi ${fmtTime(nextBusy.freeAt)}` : ""}.
+            </p>
+          )}
+        </div>
       )}
 
-      <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+      <p
+        id="slot-availability-hint"
+        className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground"
+      >
         <span>
           Ketersediaan bisa berubah. Perbarui sebelum lanjut
           {refreshedAt ? `, terakhir ${fmtTime(new Date(refreshedAt).toISOString())}` : ""}.

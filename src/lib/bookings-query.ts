@@ -15,7 +15,7 @@ export const STATUSES = [
 ] as const satisfies readonly BookingStatus[];
 
 export const BOOKING_FILTERS =
-  "booking_id, booking_code, status, scheduled_start_at, scheduled_end_at, payment_deadline_at, duration_minutes, total_amount, source, units(name), customers(name, phone)";
+  "booking_id, booking_code, status, scheduled_start_at, scheduled_end_at, payment_deadline_at, duration_minutes, total_amount, source, units(name, branches(short_name, name)), customers(name, phone)";
 
 export type BookingRow = {
   booking_id: string;
@@ -27,7 +27,12 @@ export type BookingRow = {
   duration_minutes: number;
   total_amount: number;
   source: string | null;
-  units: { name: string } | null;
+  /** Branch ikut dibawa: "Capsule 01" ada di beberapa cabang, dan kasir tidak
+   *  bisa membedakannya tanpa nama cabang. */
+  units: {
+    name: string;
+    branches: { short_name: string | null; name: string } | null;
+  } | null;
   customers: { name: string; phone: string } | null;
 };
 

@@ -3,7 +3,10 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createBookingSchema } from "@/lib/validations/booking";
 import { createBooking } from "@/services/booking.service";
 import { handleRouteError, jsonError, jsonRateLimited } from "@/lib/api/response";
+import { BOOKING_ACCESS_COOKIE, setBookingAccessCookie } from "@/lib/booking-access";
 import { rateLimit } from "@/lib/rate-limit";
+import { notifyAdminChanged } from "@/lib/realtime-notify";
+import { cookies } from "next/headers";
 
 export async function POST(request: NextRequest) {
   try {
@@ -25,7 +28,16 @@ export async function POST(request: NextRequest) {
     const db = createAdminClient();
     const booking = await createBooking(db, parsed.data);
 
-    return NextResponse.json({ booking }, { status: 201 });
+    // Kasir melihat booking baru tanpa menunggu refresh.
+    notifyAdminChanged();
+
+    const res = NextResponse.json({ booking }, { status: 201 });
+    // Pelanggan baru saja membuat booking ini dengan nomornya sendiri, jadi
+    // mereka berhak langsung membuka tiketnya tanpa melewati /cek-booking lagi.
+    // Cookie-nya sama dengan yang diterbitkan endpoint verifikasi.
+    const jar = await cookies();
+    setBookingAccessCookie(res, booking.booking_code, jar.get(BOOKING_ACCESS_COOKIE)?.value);
+    return res;
   } catch (error) {
     return handleRouteError(error);
   }

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useLayoutEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Menu, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -46,6 +46,8 @@ const useIsoLayoutEffect = typeof window === "undefined" ? useEffect : useLayout
 export function SiteNav() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
   /*
     The active highlight is resolved only *after* mount.
 
@@ -71,14 +73,33 @@ export function SiteNav() {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") setOpen(false);
     };
+    // Menutup saat klik di luar panel. `pointerdown`, bukan `click`: kalau
+    // memakai `click`, menyeret (drag) dari dalam panel lalu melepas di luar
+    // akan ikut menutupnya.
+    const onPointerDown = (e: PointerEvent) => {
+      const target = e.target as Node | null;
+      if (!target) return;
+      if (panelRef.current?.contains(target)) return;
+      if (triggerRef.current?.contains(target)) return;
+      setOpen(false);
+    };
     document.addEventListener("keydown", onKey);
-    // Locking the body stops the page scrolling behind the panel; without it a touch-drag
-    // on the menu edge scrolls the whole site, which feels like the menu is broken.
-    const previous = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+    document.addEventListener("pointerdown", onPointerDown);
+    /*
+      Sengaja TIDAK mengunci `document.body.style.overflow` seperti versi
+      sebelumnya.
+
+      `overflow: hidden` pada `body` membuat body menjadi scroll container
+      sendiri; header sticky lalu berhenti menempel ke viewport dan meloncat ke
+      posisi aslinya di atas dokumen. Diukur di halaman ini: pada scrollY 1194,
+      membuka menu memindahkan header ke top -1188 px dan panel menu ikut
+      berada di luar layar — itulah "hamburger tidak muncul, harus scroll ke
+      atas dulu". Panel sekarang membatasi tinggi dan menggulir sendiri, jadi
+      halaman di belakang tidak perlu dikunci.
+    */
     return () => {
       document.removeEventListener("keydown", onKey);
-      document.body.style.overflow = previous;
+      document.removeEventListener("pointerdown", onPointerDown);
     };
   }, [open]);
 
@@ -118,6 +139,7 @@ export function SiteNav() {
 
       {/* ---------- phone: trigger ---------- */}
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
@@ -142,6 +164,7 @@ export function SiteNav() {
           having to become a column. */}
       <div
         id="site-mobile-nav"
+        ref={panelRef}
         // Solid, not translucent: at 98% the hero's display type still ghosted through
         // behind the rows and made the menu look like a bug rather than a panel. z-50
         // puts it above the sticky header's own stacking context so nothing in the page
@@ -153,6 +176,9 @@ export function SiteNav() {
         // accessibility tree and the tab order — it is still gone while closed.
         className={cn(
           "absolute inset-x-0 top-full z-50 border-b border-white/10 bg-surface-lowest shadow-2xl shadow-black/60 xl:hidden",
+          // Panel menggulir sendiri kalau lebih tinggi dari layar; halaman di
+          // belakang tidak dikunci (lihat komentar efek di atas).
+          "max-h-[calc(100dvh-4.5rem)] overflow-y-auto overscroll-contain",
           "transition-[opacity,translate,visibility] duration-[var(--dur-base)] ease-out-quint motion-reduce:transition-none",
           open
             ? "visible translate-y-0 opacity-100"

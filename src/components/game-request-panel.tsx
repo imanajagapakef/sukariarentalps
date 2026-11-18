@@ -1,33 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { Lightbulb, ThumbsUp } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { GameRequestRow } from "@/lib/catalog";
 
-/**
- * Anonymous per-browser id, so (request_id, voter_ref) — already unique in the
- * schema — can stop one visitor double-voting. Deliberately not a phone number
- * or account: voting on a wishlist should not require giving up an identifier.
- */
-function voterRef(): string {
-  if (typeof window === "undefined") return "";
-  const KEY = "sukaria.voter_ref";
-  const existing = window.localStorage.getItem(KEY);
-  if (existing) return existing;
-  const ref =
-    typeof crypto !== "undefined" && "randomUUID" in crypto
-      ? crypto.randomUUID()
-      : `v-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
-  window.localStorage.setItem(KEY, ref);
-  return ref;
-}
-
 export function GameRequestPanel({ initial }: { initial: GameRequestRow[] }) {
-  const db = useMemo(() => createClient(), []);
   const [requests, setRequests] = useState<GameRequestRow[]>(initial);
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
@@ -43,32 +23,33 @@ export function GameRequestPanel({ initial }: { initial: GameRequestRow[] }) {
     }
     setBusy(true);
     setNotice(null);
-    // RLS already grants anon INSERT on game_requests, so no API route needed.
-    const { data, error } = await db
-      .from("game_requests")
-      .insert({ game_name: gameName, status: "REQUESTED" })
-      .select("request_id, game_name, status, vote_count, created_at")
-      .single();
+    // Vote/request lewat API route (rate limit + identitas voter server-side).
+    // RLS anon INSERT sudah dicabut (migrasi 0040).
+    const res = await fetch("/api/game-requests", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ game_name: gameName }),
+    });
+    const body = await res.json().catch(() => null);
     setBusy(false);
-    if (error) {
-      setNotice(`Gagal mengirim: ${error.message}`);
+    if (!res.ok) {
+      setNotice(body?.error?.message ?? "Gagal mengirim");
       return;
     }
-    setRequests((r) => [...r, data as GameRequestRow].sort((a, b) => b.vote_count - a.vote_count));
+    setRequests((r) => [...r, body.request as GameRequestRow].sort((a, b) => b.vote_count - a.vote_count));
     setName("");
     setNotice(`Oke, "${gameName}" masuk daftar request.`);
   }
 
   async function vote(requestId: string) {
-    const ref = voterRef();
-    if (!ref || voted[requestId]) return;
+    if (voted[requestId]) return;
     setBusy(true);
     setNotice(null);
-    const { error } = await db.from("game_votes").insert({ request_id: requestId, voter_ref: ref });
+    const res = await fetch(`/api/game-requests/${requestId}/vote`, { method: "POST" });
+    const body = await res.json().catch(() => null);
     setBusy(false);
-    if (error) {
-      // 23505 = unique violation: this browser already voted for it.
-      setNotice(error.code === "23505" ? "Kamu sudah vote untuk game ini." : `Gagal vote: ${error.message}`);
+    if (!res.ok) {
+      setNotice(body?.error?.message ?? "Gagal vote");
       return;
     }
     // The sync_game_request_votes trigger keeps vote_count correct; reflect it
@@ -118,7 +99,7 @@ export function GameRequestPanel({ initial }: { initial: GameRequestRow[] }) {
           </Button>
         </form>
 
-        {notice && <p className="mt-3 text-sm text-primary">{notice}</p>}
+        {notice && <p role="alert" className="mt-3 text-sm text-primary">{notice}</p>}
       </div>
 
       <div className="relative isolate overflow-hidden rounded-2xl border border-border bg-card p-5 shadow-arcade-sm sm:p-6">

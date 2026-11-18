@@ -197,7 +197,6 @@ export default async function AdminReportsPage({
               { label: "Expired", value: report.byStatus.EXPIRED ?? 0, tone: "warning" },
               { label: "No show", value: report.byStatus.NO_SHOW ?? 0, tone: "warning" },
               { label: "Online web", value: report.bySource.online, tone: "primary" },
-              { label: "Walk-in POS", value: report.bySource.walkIn },
             ]}
           />
 

@@ -18,7 +18,9 @@ describeDb("booking engine", () => {
   const facilityId = `B-FAC-${suffix}`;
   const snackId = `B-SNK-${suffix}`;
   const branchId = "BR-GANET";
-  const phone = `0899${suffix}`;
+  // Nomor HP harus angka saja: base36 bisa memuat huruf dan find_or_create_customer
+  // menormalkan ke format 62 sebelum mencocokkan.
+  const phone = `0899${String(Date.now()).slice(-8)}`;
   const startStock = 10;
 
   let db: Client;
@@ -85,10 +87,15 @@ describeDb("booking engine", () => {
     await db.query(`update snacks set stock = $2, active = true where snack_id = $1`, [snackId, startStock]);
   });
 
-  async function createBooking(start: string, duration = 120, name = "Booking Tester") {
+  async function createBooking(
+    start: string,
+    duration = 120,
+    name = "Booking Tester",
+    customerPhone = phone,
+  ) {
     const { rows } = await db.query(
       `select * from public.create_booking($1, $2, $3, $4, $5::timestamptz, $6)`,
-      [branchId, unitId, name, phone, at(start), duration],
+      [branchId, unitId, name, customerPhone, at(start), duration],
     );
     return rows[0] as {
       booking_id: string;
@@ -197,9 +204,21 @@ describeDb("booking engine", () => {
       const wins = results.filter((r) => r === "ok");
       const losses = results.filter((r) => r !== "ok");
 
+      // Yang dijamin adalah "tidak pernah dua booking di slot yang sama".
+      // Loser biasanya menabrak exclusion constraint, tapi Postgres bisa
+      // mendeteksi deadlock lebih dulu antara dua transaksi yang berebut
+      // lock unit + customer yang sama. Itu tetap satu booking menang.
       expect(wins).toHaveLength(1);
       expect(losses).toHaveLength(1);
-      expect(losses[0]).toMatch(/unit_reservations_no_overlap/);
+      expect(losses[0]).toMatch(/unit_reservations_no_overlap|deadlock/i);
+
+      // Dan loser benar-benar tidak meninggalkan booking di slot itu.
+      const { rows } = await db.query(
+        `select count(*)::int as n from unit_reservations
+          where unit_id = $1 and kind = 'BOOKING'`,
+        [unitId],
+      );
+      expect(rows[0].n).toBe(1);
     } finally {
       await a.end();
       await b.end();
@@ -275,41 +294,65 @@ describeDb("booking engine", () => {
     await db.query(`select public.cancel_booking($1)`, [second.booking_id]);
   });
 
-  // Pins the behaviour found by accident during UI verification: resolve_customer()
+  // Pins the behaviour found by accident during UI verification: find_or_create_customer()
   // matches on phone and then OVERWRITES the stored name with whatever the new
   // booking supplies. Booking as "Verifikasi Tiket Otomatis" on a phone that
   // already belonged to a real customer silently renamed that customer's row, and
   // every older booking for that phone then displayed the new name.
   //
-  // Phone-as-identity with "latest name wins" is a defensible choice — a customer
-  // may fix a typo on a later booking. What is not defensible is it happening
-  // silently. This test exists so that changing it is a deliberate act: if the
-  // name stop being overwritten, this fails and the decision gets made on purpose.
-  it("overwrites the stored customer name on a later booking for the same phone", async () => {
-    const first = await createBooking("12:00", 60, "Nama Asli Fixture");
-    const second = await createBooking("14:00", 60, "Nama Baru dari Booking");
+  // The decision (migrasi 0041): nama TIDAK lagi ditimpa diam-diam. Nama hanya
+  // diisi kalau masih kosong; kalau ada nama baru yang berbeda, perubahan itu
+  // dicatat di audit_logs untuk diverifikasi admin. Pelanggan yang memang mau
+  // memperbaiki salah ketik ke depan lewat kanal yang eksplisit, bukan lewat
+  // booking berikutnya yang menimpa diam-diam.
+  it("tidak menimpa nama pelanggan; perubahan dicatat di audit_logs", async () => {
+    // Nomor khusus supaya pelanggan ini belum punya nama dari test lain.
+    const ownPhone = `0897${String(Date.now()).slice(-8)}`;
+    const first = await createBooking("12:00", 60, "Nama Asli Fixture", ownPhone);
+    const second = await createBooking("14:00", 60, "Nama Baru dari Booking", ownPhone);
 
     const { rows } = await db.query(
-      `select c.name, c.phone
+      `select c.customer_id, c.name, c.phone
          from bookings b join customers c on c.customer_id = b.customer_id
         where b.booking_id = $1`,
       [second.booking_id],
     );
     expect(rows).toHaveLength(1);
-    expect(rows[0].name).toBe("Nama Baru dari Booking");
-    expect(rows[0].phone).toBe(phone);
+    // Nama lama bertahan — booking berikutnya tidak boleh menamainya diam-diam.
+    expect(rows[0].name).toBe("Nama Asli Fixture");
+    // Nomor disimpan dalam bentuk ternormalisasi (62…); ini yang membuat
+    // "0812…", "+62812…", dan "62812…" menunjuk ke satu pelanggan yang sama.
+    expect(rows[0].phone).toBe(`62${ownPhone.slice(1)}`);
 
-    // The older booking renders through the same shared customer row, so it now
-    // reports the newer name too. That is the consequence worth being explicit about.
+    // Perubahan dicatat, bukan diabaikan.
+    const { rows: audit } = await db.query(
+      `select action, before_data, after_data from audit_logs
+        where entity_type = 'customers' and entity_id = $1`,
+      [rows[0].customer_id],
+    );
+    expect(audit.length).toBeGreaterThan(0);
+    expect(audit[0].action).toBe("customer_name_change_requested");
+    expect(audit[0].before_data).toMatchObject({ name: "Nama Asli Fixture" });
+    expect(audit[0].after_data).toMatchObject({ name: "Nama Baru dari Booking" });
+
+    // Booking lama ikut menampilkan nama yang sama — satu pelanggan, satu nama.
     const { rows: older } = await db.query(
       `select c.name from bookings b join customers c on c.customer_id = b.customer_id
         where b.booking_id = $1`,
       [first.booking_id],
     );
-    expect(older[0].name).toBe("Nama Baru dari Booking");
+    expect(older[0].name).toBe("Nama Asli Fixture");
 
+    await db.query(`delete from audit_logs where entity_type = 'customers' and entity_id = $1`, [
+      rows[0].customer_id,
+    ]);
     await db.query(`select public.cancel_booking($1)`, [first.booking_id]);
     await db.query(`select public.cancel_booking($1)`, [second.booking_id]);
+    // Booking masih memakai customer_id, jadi hapus booking-nya dulu.
+    await db.query(`delete from bookings where booking_id = any($1)`, [
+      [first.booking_id, second.booking_id],
+    ]);
+    await db.query(`delete from customers where customer_id = $1`, [rows[0].customer_id]);
   });
 
   // --- snack stock movements -------------------------------------------------

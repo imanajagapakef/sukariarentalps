@@ -29,20 +29,33 @@ describeSecret("booking access gate", () => {
     it("mints a deterministic, normalized token", () => {
       const first = bookingAccessToken(CODE);
       const second = bookingAccessToken(CODE);
+      // Token baru mengandung EXP (6 jam), jadi deterministik dalam jendela
+      // yang sama kecuali milidetik EXP berubah.
+      expect(bookingAccessToken(CODE, Date.now())).not.toBe("");
       expect(first).toBe(second);
 
       // Whitespace and case are normalized to the stored uppercase form.
-      expect(bookingAccessToken(`  sr-001  `)).toBe(first);
+      expect(bookingAccessToken(`  sr-001  `, Date.now())).toBe(bookingAccessToken(CODE, Date.now()));
 
+      // Format baru: CODE.EXP.SIG
       expect(first.startsWith(`${CODE}.`)).toBe(true);
-      const sig = first.slice(CODE.length + 1);
-      expect(sig).toMatch(/^[A-Za-z0-9_-]+$/); // base64url alphabet, no padding
+      const parts = first.split(".");
+      expect(parts).toHaveLength(3);
+      expect(parts[0]).toBe(CODE);
+      expect(Number(parts[1])).toBeGreaterThan(Math.floor(Date.now() / 1000));
+      expect(parts[2]).toMatch(/^[A-Za-z0-9_-]+$/); // base64url alphabet, no padding
     });
 
     it("issues different tokens for different codes", () => {
       // Different claim → different HMAC, so a token is also a shorthand proof
       // of exactly one booking.
       expect(bookingAccessToken("SR-001")).not.toBe(bookingAccessToken("SR-002"));
+    });
+
+    it("token kedaluwarsa ditolak server", () => {
+      const now = Date.now();
+      const token = bookingAccessToken(CODE, now - 7 * 60 * 60 * 1000);
+      expect(verifyBookingAccess(token, CODE)).toBe(false);
     });
   });
 
@@ -60,11 +73,12 @@ describeSecret("booking access gate", () => {
 
     it("rejects a tampered signature of the same length", () => {
       const token = bookingAccessToken(CODE);
-      const sig = token.slice(CODE.length + 1);
+      const parts = token.split(".");
+      const sig = parts[2] ?? "";
       // Flip the first signature character, preserving length — the timing-safe
       // compare has to be what catches this, not a shortcut.
       const flipped = sig[0] === "A" ? "B" : "A";
-      const tampered = `${CODE}.${flipped}${sig.slice(1)}`;
+      const tampered = `${parts[0]}.${parts[1]}.${flipped}${sig.slice(1)}`;
       expect(tampered).toHaveLength(token.length);
       expect(tampered).not.toBe(token);
       expect(verifyBookingAccess(tampered, CODE)).toBe(false);
@@ -78,10 +92,21 @@ describeSecret("booking access gate", () => {
 
       // Structural rejects, each exercised against a real-looking claim:
       // no separator at all, leading separator, trailing separator, empty.
-      expect(verifyBookingAccess(`${CODE}${bookingAccessToken(CODE).slice(CODE.length + 1)}`, CODE)).toBe(false);
-      expect(verifyBookingAccess(`.${bookingAccessToken(CODE).slice(CODE.length + 1)}`, CODE)).toBe(false);
+      expect(verifyBookingAccess(`${CODE}xxx`, CODE)).toBe(false);
+      expect(verifyBookingAccess(`.${token.split(".").slice(1).join(".")}`, CODE)).toBe(false);
       expect(verifyBookingAccess(`${CODE}.`, CODE)).toBe(false);
       expect(verifyBookingAccess("", CODE)).toBe(false);
+    });
+  });
+
+  describe("hasBookingAccess multi-kode", () => {
+    it("cookie menampung dua tiket tanpa menimpa", async () => {
+      const { addCodeToAccessCookie } = await import("@/lib/booking-access");
+      const both = addCodeToAccessCookie(addCodeToAccessCookie(undefined, "SR-001"), "SR-002");
+      jar.set(BOOKING_ACCESS_COOKIE, both);
+      expect(await hasBookingAccess("SR-001")).toBe(true);
+      expect(await hasBookingAccess("SR-002")).toBe(true);
+      expect(await hasBookingAccess("SR-003")).toBe(false);
     });
   });
 

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
 import { SelectField } from "@/components/ui/select-field";
 import { Trash2 } from "lucide-react";
@@ -42,6 +43,10 @@ export function StaffManager({
   });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [confirmAction, setConfirmAction] = useState<
+    | { kind: "deactivate" | "delete"; userId: string; label: string }
+    | null
+  >(null);
 
   async function post(method: string, url: string, body: unknown): Promise<boolean> {
     setBusy(true);
@@ -139,7 +144,7 @@ export function StaffManager({
         </Button>
       </form>
 
-      {error && <p className="mb-3 text-sm text-danger">{error}</p>}
+      {error && <p role="alert" className="mb-3 text-sm text-danger">{error}</p>}
 
       <div className="space-y-2">
         {staff.map((s) => {
@@ -229,10 +234,13 @@ export function StaffManager({
                   size="xs"
                   variant="destructive"
                   disabled={busy}
-                  onClick={() => {
-                    if (!confirm(`Nonaktifkan akun ${s.full_name ?? s.email ?? s.user_id}?`)) return;
-                    void post("PATCH", `/api/admin/users/${s.user_id}`, { active: false });
-                  }}
+                  onClick={() =>
+                    setConfirmAction({
+                      kind: "deactivate",
+                      userId: s.user_id,
+                      label: s.full_name ?? s.email ?? s.user_id,
+                    })
+                  }
                 >
                   Nonaktif
                 </Button>
@@ -258,16 +266,13 @@ export function StaffManager({
                   variant="destructive"
                   disabled={busy}
                   title="Hapus akun secara permanen"
-                  onClick={() => {
-                    const label = s.full_name ?? s.email ?? s.user_id;
-                    const ok = confirm(
-                      `Hapus permanen akun ${label}?\n\n` +
-                        `Profilnya ikut terhapus dan jejak audit/booking kehilangan tautan ke akun ini. ` +
-                        `Tindakan ini tidak bisa dibatalkan.\n\n` +
-                        `Kalau hanya ingin memblokir login, pakai "Nonaktifkan" saja.`,
-                    );
-                    if (ok) void post("DELETE", `/api/admin/users/${s.user_id}`, {});
-                  }}
+                  onClick={() =>
+                    setConfirmAction({
+                      kind: "delete",
+                      userId: s.user_id,
+                      label: s.full_name ?? s.email ?? s.user_id,
+                    })
+                  }
                 >
                   <Trash2 aria-hidden className="size-3.5" /> Hapus
                 </Button>
@@ -276,6 +281,27 @@ export function StaffManager({
           );
         })}
       </div>
+      <ConfirmDialog
+        open={confirmAction !== null}
+        onOpenChange={(o) => {
+          if (!o) setConfirmAction(null);
+        }}
+        title={confirmAction?.kind === "delete" ? "Hapus permanen akun?" : "Nonaktifkan akun?"}
+        description={
+          confirmAction?.kind === "delete"
+            ? `Hapus permanen akun ${confirmAction?.label}?\n\nProfilnya ikut terhapus dan jejak audit/booking kehilangan tautan ke akun ini. Tindakan ini tidak bisa dibatalkan.\n\nKalau hanya ingin memblokir login, pakai "Nonaktifkan" saja.`
+            : `Nonaktifkan akun ${confirmAction?.label}?`
+        }
+        confirmLabel={confirmAction?.kind === "delete" ? "Ya, hapus" : "Ya, nonaktifkan"}
+        busy={busy}
+        onConfirm={() => {
+          if (!confirmAction) return;
+          const a = confirmAction;
+          setConfirmAction(null);
+          if (a.kind === "delete") void post("DELETE", `/api/admin/users/${a.userId}`, {});
+          else void post("PATCH", `/api/admin/users/${a.userId}`, { active: false });
+        }}
+      />
     </div>
   );
 }

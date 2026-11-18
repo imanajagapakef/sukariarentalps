@@ -5,6 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getStaffUser, AuthError, type StaffProfile } from "@/lib/authz";
 import { audit } from "@/lib/audit";
 import { handleRouteError, jsonError } from "@/lib/api/response";
+import { notifyAdminChanged } from "@/lib/realtime-notify";
 
 type Table = keyof Database["public"]["Tables"];
 
@@ -58,6 +59,7 @@ export function adminCrud(
         entityId: String(Object.values(data)[0]),
         after: data as never,
       });
+      notifyAdminChanged();
       return NextResponse.json({ row: data }, { status: 201 });
     } catch (e) {
       return handleRouteError(e);
@@ -113,6 +115,7 @@ export function adminCrud(
         before: before as never,
         after: after as never,
       });
+      notifyAdminChanged();
       return NextResponse.json({ row: after });
     } catch (e) {
       return handleRouteError(e);
@@ -141,6 +144,7 @@ export function adminCrud(
         entityId: id,
         before: row as never,
       });
+      notifyAdminChanged();
       return NextResponse.json({ ok: true });
     } catch (e) {
       return handleRouteError(e);

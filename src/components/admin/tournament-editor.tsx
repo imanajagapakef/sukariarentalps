@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SelectField } from "@/components/ui/select-field";
@@ -84,6 +85,7 @@ export function TournamentEditor({
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const preview = feeDisplay({ registration_fee: fee, list_price: Number(listPrice) || null });
@@ -150,9 +152,13 @@ export function TournamentEditor({
     }
   }
 
-  async function remove() {
+  async function remove(confirmed = false) {
     if (!tournament?.tournament_id) return;
-    if (!confirm(`Hapus turnamen "${title}"?`)) return;
+    if (!confirmed) {
+      setConfirmDelete(true);
+      return;
+    }
+    setConfirmDelete(false);
     setBusy(true);
     setError(null);
     try {
@@ -186,12 +192,22 @@ export function TournamentEditor({
             {busy ? "Menyimpan…" : "Simpan"}
           </Button>
           {!isNew && (
-            <Button type="button" size="sm" variant="destructive" onClick={remove} disabled={busy}>
+            <Button type="button" size="sm" variant="destructive" onClick={() => void remove()} disabled={busy}>
               Hapus
             </Button>
           )}
         </div>
       </div>
+
+      <ConfirmDialog
+        open={confirmDelete}
+        onOpenChange={setConfirmDelete}
+        title="Hapus turnamen?"
+        description={`Hapus turnamen "${title}"?`}
+        confirmLabel="Ya, hapus"
+        busy={busy}
+        onConfirm={() => void remove(true)}
+      />
 
       <div className="mt-4 grid gap-4 md:grid-cols-2">
         <div className="space-y-2 md:col-span-2">

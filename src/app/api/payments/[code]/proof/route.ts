@@ -4,15 +4,18 @@ import { paymentProofSchema } from "@/lib/validations/booking";
 import { getBookingByCode } from "@/services/booking.service";
 import { createPaymentProof, ProofError } from "@/lib/payment-proofs";
 import { handleRouteError, jsonError, jsonRateLimited } from "@/lib/api/response";
+import { hasBookingAccess } from "@/lib/booking-access";
+import { notifyAdminChanged } from "@/lib/realtime-notify";
 import { rateLimit } from "@/lib/rate-limit";
 
 /**
  * Customer uploads proof of transfer against a booking code.
  *
- * Public, keyed by booking code — the same capability boundary that already exposes
- * /tiket/[code]. The proof bucket has no insert policy for anon, so this route is the
- * only way in; it uses the service role and therefore has to be the thing that decides
- * what is acceptable.
+ * Batasnya sama dengan tiket: pelanggan wajib punya cookie akses tiket
+ * (verifikasi last-4 dulu). Kode saja tidak cukup — orang yang melihat kode
+ * di layar/foto tidak bisa mengunggah bukti. The proof bucket has no insert
+ * policy for anon, so this route is the only way in; it uses the service role
+ * and therefore has to be the thing that decides what is acceptable.
  *
  * A proof is a claim, never an authorisation. Nothing here changes booking status:
  * only the cashier's "Konfirmasi" does that.
@@ -26,6 +29,10 @@ export async function POST(
 
     const limit = rateLimit("proofUpload", request, code);
     if (!limit.allowed) return jsonRateLimited(limit.retryAfterSeconds);
+
+    if (!(await hasBookingAccess(code))) {
+      return jsonError("Verifikasi tiket dulu sebelum mengunggah bukti pembayaran", 401);
+    }
 
     let form: FormData;
     try {
@@ -69,6 +76,9 @@ export async function POST(
       file,
       parsed.data.note,
     );
+
+    // Bukti baru langsung muncul di antrean kasir.
+    notifyAdminChanged();
 
     return NextResponse.json(
       { proof_id: proof.proof_id, nominal: proof.nominal, created_at: proof.created_at },

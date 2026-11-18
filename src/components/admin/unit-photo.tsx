@@ -1,10 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ImageUploader } from "@/components/admin/image-uploader";
 import { deleteImage, orphanedImageUrl } from "@/lib/media";
-import { createClient } from "@/lib/supabase/client";
 
 /**
  * Unit photo control for the admin units grid.
@@ -26,7 +25,6 @@ export function UnitPhoto({
   compact?: boolean;
 }) {
   const router = useRouter();
-  const client = useMemo(() => createClient(), []);
   const [value, setValue] = useState(imageUrl);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -50,7 +48,11 @@ export function UnitPhoto({
       // before: a failed save would otherwise leave image_url aimed at a deleted
       // object and every render of this unit shows a broken photo.
       const stale = orphanedImageUrl({ image_url: url }, previous);
-      if (stale) await deleteImage(client, stale).catch(() => {});
+      if (stale) {
+        // Supabase client dimuat hanya saat ada file yang perlu dihapus.
+        const { createClient } = await import("@/lib/supabase/client");
+        await deleteImage(createClient(), stale).catch(() => {});
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Gagal menyimpan");
       setValue(imageUrl); // roll the preview back, the row did not change

@@ -145,27 +145,6 @@ export const unitStatusSchema = z.object({
   reason: z.string().trim().max(200).optional(),
 });
 
-const walkInBase = z.object({
-  branch_id: z.string().min(1),
-  unit_id: z.string().min(1),
-  customer_name: z.string().trim().min(2).max(80),
-  customer_phone: z.string().trim().regex(/^[0-9+\-\s()]{6,20}$/, "Nomor WhatsApp tidak valid"),
-  start_at: z.string().datetime({ offset: true }).optional(),
-  duration_minutes: z.number().int().min(15).max(1440),
-  /**
-   * Promo to charge at the counter (migration 0029). Optional, and validated by
-   * create_booking() rather than here: the same rules apply at the counter as online,
-   * so a duplicate copy of them in this schema could only drift out of step.
-   */
-  promotion_id: z.string().trim().min(1).max(40).optional(),
-  pay_method: z.enum(["CASH", "QRIS_MANUAL", "TRANSFER_MANUAL"]),
-  game_id: z.string().min(1).optional(),
-  snacks: z.array(z.object({ snack_id: z.string().min(1), quantity: z.number().int().positive().max(20) })).max(20).default([]),
-  notes: z.string().max(500).optional(),
-});
-
-export const walkInSchema = walkInBase;
-
 export const refundSchema = z.object({
   booking_code: z.string().trim().min(1),
   reason: z.string().trim().min(3).max(200),

@@ -4,7 +4,7 @@ import { getStaffUser } from "@/lib/authz";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { LogoutButton } from "@/components/logout-button";
 import { AdminNav, AdminNavMobile } from "@/components/admin/admin-nav";
-import { LiveRefresh } from "@/components/admin/live-refresh";
+import { AdminLive } from "@/components/admin/admin-live";
 import { countWaitingPayment } from "@/lib/bookings-query";
 import { fmtDate } from "@/lib/format";
 
@@ -262,7 +262,7 @@ export default async function AdminLayout({ children }: Readonly<{ children: Rea
         </main>
       </div>
 
-      <LiveRefresh />
+      <AdminLive />
     </div>
   );
 }

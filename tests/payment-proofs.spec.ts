@@ -7,7 +7,10 @@ import { PROOF_BUCKET, detectImageKind, listPaymentProofs } from "@/lib/payment-
 import { _resetForTests as resetRateLimits } from "@/lib/rate-limit";
 
 const connectionString = process.env.TEST_DATABASE_URL;
-const describeDb = connectionString ? describe : describe.skip;
+const hasSupabaseEnv = Boolean(
+  process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+);
+const describeDb = connectionString && hasSupabaseEnv ? describe : describe.skip;
 
 /** A 1x1 PNG, real enough for storage to accept and for the bucket to hand back. */
 const PNG_BYTES = Uint8Array.from(
@@ -107,7 +110,8 @@ describeDb("payment proofs", () => {
   const unitId = `P-PRF-${suffix}`;
   const facilityId = `P-PRF-F${suffix}`;
   const branchId = "BR-GANET";
-  const phone = `0876${suffix}`;
+  // Nomor HP harus angka saja (base36 bisa memuat huruf; nomor dinormalisasi ke 62…).
+  const phone = `0876${String(Date.now()).slice(-8)}`;
 
   let db: Client;
   let admin: ReturnType<typeof createAdminClient>;

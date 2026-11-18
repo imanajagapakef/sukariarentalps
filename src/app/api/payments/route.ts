@@ -2,7 +2,8 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createPaymentSchema } from "@/lib/validations/booking";
 import { createPaymentForBooking } from "@/services/payment.service";
-import { handleRouteError, jsonRateLimited } from "@/lib/api/response";
+import { handleRouteError, jsonError, jsonRateLimited } from "@/lib/api/response";
+import { hasBookingAccess } from "@/lib/booking-access";
 import { rateLimit } from "@/lib/rate-limit";
 
 export async function POST(request: NextRequest) {
@@ -18,6 +19,13 @@ export async function POST(request: NextRequest) {
         { error: { message: "Data pembayaran tidak valid", issues: body.error.flatten() } },
         { status: 400 },
       );
+    }
+
+    // Kode saja tidak cukup: pelanggan wajib sudah verifikasi last-4 dulu
+    // (cookie tiket). Ini menutup enumerasi pembayaran via kode yang
+    // terlihat di layar/foto.
+    if (!(await hasBookingAccess(body.data.booking_code))) {
+      return jsonError("Verifikasi tiket dulu sebelum membuat pembayaran", 401);
     }
 
     const db = createAdminClient();

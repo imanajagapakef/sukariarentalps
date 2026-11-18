@@ -11,10 +11,14 @@ export const BOOKING_ACTIONS: Record<string, { label: string; action: string; da
   ],
   CONFIRMED: [
     { label: "Check-in", action: "check_in" },
+    { label: "Perpanjang", action: "extend" },
     { label: "No-show", action: "no_show", danger: true },
     { label: "Batalkan", action: "cancel", danger: true },
   ],
-  IN_USE: [{ label: "Selesai (check-out)", action: "complete" }],
+  IN_USE: [
+    { label: "Selesai (check-out)", action: "complete" },
+    { label: "Perpanjang", action: "extend" },
+  ],
   COMPLETED: [{ label: "Unit Siap", action: "mark_ready" }],
   READY: [],
 };

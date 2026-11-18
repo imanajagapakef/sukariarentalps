@@ -1068,6 +1068,7 @@ export type Database = {
         Row: {
           booking_id: string | null
           created_at: string
+          extension_id: string | null
           nominal: number
           note: string | null
           object_path: string
@@ -1077,6 +1078,7 @@ export type Database = {
         Insert: {
           booking_id?: string | null
           created_at?: string
+          extension_id?: string | null
           nominal: number
           note?: string | null
           object_path: string
@@ -1086,6 +1088,7 @@ export type Database = {
         Update: {
           booking_id?: string | null
           created_at?: string
+          extension_id?: string | null
           nominal?: number
           note?: string | null
           object_path?: string
@@ -1124,6 +1127,7 @@ export type Database = {
           provider_txn_id: string | null
           raw_response: Json | null
           status: Database["public"]["Enums"]["payment_status"]
+          refunded_at: string | null
           tournament_registration_id: string | null
           updated_at: string
         }
@@ -1141,6 +1145,7 @@ export type Database = {
           provider_txn_id?: string | null
           raw_response?: Json | null
           status?: Database["public"]["Enums"]["payment_status"]
+          refunded_at?: string | null
           tournament_registration_id?: string | null
           updated_at?: string
         }
@@ -1158,6 +1163,7 @@ export type Database = {
           provider_txn_id?: string | null
           raw_response?: Json | null
           status?: Database["public"]["Enums"]["payment_status"]
+          refunded_at?: string | null
           tournament_registration_id?: string | null
           updated_at?: string
         }
@@ -1890,8 +1896,20 @@ export type Database = {
         Returns: number
       }
       cancel_booking: {
-        Args: { p_booking_id: string; p_reason?: string }
+        Args: { p_booking_id: string; p_reason?: string; p_enforce_window?: boolean }
         Returns: Database["public"]["Enums"]["booking_status"]
+      }
+      booking_access_is_locked: {
+        Args: { p_booking_code: string }
+        Returns: { locked: boolean; retry_after_seconds: number }[]
+      }
+      booking_access_record: {
+        Args: { p_booking_code: string; p_success: boolean }
+        Returns: { locked: boolean; retry_after_seconds: number }[]
+      }
+      rate_limit_hit: {
+        Args: { p_key: string; p_limit: number; p_window_seconds: number }
+        Returns: { allowed: boolean; retry_after_seconds: number }[]
       }
       cancel_tournament_registration: {
         Args: { p_reason?: string; p_registration_id: string }
@@ -1984,7 +2002,26 @@ export type Database = {
           isSetofReturn: false
         }
       }
-      latest_extendable: { Args: { p_booking_id: string }; Returns: string }
+      latest_extendable: { Args: { p_booking_id: string }; Returns: string | null }
+      cancel_extension: {
+        Args: { p_extension_id: string; p_reason?: string | null }
+        Returns: Database["public"]["Enums"]["extension_status"]
+      }
+      request_extension: {
+        Args: {
+          p_booking_id: string
+          p_minutes: number
+          p_method?: Database["public"]["Enums"]["payment_method"]
+          p_requested_by?: string | null
+        }
+        Returns: {
+          extension_id: string
+          previous_end_at: string
+          new_end_at: string
+          amount: number
+          payment_id: string
+        }[]
+      }
       mark_no_show: {
         Args: { p_booking_id: string }
         Returns: Database["public"]["Enums"]["booking_status"]
@@ -2110,7 +2147,10 @@ export type Database = {
           p_unit_id: string
         }
         Returns: {
-          ready_at: string
+          busy_from: string | null
+          busy_kind: string | null
+          busy_until: string | null
+          ready_at: string | null
           slot_end: string
           slot_start: string
           state: string

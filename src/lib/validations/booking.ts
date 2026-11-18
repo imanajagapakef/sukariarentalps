@@ -1,6 +1,7 @@
 import { z } from "zod";
+import { normalizePhone } from "@/lib/phone";
 
-export const phoneRegex = /^[0-9+\-\s()]{6,20}$/;
+export const phoneRegex = /^(\+?62|0)8\d{7,13}$/;
 
 export const snackSelectionSchema = z.object({
   snack_id: z.string().min(1),
@@ -12,7 +13,11 @@ export const createBookingSchema = z
     branch_id: z.string().min(1),
     unit_id: z.string().min(1),
     customer_name: z.string().trim().min(2).max(80),
-    customer_phone: z.string().trim().regex(phoneRegex, "Nomor WhatsApp tidak valid"),
+    customer_phone: z
+      .string()
+      .trim()
+      .regex(phoneRegex, "Nomor WhatsApp tidak valid (format 08xx / +628xx / 628xx)")
+      .transform((v) => normalizePhone(v) ?? v),
     customer_email: z.string().email().optional().or(z.literal("")),
     /**
      * Promo package to charge at (migration 0029). Optional, and only ever a hint:
@@ -34,12 +39,6 @@ export const cancelBookingSchema = z
     reason: z.string().trim().max(200).optional(),
   })
   .strict();
-
-export const availabilityQuerySchema = z.object({
-  branch_id: z.string().min(1),
-  start_at: z.string().datetime({ offset: true }),
-  end_at: z.string().datetime({ offset: true }),
-});
 
 export const slotQuerySchema = z.object({
   branch_id: z.string().min(1),
@@ -63,7 +62,17 @@ export type Slot = {
   slot_start: string;
   slot_end: string;
   state: SlotState | string;
+  /** Kapan unit bebas lagi — hanya untuk slot yang terpakai. */
   ready_at: string | null;
+  /**
+   * Rentang blok yang menempati slot ini. `busy_from` = mulai dipesan/dibersihkan,
+   * `busy_until` = selesai. Diisi hanya untuk BOOKED / IN_USE / CLEANING (migrasi
+   * 0045), supaya pemilih jam bisa menulis "18.00–20.00 dipesan" alih-alih
+   * "selesai 20.00" di setiap kotak.
+   */
+  busy_from?: string | null;
+  busy_until?: string | null;
+  busy_kind?: "BOOKING" | "CLEANING" | string | null;
 };
 
 /** Design wording per state: what it is, and what to do about it. */
@@ -77,21 +86,18 @@ export const SLOT_COPY: Record<SlotState, { label: string; hint: string }> = {
 };
 
 export type CreateBookingInput = z.infer<typeof createBookingSchema>;
-export type AvailabilityQuery = z.infer<typeof availabilityQuerySchema>;
 export type SlotQuery = z.infer<typeof slotQuerySchema>;
 
 /**
- * The five channels the Stitch payment screen offers.
+ * Kanal pembayaran yang ditawarkan.
  *
- * `midtrans` is the value sent to Midtrans as `enabled_payments` and the value
- * that comes back on the webhook as `payment_type`; `method` is what we persist
- * on payments.method. Keeping all three on one object means the picker, the API
- * and the webhook cannot disagree about a channel name.
+ * QRIS manual: pelanggan scan QRIS dinamis, lalu kasir verifikasi
+ * pembayaran secara manual. `method` adalah yang disimpan pada
+ * payments.method.
  */
 export const PAYMENT_CHANNELS = [
   {
     id: "QRIS_MANUAL",
-    midtrans: "qris",
     label: "QRIS",
     sub: "Manual confirm oleh kasir",
     blurb: "Scan QRIS dinamis, lalu kasir verifikasi pembayaran secara manual.",

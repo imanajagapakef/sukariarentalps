@@ -24,6 +24,7 @@ const paymentsForBookings = cache(async (idsKey: string) => {
     return [] as {
       payment_id: string;
       booking_id: string | null;
+      extension_id: string | null;
       method: string;
       status: string;
       gross_amount: number;
@@ -32,12 +33,30 @@ const paymentsForBookings = cache(async (idsKey: string) => {
     }[];
   }
   const db = createAdminClient();
-  const { data } = await db
-    .from("payments")
-    .select("payment_id, booking_id, method, status, gross_amount, paid_at, created_at")
-    .in("booking_id", ids)
-    .order("created_at", { ascending: false });
-  return data ?? [];
+  const select = "payment_id, booking_id, extension_id, method, status, gross_amount, paid_at, created_at";
+
+  // Pembayaran perpanjangan tidak punya booking_id (payments_owner_xor), jadi
+  // pencarian langsung `.in("booking_id", ids)` melewatkannya dan uang tambahan
+  // jam tidak pernah masuk laporan. Ambil dulu extension milik booking-booking
+  // ini, lalu bayarannya, dan tempelkan booking induknya.
+  const [{ data: direct }, { data: extensions }] = await Promise.all([
+    db.from("payments").select(select).in("booking_id", ids),
+    db.from("booking_extensions").select("extension_id, booking_id").in("booking_id", ids),
+  ]);
+
+  const parentOf = new Map((extensions ?? []).map((e) => [e.extension_id, e.booking_id]));
+  const extensionIds = [...parentOf.keys()];
+  const { data: extensionPayments } = extensionIds.length
+    ? await db.from("payments").select(select).in("extension_id", extensionIds)
+    : { data: [] as never[] };
+
+  return [
+    ...(direct ?? []),
+    ...(extensionPayments ?? []).map((p) => ({
+      ...p,
+      booking_id: parentOf.get(p.extension_id ?? "") ?? null,
+    })),
+  ].sort((a, b) => (b.created_at ?? "").localeCompare(a.created_at ?? ""));
 });
 
 type BookingStatus = Database["public"]["Enums"]["booking_status"];
@@ -146,8 +165,13 @@ async function windowedBookings(filters: ReportFilters): Promise<ReportBooking[]
 
   if (filters.branch) query = query.eq("branch_id", filters.branch);
 
-  const { data, error } = await query;
+  const { data, error, count } = await query;
   if (error) throw new Error(error.message);
+  if ((count ?? 0) > 2000) {
+    throw new Error(
+      `Window laporan memuat ${count} booking (batas 2000). Persempit filter tanggal/cabang agar angka tidak terpotong.`,
+    );
+  }
   return (data ?? []) as ReportBooking[];
 }
 
@@ -265,6 +289,10 @@ function sortBySessionDesc(rows: ReportBooking[]) {
 const COLLECTED = new Set<string>(["PAID", "PARTIALLY_REFUNDED", "REFUNDED"]);
 
 export const CHANNEL_LABEL: Record<string, string> = {
+  // Enum MIDTRANS_* masih ada di DB untuk baris legasi; labelnya dipertahankan
+  // di sini agar baris lama tetap terbaca. Kanal baru hanya memakai
+  // QRIS_MANUAL / TRANSFER_MANUAL / CASH. Hapus label ini hanya setelah
+  // migrasi yang membuktikan 0 baris memakai enum MIDTRANS_*.
   MIDTRANS_QRIS: "QRIS (Midtrans)",
   MIDTRANS_GOPAY: "GoPay",
   MIDTRANS_SHOPEEPAY: "ShopeePay",
@@ -336,6 +364,13 @@ export async function revenueReport(bookings: ReportBooking[]): Promise<RevenueR
     if (it.item_type === "RENTAL") rental += it.subtotal;
     else if (it.item_type === "SNACK") snack += it.subtotal;
   }
+
+  // Uang perpanjangan adalah sewa tambahan. Ia tidak punya baris booking_items
+  // (extension hanya menyimpan nominalnya sendiri), jadi tanpa baris ini
+  // rental + snack tidak akan sama dengan gross di sebelahnya.
+  rental += collected
+    .filter((p) => p.extension_id)
+    .reduce((sum, p) => sum + p.gross_amount, 0);
 
   // What promos gave away, over the same collected bookings. Only counted once per
   // booking even when it was paid in several payments: discount_amount sits on the
@@ -897,6 +932,9 @@ export async function financialJournal(bookings: ReportBooking[], limit = 25): P
 
   return payments.slice(0, limit).map((p) => {
     const s = split.get(p.booking_id ?? "") ?? { rental: 0, snack: 0 };
+    // Baris perpanjangan berdiri sendiri: seluruh nominalnya sewa tambahan,
+    // bukan pembagian sewa/snack milik booking induk.
+    const isExtension = Boolean(p.extension_id);
     return {
       payment_id: p.payment_id,
       paid_at: p.paid_at,
@@ -904,8 +942,8 @@ export async function financialJournal(bookings: ReportBooking[], limit = 25): P
       method: p.method,
       gross: p.gross_amount,
       booking: p.booking_id ? byId.get(p.booking_id) ?? null : null,
-      rental: s.rental,
-      snack: s.snack,
+      rental: isExtension ? p.gross_amount : s.rental,
+      snack: isExtension ? 0 : s.snack,
       refunded: p.status === "REFUNDED" || p.status === "PARTIALLY_REFUNDED",
       collected: COLLECTED.has(p.status),
     };

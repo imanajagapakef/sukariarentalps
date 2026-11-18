@@ -1,7 +1,16 @@
 import { config } from "dotenv";
+import { existsSync } from "node:fs";
 import { vi } from "vitest";
 
-config({ path: ".env.local", quiet: true });
+// Only .env.test — never .env.local. If tests are run without a test env, fail
+// loud instead of silently pointing at the production project (which is how
+// real customer names got mutated during test runs).
+if (!existsSync(".env.test")) {
+  throw new Error(
+    "File .env.test tidak ditemukan. Test dilarang memakai .env.local (produksi). " +
+      "Salin .env.test.example menjadi .env.test dan isi dengan project Supabase uji terpisah.",
+  );
+}
 config({ path: ".env.test", quiet: true });
 
 /**

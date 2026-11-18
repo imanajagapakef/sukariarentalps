@@ -122,7 +122,6 @@ export const ADMIN_NAV: { label: string; tone: GroupTone; items: AdminNavItem[] 
     items: [
       { href: "/admin", label: "Dashboard", icon: LayoutGrid },
       { href: "/admin/bookings", label: "Booking", icon: CalendarDays },
-      { href: "/admin/walk-in", label: "Walk-in", icon: Store },
       // Tournament sits with the counter work: registrations are taken, fees collected
       // and players checked in at the door.
       { href: "/admin/turnamen", label: "Turnamen", icon: Trophy },

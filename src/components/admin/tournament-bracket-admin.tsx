@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
 import { TournamentBracket } from "@/components/tournament-bracket";
 import {
@@ -35,6 +36,7 @@ export function TournamentBracketAdmin({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [confirmReset, setConfirmReset] = useState(false);
 
   const entrants = registrations.filter((r) => r.status === "PAID" || r.status === "CHECKED_IN");
   const played = matches.some((m) => m.status === "FINISHED");
@@ -64,13 +66,11 @@ export function TournamentBracketAdmin({
   function reset() {
     // Reset is the only action here that throws away recorded results, so it says what it
     // destroys before doing it rather than after.
-    if (
-      !confirm(
-        "Reset bracket?\n\nSemua match dan hasil yang sudah tercatat akan dihapus. Kursi peserta yang sudah lunas tetap aman, tapi hasil match sebelumnya hilang permanen.",
-      )
-    ) {
-      return;
-    }
+    setConfirmReset(true);
+  }
+
+  function doReset() {
+    setConfirmReset(false);
     void call({ action: "reset" }, "Bracket dikosongkan. Susun ulang kapan saja.");
   }
 
@@ -124,6 +124,15 @@ export function TournamentBracketAdmin({
           {error}
         </p>
       )}
+      <ConfirmDialog
+        open={confirmReset}
+        onOpenChange={setConfirmReset}
+        title="Reset bracket?"
+        description={"Semua match dan hasil yang sudah tercatat akan dihapus. Kursi peserta yang sudah lunas tetap aman, tapi hasil match sebelumnya hilang permanen."}
+        confirmLabel="Ya, reset"
+        busy={busy}
+        onConfirm={doReset}
+      />
       {notice && (
         <p className="rounded-lg bg-primary/10 p-2 text-sm text-primary">{notice}</p>
       )}

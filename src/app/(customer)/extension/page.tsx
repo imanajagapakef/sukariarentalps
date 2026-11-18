@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import {
   ArrowLeft,
   Ban,
+  CircleCheck,
   Clock,
   Hourglass,
   MessageCircle,
@@ -11,25 +12,27 @@ import {
   Ticket,
   TriangleAlert,
   UserX,
+  Wallet,
   Zap,
   type LucideIcon,
 } from "lucide-react";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getExtensionInfo } from "@/services/extension.service";
+import { extensionWindow, getExtensionInfo } from "@/services/extension.service";
+import { dynamicQrisDataUrl } from "@/lib/qris";
 import { hasBookingAccess } from "@/lib/booking-access";
 import { BookingStatusPill } from "@/components/status-pill";
 import { Countdown, CopyCodeButton } from "@/components/ticket-actions";
 import { LiveBooking } from "@/components/live-booking";
+import { ExtendActions } from "@/components/extension/extend-actions";
+import { ExtensionProofForm } from "@/components/extension/extension-proof-form";
 import { Button } from "@/components/ui/button";
-import { fmtDateTime, fmtISODay, fmtTime } from "@/lib/format";
+import { fmtDateTime, fmtDuration, fmtISODay, fmtTime, rp } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
 const WA_NUMBER = "6281398765432";
 const HOUR_MS = 3_600_000;
-/** Berapa pilihan tambahan jam yang ditawarkan, paling banyak. */
-const MAX_CHIPS = 3;
 /** Sisa menit di bawah ini dianggap mendesak. */
 const URGENT_MINUTES = 15;
 
@@ -144,7 +147,9 @@ export default async function ExtensionPage({
   // this page used to read the same booking on the code alone. Same gate, same place:
   // before any query.
   if (!(await hasBookingAccess(code))) {
-    redirect(`/cek-booking?code=${encodeURIComponent(code)}`);
+    redirect(
+      `/cek-booking?code=${encodeURIComponent(code)}&next=${encodeURIComponent(`/extension?code=${code}`)}`,
+    );
   }
 
   const db = createAdminClient();
@@ -157,24 +162,40 @@ export default async function ExtensionPage({
 
   /* ---- waktu (dihitung di server, saat halaman dimuat) ---- */
   const now = Date.now();
-  const endMs = Date.parse(info.scheduled_end_at);
-  const maxMs = info.latest_extendable_at ? Date.parse(info.latest_extendable_at) : Number.NaN;
-  const hasMax = Number.isFinite(maxMs);
-  const maxHours = hasMax ? Math.max(0, Math.floor((maxMs - endMs) / HOUR_MS)) : null;
-  // A limit already behind us, or with no whole hour of room left, means there is nothing
-  // to offer: sending the customer to the counter for it would only waste the minutes
-  // they have left.
-  const noRoom = hasMax && (maxMs <= now || maxHours === 0);
-  const hours = noRoom ? [] : Array.from({ length: Math.min(MAX_CHIPS, maxHours ?? MAX_CHIPS) }, (_, i) => i + 1);
-
+  // Satu sumber dengan RPC: hanya menawarkan tambahan yang benar-benar muat
+  // sebelum reservasi berikutnya, sudah memperhitungkan waktu pembersihan.
+  const { endMs, boundaryMs, safeEndMs, options, noRoom } = extensionWindow(info);
   const ended = Number.isFinite(endMs) && endMs <= now;
   const minsLeft = Number.isFinite(endMs) ? Math.round((endMs - now) / 60_000) : null;
   const urgent = info.status === "IN_USE" && !ended && minsLeft !== null && minsLeft <= URGENT_MINUTES;
 
+  const minExtend = info.config?.minimum_extension_minutes ?? 60;
+  const hasBoundary = boundaryMs !== null;
+  const roomHours = safeEndMs !== null ? Math.max(0, Math.floor((safeEndMs - endMs) / HOUR_MS)) : null;
+  const gapMinutes = safeEndMs !== null ? Math.max(0, Math.round((safeEndMs - endMs) / 60_000)) : null;
+
   const waLink = (text: string) => `https://wa.me/${WA_NUMBER}?text=${encodeURIComponent(text)}`;
-  const askHref = (n: number) =>
-    waLink(`Halo kasir, saya mau perpanjang ${n} jam untuk booking ${info.booking_code}${unitName ? ` (${unitName})` : ""}.`);
   const helpHref = waLink(`Halo kasir, saya butuh bantuan soal extension booking ${info.booking_code}.`);
+
+  // QR per nominal opsi, dihitung di server. Pelanggan memilih QRIS atau tunai
+  // setelah menekan tombol; QR tidak perlu dibuat ulang saat itu juga.
+  const payableOptions = await Promise.all(
+    options.map(async (o) => ({
+      ...o,
+      qrDataUrl: o.amount > 0 ? await dynamicQrisDataUrl(o.amount) : null,
+    })),
+  );
+
+  // Perpanjangan yang sudah dibuat tapi belum lunas tetap bisa dibayar setelah
+  // dialog ditutup atau halaman dimuat ulang.
+  const pendingExtension = info.active_extension;
+  const pendingQr =
+    pendingExtension &&
+    pendingExtension.payment_status === "PENDING" &&
+    pendingExtension.payment_method === "QRIS_MANUAL" &&
+    pendingExtension.amount > 0
+      ? await dynamicQrisDataUrl(pendingExtension.amount)
+      : null;
 
   const blocked = extendable ? null : (BLOCKED[info.status] ?? FALLBACK_BLOCKED);
   const BlockedIcon = blocked?.icon;
@@ -288,7 +309,7 @@ export default async function ExtensionPage({
               </section>
 
               {/* Jendela perpanjangan */}
-              {hasMax && !noRoom && (
+              {hasBoundary && !noRoom && (
                 <section aria-label="Batas perpanjangan" className="rounded-2xl border border-border bg-card p-5">
                   <h2 className="text-xs uppercase tracking-wider text-muted-foreground">Ruang perpanjangan</h2>
                   <div className="mt-4 flex items-center gap-2">
@@ -296,7 +317,7 @@ export default async function ExtensionPage({
                     <span className="relative flex h-6 flex-1 items-center">
                       <span aria-hidden className="h-0 w-full border-t-2 border-dashed border-primary/60" />
                       <span className="absolute left-1/2 -translate-x-1/2 rounded-full bg-primary/15 px-2.5 py-0.5 text-[11px] font-bold text-primary">
-                        s/d +{maxHours} jam
+                        s/d +{roomHours} jam
                       </span>
                     </span>
                     <span aria-hidden className="size-3 shrink-0 rounded-full border-2 border-primary bg-background" />
@@ -307,59 +328,114 @@ export default async function ExtensionPage({
                       <b>{stamp(endMs, endMs)}</b>
                     </span>
                     <span className="text-right">
-                      <span className="block text-muted-foreground">Maks. sampai</span>
-                      <b>{stamp(maxMs, endMs)}</b>
+                      <span className="block text-muted-foreground">Unit dipesan lagi</span>
+                      <b>{stamp(boundaryMs as number, endMs)}</b>
                     </span>
                   </div>
+                </section>
+              )}
+
+              {/* Tidak ada reservasi berikutnya: unit bebas, bukan "tidak ada ruang". */}
+              {!hasBoundary && !ended && (
+                <section className={cn("rounded-2xl border p-4", TONE_BOX.success)}>
+                  <p className="inline-flex items-center gap-2 text-sm font-bold text-success">
+                    <CircleCheck aria-hidden className="size-4" /> Unit kosong setelah sesi ini
+                  </p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Tidak ada booking lain yang mengantre unit ini. Kasir tetap mengonfirmasi saat
+                    kamu minta.
+                  </p>
                 </section>
               )}
 
               {noRoom && (
                 <section className={cn("rounded-2xl border p-5", TONE_BOX.warning)}>
                   <p className="inline-flex items-center gap-2 text-sm font-bold text-warning">
-                    <TriangleAlert aria-hidden className="size-4" /> Belum ada ruang untuk tambahan 1 jam penuh
+                    <TriangleAlert aria-hidden className="size-4" /> Tidak ada jeda untuk tambahan 1 jam
                   </p>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    Batas perpanjangan untuk sesi ini sudah dekat atau terlewat
-                    {hasMax && maxMs > now ? ` (maks. ${fmtDateTime(info.latest_extendable_at!)})` : ""}. Tanya kasir untuk
-                    opsi lain.
+                    Unit sudah dipesan lagi{" "}
+                    <b className="text-foreground">{fmtDateTime(info.latest_extendable_at!)}</b>
+                    {gapMinutes !== null && gapMinutes > 0
+                      ? ` — hanya ada jeda ${gapMinutes} menit, sedangkan minimum tambahan ${fmtDuration(minExtend)}.`
+                      : " — tidak ada jeda setelah sesi ini."}{" "}
+                    Tanya kasir kalau mau pindah unit, atau mulai sesi baru setelah jam itu.
                   </p>
                 </section>
               )}
 
+              {/* Pembayaran perpanjangan yang belum lunas — tetap terlihat walau daftar
+                  opsi sudah habis atau halaman dimuat ulang. */}
+              {pendingExtension && pendingExtension.payment_status === "PENDING" && (
+                <section className="rounded-2xl border border-primary/30 bg-card p-5">
+                  <h2 className="font-display flex items-center gap-2 text-lg uppercase">
+                    <Wallet aria-hidden className="size-4 text-primary" /> Pembayaran perpanjangan
+                  </h2>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    +{pendingExtension.requested_minutes / 60} jam sampai{" "}
+                    <b className="text-foreground">{fmtDateTime(pendingExtension.new_end_at)}</b> ·{" "}
+                    <b className="text-foreground">{rp(pendingExtension.amount)}</b>
+                  </p>
+
+                  {pendingExtension.payment_method === "QRIS_MANUAL" ? (
+                    pendingQr ? (
+                      <div className="mt-3 flex justify-center rounded-xl bg-white p-3">
+                        {/* eslint-disable-next-line @next/next/no-img-element -- data URI, ukuran eksplisit */}
+                        <img
+                          src={pendingQr}
+                          alt={`QRIS perpanjangan ${info.booking_code}`}
+                          width={224}
+                          height={224}
+                          className="size-56"
+                        />
+                      </div>
+                    ) : (
+                      <p className="mt-3 rounded-lg border border-warning/40 bg-warning/10 p-3 text-sm text-warning">
+                        QRIS belum aktif. Bayar di kasir saat check-out.
+                      </p>
+                    )
+                  ) : (
+                    <p className="mt-3 rounded-lg bg-surface-low px-3 py-2 text-sm text-muted-foreground">
+                      Metode: tunai di kasir. Pembayaran dilunasi saat check-out.
+                    </p>
+                  )}
+
+                  {pendingExtension.payment_method === "QRIS_MANUAL" && pendingQr && (
+                    <div className="mt-3">
+                      <ExtensionProofForm
+                        code={info.booking_code}
+                        extensionId={pendingExtension.extension_id}
+                        nominal={pendingExtension.amount}
+                      />
+                    </div>
+                  )}
+
+                  {pendingExtension.proof_count > 0 && (
+                    <p className="mt-2 text-xs text-primary">
+                      {pendingExtension.proof_count} bukti sudah diunggah — menunggu verifikasi
+                      kasir.
+                    </p>
+                  )}
+                </section>
+              )}
+
               {/* Pilihan tambahan */}
-              {hours.length > 0 && (
+              {options.length > 0 && (
                 <section>
                   <h2 className="font-display flex items-center gap-2 text-lg uppercase">
                     <Zap aria-hidden className="size-4 text-primary" /> Pilih tambahan waktu
                   </h2>
-                  <ul className="mt-3 grid gap-3 sm:grid-cols-3">
-                    {hours.map((n) => (
-                      <li key={n}>
-                        <a
-                          href={askHref(n)}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="group relative block overflow-hidden rounded-2xl border border-border bg-card p-4 text-center transition-all hover:-translate-y-1 hover:border-primary/60 hover:shadow-lg active:scale-[0.98]"
-                        >
-                          <span aria-hidden className="absolute -right-6 -top-8 size-20 rounded-full bg-primary/10 blur-2xl transition-opacity group-hover:opacity-100" />
-                          <span className="font-display block text-4xl leading-none tabular-nums text-primary">+{n}</span>
-                          <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">jam</span>
-                          {endMs > now && (
-                            <span className="mt-2 block text-xs text-muted-foreground">
-                              sampai <b className="text-foreground">{stamp(endMs + n * HOUR_MS, endMs)}</b>
-                            </span>
-                          )}
-                          <span className="mt-3 inline-flex items-center gap-1 text-[11px] font-bold uppercase text-primary">
-                            <MessageCircle aria-hidden className="size-3.5" /> Minta via WA
-                          </span>
-                        </a>
-                      </li>
-                    ))}
-                  </ul>
+                  <div className="mt-3">
+                    <ExtendActions
+                      code={info.booking_code}
+                      options={payableOptions}
+                      waHref={helpHref}
+                    />
+                  </div>
                   <p className="mt-2 text-xs text-muted-foreground">
-                    Ini hanya permintaan ke kasir. Ketersediaan slot dan total dicek kasir di tempat
-                    {maxHours === null ? ", dan batas maksimumnya belum diketahui dari sini" : ""}.
+                    Pilih QRIS untuk membayar sekarang tanpa ke kasir, atau tunai di kasir saat
+                    check-out. Slot langsung dikunci begitu kamu memilih. Minimum tambahan{" "}
+                    {fmtDuration(minExtend)}.
                   </p>
                 </section>
               )}

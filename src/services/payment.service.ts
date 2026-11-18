@@ -14,7 +14,7 @@ export class PaymentError extends Error {
   }
 }
 
-/** Midtrans charges exactly the booking total; no partial payments. */
+/** Pembayaran selalu tepat sebesar total booking; tidak ada pembayaran sebagian. */
 export async function createPaymentForBooking(
   db: DB,
   bookingCode: string,

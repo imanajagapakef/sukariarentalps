@@ -135,6 +135,32 @@
     from { opacity: 0; transform: translateY(6px); }
     to   { opacity: 1; transform: none; }
   }
+
+  /*
+    Popup "pembayaran diterima" di tiket pelanggan. Dipakai lewat arbitrary
+    animation utilities (`animate-[pop-in_…]`) supaya keyframes-nya bisa
+    dirujuk tanpa nama theme tambahan.
+  */
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+
+  @keyframes pop-in {
+    from { opacity: 0; transform: translate(-50%, -46%) scale(0.94); }
+    to   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  }
+
+  @keyframes badge-pop {
+    0%   { transform: scale(0.4) rotate(-12deg); opacity: 0; }
+    60%  { transform: scale(1.08) rotate(2deg); opacity: 1; }
+    100% { transform: scale(1) rotate(0); opacity: 1; }
+  }
+
+  @keyframes confetti {
+    0%   { transform: translateY(0) rotate(0); opacity: 1; }
+    100% { transform: translateY(64px) rotate(200deg); opacity: 0; }
+  }
 }
 
 @layer base {
